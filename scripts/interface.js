@@ -238,9 +238,6 @@ define([
       
       if (gen < 0) return; //skip point
       
-      if (Math.random() > 0.99) {
-        console.trace(gen, this.max_level(), this.maxgen)
-      }
       var d = 1.0 - gen/this.max_level();
 
       //XXX
