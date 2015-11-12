@@ -215,7 +215,7 @@ define([
       
       var iview = new Int32Array(this.mask.buffer);
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = 255;
+      this.mask[3] = 0;
       iview.fill(iview[0], 0, iview.length);
       
       this.points = [];
@@ -279,7 +279,7 @@ define([
     
     function raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = 255;
+      this.mask[3] = 0;
       
       var iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
