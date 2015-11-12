@@ -17,7 +17,9 @@ define([
       MaskGenerator.call(this, appstate);
       
       this.cells = this.cellsize = undefined;
+      this._colortots = [0, 0, 0, 0]; //temporary variable
       
+      this.pass = 0;
       this.r = this.final_r = undefined;
       this.hlvl = this.hmul = this.hsteps = undefined;
     },
@@ -161,6 +163,8 @@ define([
       var final_r = this.final_r;
       var hlvl = this.hlvl;
       
+      this.pass++;
+      
       var t;
       //*
       if (this.hsteps == 1)
@@ -219,8 +223,8 @@ define([
           var x1 = x+ox, y1 = y+oy;
           
           var rsqr = r*r;
-          var rsqr2 = rcolor*rcolor;
           var rcolor = r*2.5;
+          var rsqr2 = rcolor*rcolor;
           
           var rmul = Math.max(LIMIT_DISTANCE ? 5.0 : 3.0, rcolor*1.5);
           
@@ -235,8 +239,8 @@ define([
             if (dis < rsqr2) {
               var w = dis != 0.0 ? Math.sqrt(dis) / rcolor: 0.0;
               w = 1.0 - w;
-              w = w*w*(3.0 - 2.0*w);
               
+              w = w*w*(3.0 - 2.0*w);
               clrtots[color2] += w;
             }
             
@@ -279,13 +283,22 @@ define([
           ps.push(0);
         }
         
+        var pi2 = ~~(pi/PTOT);
+        
+        ps[pi+PR2] = r;
         ps[pi+PCLR] = color;
         ps[pi] = x, ps[pi+1] = y, ps[pi+PR]=final_r, ps[pi+PGEN]=hlvl;
-        kdtree.insert(x, y, ~~(pi/PTOT));
+        kdtree.insert(x, y, pi2);
         
-        this.find_mask_pixel(~~(pi/PTOT));
-        this.raster_point(~~(pi/PTOT));
+        this.find_mask_pixel(pi2);
+        this.raster_point(pi2);
       }
+      
+      /*
+      for (var i=0; i<ps.length; i += PTOT) {
+        this.color_point(i/PTOT);
+      }
+      //*/
       
       this.update_cells();
       this.raster();
@@ -295,6 +308,82 @@ define([
         this.report("hiearchial level: ", this.hlvl, "of", this.hsteps);
         this.report("cells:", this.cells.length/CTOT);
       }
+    },
+    
+    function color_point(pi) {
+      var ps = this.points, kdtree = this.kdtree, r = this.r;
+      var final_r = this.final_r;
+      var hlvl = this.hlvl;
+      var r = ps[pi*PTOT+PR2];
+      
+      if (Math.random() < 0.98) {
+        //return;
+      }
+      
+      var cells = this.cells, cellsize = this.cellsize;
+      var icellsize = 1.0 / cellsize;
+      var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
+      
+      var clrtots = this._colortots;
+      clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
+      
+      var color = 0;
+      
+      for (var i=0; i<_poffs.length; i++) {
+        if (i > 0 && !TILABLE)
+          break;
+        
+        var ox = _poffs[i][0], oy = _poffs[i][1];
+        
+        var x1 = x+ox, y1 = y+oy;
+        
+        var rsqr = r*r;
+        var rcolor = r*8.0;
+        var rsqr2 = rcolor*rcolor;
+        
+        var rmul = Math.max(LIMIT_DISTANCE ? 5.0 : 3.0, rcolor*1.25);
+        
+        //
+        kdtree.forEachPoint(x1, y1, r*rmul, function(pi) {
+          var x2 = ps[pi*PTOT]-(x+ox), y2 = ps[pi*PTOT+1]-(y+oy);
+          var r2 = ps[pi*PTOT+PR], color2 = ps[pi*PTOT+PCLR];
+          var gen2 = ps[pi*PTOT+PGEN];
+
+          if (gen2 > gen) {
+            return;
+          }
+          
+          var dis = x2*x2 + y2*y2;
+          
+          if (dis < rsqr2) {
+            var w = dis != 0.0 ? Math.sqrt(dis) / rcolor: 0.0;
+            w = 1.0 - w;
+            w = w*w*(3.0 - 2.0*w);
+            
+            clrtots[color2] += w;
+          }
+        });
+      }
+      
+      if (clrtots[0] < clrtots[1] && clrtots[0] < clrtots[2] && clrtots[0] < clrtots[3])
+        color = 0;
+      else if (clrtots[1] < clrtots[0] && clrtots[1] < clrtots[2] && clrtots[1] < clrtots[3])
+        color = 1;
+      else if (clrtots[2] < clrtots[1] && clrtots[2] < clrtots[0] && clrtots[2] < clrtots[3])
+        color = 2;
+      else if (clrtots[3] < clrtots[1] && clrtots[3] < clrtots[2] && clrtots[3] < clrtots[0])
+        color = 3;
+      else if (clrtots[0] == clrtots[1] && clrtots[0] == clrtots[2] && clrtots[0] == clrtots[3])
+        return;
+      else
+//        return;
+        color = ~~(Math.random()*3.99999)
+      
+      //var i = ~~(this.pass / 5);
+      //if (i % 4 != color) return;
+      
+      //if (color != 3) return;
+      ps[pi*PTOT+PCLR] = color;
     },
     
     function make_cells() {
@@ -323,6 +412,7 @@ define([
     function reset(size, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       
+      this.pass = 0;
       this._cur = 0;
       
       var totpoint = size*size;

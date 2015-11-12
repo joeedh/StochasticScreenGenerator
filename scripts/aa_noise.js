@@ -805,7 +805,6 @@ define([
       var ps = this.points;
       var offs = this.offsets;
       var msize = this.mask_img.width;
-      this.maxgen = 0;
       
       for (var i=0; i<ps.length; i += PTOT) {
         var c = ps[i+PD];
@@ -1100,6 +1099,8 @@ define([
     },
     
     function label_hiearchy() {
+      return; //unused
+      
       var use_avg_dis = true;
       
       var test_without_offsets = 0;
