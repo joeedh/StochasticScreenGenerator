@@ -16,8 +16,10 @@ define([
     function constructor(appstate) {
       MaskGenerator.call(this, appstate);
       
-      this.report("NOTE: Noise is applied within hiearchial levels");
+      this.report("\nNOTE: Noise is applied within hiearchial levels");
       this.report("  (click \"Show Mask\")")
+      this.report("\nNOTE: pressure \"Start Generating\" to improve")
+      this.report("  the distribution between levels\n");
     },
     
     function reset(dimen, appstate, mask_image) {

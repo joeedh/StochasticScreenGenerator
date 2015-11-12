@@ -78,6 +78,7 @@ window.DISPLAY_TILED = true;
 window.NO_COLOR = false;
 window.ALLOW_OVERDRAW = false;
 
+window.AA_SPEED = 0.5;
 window.SPH_SPEED = 1.0;
 window.DIMEN = 50;
 

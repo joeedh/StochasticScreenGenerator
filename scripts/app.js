@@ -884,6 +884,19 @@ define([
       var panel2 = panel.panel("Radius Curve");
       panel2.curve('radius_curve', 'Radius Curve', presets.RADIUS_CURVE);
       panel2.close();
+
+      var panel2 = panel.panel("AA");
+      
+      panel2.slider('aa_speed', 'Speed', 0.001, 2.0, 0.0001, false, false);
+      panel2.button('clear_aa_cache', "Clear Cache", function() {
+        
+        if (_appstate.generator instanceof aa_noise.AANoiseGenerator) {
+          _appstate.generator.delete_offsets();
+        } else {
+          _appstate.report("Error: not in AA mode");
+        }
+      }, this);
+      panel2.close();
       
       panel.check('limit_distance', 'Pack Densely');
       panel.slider('distance_limit', 'Pack Threshold', 0.01, 1.2, 0.001, false, false);

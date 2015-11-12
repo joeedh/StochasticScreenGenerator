@@ -1039,8 +1039,8 @@ define([
           sumy /= sumtot;
         }
         
-        x = ps[i] - sumx*0.5*SPH_SPEED;
-        y = ps[i+1] - sumy*0.5*SPH_SPEED;
+        x = ps[i] - sumx*0.5*AA_SPEED;
+        y = ps[i+1] - sumy*0.5*AA_SPEED;
         
         if (x < bl || x > 1.0-bl*2 || y < bl || y > 1.0 - bl*2) {
         //  continue;
