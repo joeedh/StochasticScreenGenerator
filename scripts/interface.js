@@ -13,6 +13,8 @@ define([
       this.appstate = appstate;
       this.colors = CMYK;
       
+      this.draw_rmul = 1.0;
+      
       this.points = [];
       this.kdtree = new kdtree.KDTree();
     },

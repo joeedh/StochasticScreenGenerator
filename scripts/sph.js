@@ -25,6 +25,8 @@ define([
     function constructor(appstate) {
       MaskGenerator.call(this, appstate);
       
+      this.draw_rmul = 0.4;
+      
       this._ki = 0;
       
       this.speedmul = 1.0;

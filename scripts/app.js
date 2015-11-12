@@ -678,6 +678,8 @@ define([
       var ps = this.generator.points;
       var colors = this.generator.colors;
       
+      var drmul = DRAW_RMUL*this.generator.draw_rmul;
+      
       for (var _j=0; _j<colors.length; _j++) {
         var j = _j % colors.length;
         
@@ -708,7 +710,7 @@ define([
             continue;
           
           g.moveTo(x, y);
-          g.arc(x, y, r*0.5*DRAW_RMUL, -Math.PI, Math.PI);
+          g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
         }
         g.fill();
       }
