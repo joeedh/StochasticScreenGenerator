@@ -19,3 +19,5 @@ for digital halftoning/stippling.  It has four methods:
 
 Usage
 ==========================
+
+Load bluenoise9.html in a web browser.  Press "Start Generating".
