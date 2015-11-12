@@ -1,4 +1,4 @@
-Stochastic Screen Generator (for printing)
+Stochastic Screen Generator (for printing, stippling, etc)
 ==========================================
 
 This little web app generates stochastic (blue noise) screens
