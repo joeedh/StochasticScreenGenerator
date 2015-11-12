@@ -48,8 +48,8 @@ works in basically the same way, but works better with AA patterns.
 
 Using with Blue Noise Stippler
 ==============================
-To test the generated masks, you can use [this stippling app of mine](http://joeedh.github.io/BlueNoiseStippling/bluenoise6.html).
-[Here's a direct link](https://github.com/joeedh/BlueNoiseStippling) to the app itself.
+To test the generated masks, you can use [this stippling app of mine](https://github.com/joeedh/BlueNoiseStippling).
+[Here's a direct link](http://joeedh.github.io/BlueNoiseStippling/bluenoise6.html) to the app itself.
 
 Click on the "Save To Cache" button on the lower-right side of the screen.  You should see a 
 message like "saving blue noise mask to local storage."  You should be able to use the new mask
