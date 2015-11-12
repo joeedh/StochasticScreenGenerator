@@ -46,6 +46,16 @@ are coarser than it is, but not ones that are more dense.  This was my first att
 I also tried the Weighted Sample Removal paper, but then it dawned on me that the SPH method 
 works in basically the same way, but works better with AA patterns.
 
+Using with Blue Noise Stippler
+==============================
+To test the generated masks, you can use [this stippling app of mine](http://joeedh.github.io/BlueNoiseStippling/bluenoise6.html).
+[Here's a direct link](https://github.com/joeedh/BlueNoiseStippling) to the app itself.
+
+Click on the "Save To Cache" button on the lower-right side of the screen.  You should see a 
+message like "saving blue noise mask to local storage."  You should be able to use the new mask
+in the stippling app.
+
+
 
 
 
