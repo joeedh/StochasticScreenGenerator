@@ -893,6 +893,13 @@ define([
       panel.check("draw_color", "Show Colors");
       panel.check("GEN_CMYK_MASK", "Make Color Mask");
       
+      panel.button('save_mask', "Save To Cache", function() {
+        this2.report("\nSaving blue noise mask to local storage");
+        //this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
+        
+        localStorage.startup_mask_bn4 = _appstate.save();
+      });
+      
       var panel = this.gui = new ui.UI();
       //    function listenum(id, list, defaultval, callback, thisvar) {
         
@@ -948,15 +955,7 @@ define([
         window.open(_appstate.save());
       });
       
-      if (DEV_MODE) {
-        var this2 = this;
-        panel.button('save_mask', "Cache Mask", function() {
-          this2.report("\nSaving blue noise mask to local storage");
-          this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
-          
-          localStorage.startup_mask_bn4 = _appstate.save();
-        });
-      }
+      var this2 = this;
       
       panel.button('save_matrix', "Save PS Matrix", function() {
         _appstate.save_ps_matrix();
