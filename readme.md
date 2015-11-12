@@ -55,6 +55,11 @@ Click on the "Save To Cache" button on the lower-right side of the screen.  You 
 message like "saving blue noise mask to local storage."  You should be able to use the new mask
 in the stippling app.
 
+FFT
+===
+The FFT power spectrum feature is ported [from PSA](https://github.com/nodag/psa).
+I recommend using it with "dimensions" set to 50 or less (I usually use 32).
+
 
 
 
