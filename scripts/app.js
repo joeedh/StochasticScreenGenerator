@@ -6,9 +6,9 @@ var _app = undefined;
 
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
-  'spectral', 'jitter', 'aa_noise', 'presets'
+  'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster'
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, sph_presets,
-            spectral, jitter, aa_noise, presets) 
+            spectral, jitter, aa_noise, presets, void_cluster) 
 {
   'use strict';
   
@@ -18,9 +18,10 @@ define([
   var generators = [
     sph.SPHGenerator,
     darts.DartsGenerator,
-    //spectral.SpectralGenerator,
+    spectral.SpectralGenerator,
     jitter.JitterGenerator,
-    aa_noise.AANoiseGenerator
+    aa_noise.AANoiseGenerator,
+    void_cluster.VoidClusterGenerator
   ];
   
   var sin_table = (function() {
@@ -89,24 +90,7 @@ define([
       if (MODE != this._last_mode) {
         console.log("switching generator type");
         
-        switch (MODE) {
-          default:
-          case 0:
-            this.generator = new sph.SPHGenerator(this);
-            break;
-          case 1:
-            this.generator = new darts.DartsGenerator(this);
-            break;
-          case 2:
-            this.generator = new spectral.SpectralGenerator(this);
-            break;
-          case 3:
-            this.generator = new jitter.JitterGenerator(this);
-            break;
-          case 4:
-            this.generator = new aa_noise.AANoiseGenerator(this);
-            break;
-        }
+        this.generator = new generators[MODE];
         
         this._last_mode = MODE;
       }
@@ -379,10 +363,14 @@ define([
       
       var mask = this.mask;
       var plen = this.generator.points.length/PTOT;
-      //var size = this.dimen;
       
+      var size = this.dimen;
       var msize = this.mask_img.width;
-      var size = ~~(Math.sqrt(plen)*0.9);
+      //var size = ~~(Math.sqrt(plen)*0.9);
+      
+      //we didn't generate mask in small mask mode.
+      //we'll have to rebase
+      var rebase = msize != size;
       
       var grid = new Float64Array(size*size);
       var tots = new Int32Array(size*size);
@@ -404,11 +392,15 @@ define([
           continue;
         }
         
-        var ix = ~~(size*(x+0.0));
-        var iy = ~~(size*(y+0.0));
+        var ix, iy;
         
-        ix = ~~(size*ps[i+PIX]/msize+0.0001);
-        iy = ~~(size*ps[i+PIY]/msize+0.0001);
+        if (rebase) {
+          ix = ~~(size*((ps[i+PIX]+0.0001)/msize)+0.0001);
+          iy = ~~(size*((ps[i+PIY]+0.0001)/msize)+0.0001);
+        } else {
+          ix = ps[i+PIX];
+          iy = ps[i+PIY];
+        }
         
         if (ix < 0) continue;
         if (ix < 0 || iy < 0 || ix >= size || iy >= size) continue;
@@ -637,14 +629,9 @@ define([
       
       if (DRAW_MASK) {
         var mg = this.mask_g;
-        g.fillStyle = "rgb(180, 120, 20)";
         mg.putImageData(this.mask_img, 0, 0);
         
         g.imageSmoothingEnabled = false;
-        
-        //g.beginPath();
-        //g.rect(20, 20, this.mask_canvas.width*2, this.mask_canvas.height*2);
-        //g.fill();
         
         var msize = this.mask_canvas.width;
         var tottile= DISPLAY_TILED ? 4 : 1;
@@ -654,6 +641,12 @@ define([
         
         for (var x=0; x<tottile; x++) {
           for (var y=0; y<tottile; y++) {
+            
+            g.beginPath();
+            g.fillStyle = "rgb(0, 0, 0)";
+            g.rect(20+msize*x, 20+msize*y, this.mask_canvas.width+1, this.mask_canvas.height+1);
+            g.fill();
+            
             g.drawImage(this.mask_canvas, 20+msize*x, 20+msize*y);
           }
         }
@@ -693,26 +686,33 @@ define([
           g.fillStyle = "black";
         }
         
-        g.beginPath();
-        for (var i=0; i<ps.length; i += PTOT) {
-          var x = ps[i], y = ps[i+1], r = ps[i+PR], gen = ps[i+PGEN];
-          var color = ps[i+PCLR];
-          
-          r = this.generator.r;
-          
-          //CMYK
-          if (color != j) continue;
-          
-          var gen2 = (i/ps.length);
-          restrict = DRAW_RESTRICT_LEVEL;
-          
-          if (gen2 != -1 && gen2 > restrict)
-            continue;
-          
-          g.moveTo(x, y);
-          g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
+        for (var si=0; si<_poffs.length; si++) {
+          if (!DRAW_TILED && si > 0) 
+            break;
+            
+          g.beginPath();
+          for (var i=0; i<ps.length; i += PTOT) {
+            var x = ps[i], y = ps[i+1], r = ps[i+PR], gen = ps[i+PGEN];
+            var color = ps[i+PCLR];
+            
+            x += _poffs[si][0], y += _poffs[si][1];
+            
+            r = this.generator.r;
+            
+            //CMYK
+            if (color != j) continue;
+            
+            var gen2 = (i/ps.length);
+            restrict = DRAW_RESTRICT_LEVEL;
+            
+            if (gen2 != -1 && gen2 > restrict)
+              continue;
+            
+            g.moveTo(x, y);
+            g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
+          }
+          g.fill();
         }
-        g.fill();
       }
       
       this.generator.draw(g);
@@ -862,6 +862,7 @@ define([
       
       var list = {
       }
+      
       for (var k in sph_presets.presets) {
         list[k] = k;
       }
@@ -916,7 +917,6 @@ define([
       });
       
       var panel = this.gui = new ui.UI();
-      //    function listenum(id, list, defaultval, callback, thisvar) {
         
       panel.button('fft', "FFT", function() {
         if (window._fft_timer != undefined) {
@@ -932,6 +932,8 @@ define([
       var uinames = {};
       for (var k in MODES) {
         var k2 = k[0] + k.slice(1, k.length).toLowerCase();
+        k2 = k2.replace(/[_]+/g, " ");
+        
         uinames[k2] = MODES[k];
       }
       
@@ -992,6 +994,7 @@ define([
       panel.check('draw_kdtree', 'Show kd-tree');
       panel.check('draw_mask', 'Show Mask');
       panel.check('small_mask', 'Small Mask');
+      panel.check('draw_tiled', 'Draw Tiled');
       
       if (DEV_MODE) {
         panel.check("allow_overdraw", "Allow Overdraw");

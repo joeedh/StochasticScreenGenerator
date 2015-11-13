@@ -82,22 +82,24 @@ define([
             ps[pi+PIX] = ~~(x*msize+0.001);
             ps[pi+PIY] = ~~(y*msize+0.001);
             
-            var lvl = this.hsteps - si - 1;
+            //var lvl = this.hsteps - si - 1;
             
-            lvl = lvl / this.hsteps;
-            lvl = Math.pow(lvl, 4.0);
-            lvl = ~~(lvl * this.hsteps);
+            //lvl = lvl / this.hsteps;
+            //lvl = Math.pow(lvl, 4.0);
+            //lvl = ~~(lvl * this.hsteps);
             
-            lvl = ~~(random()*this.hsteps*0.9999999);
+            var lvl = ~~(random()*this.hsteps*0.9999999);
             
             ps[pi+PR] = r;
-            ps[pi+PGEN] = 1;//lvl;
+            ps[pi+PGEN] = lvl;
             
             this.kdtree.insert(x, y, pi/PTOT);
           }
         }
       }
       
+      this.step();
+      this.step();
       this.step();
       this.raster();
     },
@@ -133,13 +135,14 @@ define([
         
         lvltots.fill(0, 0, lvltots.length);
         var sumw = 0, sumtot = 0;
+        var mul = 8.0;
         
         for (var j=0; j<_poffs.length; j++) {
           var x1 = x + _poffs[j][0], y1 = y + _poffs[j][1];
           
-          this.kdtree.forEachPoint(x1, y1, 1.5*this.r*this.hscale, function(pi) {
+          this.kdtree.forEachPoint(x1, y1, 2.0*this.r*this.hscale, function(pi) {
             var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], lvl2=ps[pi*PTOT+PGEN];
-            var r2 = rs[lvl2];
+            var r2 = rs[lvl2]*mul;
             
             if (pi == i/PTOT) return;
             
@@ -150,12 +153,12 @@ define([
               w = 1.0 - w/r2;
               
               w = w*w*(3.0 - 2.0*w);
-              w *= w;
+              w = Math.pow(w, 7.0);
               
               sumw += w;
               sumtot += 1;
               
-              lvltots[lvl2] += lvl2+1//r2;
+              lvltots[lvl2] += w;
             }
           });
         }
@@ -195,27 +198,7 @@ define([
         ps[i+PGEN] = lvl;
       }
     
-      var plen = this.points.length/PTOT;
-      var index = [];
-      
-      for (var i=0; i<plen; i++) {
-        index.push(i);
-      }
-      
-      index.sort(function(a, b) {
-        return ps[a*PTOT+PGEN] - ps[b*PTOT+PGEN];
-      });
-      
-      var ps2 = [];
-      for (var i=0; i<plen; i++) {
-        for (var j=0; j<PTOT; j++) {
-          ps2[i*PTOT+j] = ps[index[i]*PTOT+j];
-        }
-      }
-      
-      this.points = ps2;
-      this.regen_spatial();
-      
+      this.sort();
       this.raster();
     },
     

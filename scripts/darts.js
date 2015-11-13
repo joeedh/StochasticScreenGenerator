@@ -391,7 +391,7 @@ define([
       var dimen = ~~(1 / r);
       dimen *= 2;
       
-      console.log("cell size:", dimen);
+      //console.log("cell size:", dimen);
       
       var cells = this.cells = [];
       this.cellsize = dimen;
@@ -406,7 +406,7 @@ define([
         cells.push(y);
       }
       
-      console.log("cells:", this.cells.length/CTOT);
+      //console.log("cells:", this.cells.length/CTOT);
     },
     
     function reset(size, appstate, mask_image) {
@@ -510,7 +510,7 @@ define([
     
     function raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = 0;
+      this.mask[3] = SMALL_MASK ? 255 : 0;
       
       var iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
@@ -527,6 +527,27 @@ define([
     },
     
     function next_level(steps) {
+      
+      //scramble order of first level if pack densely is on
+      if (this.hlvl == 0 && LIMIT_DISTANCE) {
+        var ps = this.points;
+        
+        for (var i=0; i<ps.length; i += PTOT) {
+          var gen = ps[i+PGEN];
+          
+          ps[i+PGEN] = ~~(Math.random()*5);
+        }
+        
+        this.sort();
+        
+        for (var i=0; i<ps.length; i += PTOT) {
+          var gen = ps[i+PGEN];
+          
+          ps[i+PGEN] = 0;
+        }
+      }
+      
+      
       steps = steps == undefined ? 1 : steps;
       
       for (var i=0; i<steps; i++) {

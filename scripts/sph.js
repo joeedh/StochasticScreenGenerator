@@ -50,6 +50,8 @@ define([
         steps = steps == undefined ? 110 : steps;
         var size=this.gridsize, grid=this.grid;
             
+        console.log("points", this.points.length);
+        
         for (var si=0; si<steps; si++) {
             var x, y;
             
@@ -71,7 +73,7 @@ define([
             var idx = (iy*size+ix)*GTOT;
             
             if (grid[idx+GFILLED]==1) {
-                continue;
+                //continue;
             }
             
             var pi = this.points.length/PTOT;
@@ -111,7 +113,6 @@ define([
         var lvl = 0;
         
         var off = Math.ceil(d*d*Math.sqrt(2.0));
-        console.log("OFF", off);
         
         var base  = Math.pow(final_scale, 1.0/this.points.length);
         var mulbase = 1.0/base;

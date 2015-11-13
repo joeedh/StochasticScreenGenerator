@@ -10,7 +10,8 @@ window.MODES = {
   DART     : 1,
 //  SPECTRAL : 2,
   JITTER   : 3,
-  AA       : 4
+  AA       : 4,
+  VOID_CLUSTER : 5
 };
 
 window.MODE = MODES.DART;
@@ -29,8 +30,7 @@ window.AA_ADD_JITTER = 0;
 //var AA_SEED = 0.001327338899593235; //0.617411; //2.3683055473992147;
 
 //simplex version
-//var AA_SEED = 0.0012417041318775422;
-var AA_SEED = 0.07350273436363906;
+var AA_SEED = 0.07350273436363906; //0.07037613901662089
 
 //0.617411
 //0.40656
@@ -56,7 +56,7 @@ var AA_SEED = 0.07350273436363906;
 var AA_BASE = 22383453;
 //previously: 23355
 
-var AA_LIMIT =  0.45325; //0.485879655; //0.495;//0.3227518406;
+var AA_LIMIT = 0.45325; //0.5837
   
 var EXPLORE_AA_SEED = 0;
 var EXPLORE_AA_LIMIT = 0;
@@ -74,7 +74,7 @@ window.RADIUS_CURVE = undefined;
 window.GEN_MASK = true;
 window.GEN_CMYK_MASK = false;
 
-window.DISPLAY_TILED = true;
+window.DISPLAY_TILED = true;  
 window.NO_COLOR = false;
 window.ALLOW_OVERDRAW = false;
 
@@ -111,6 +111,7 @@ Math.random = function() {
 }
 
 window.DRAW_RESTRICT_LEVEL = 1;
+window.DRAW_TILED = false;
 
 window.SMALL_MASK = false;
 
