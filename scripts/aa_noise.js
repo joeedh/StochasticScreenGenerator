@@ -509,6 +509,8 @@ define([
     },
     
     function reset(dimen, appstate, mask_image) {
+      this.dimen1 = dimen;
+      
       dimen *= 2;
 
       if (EXPLORE_AA_LIMIT || EXPLORE_AA_SEED) {
@@ -612,7 +614,7 @@ define([
       this.nice = false;
       
       if (EXPLORE_AA_SEED || EXPLORE_AA_LIMIT) {
-        this.reset(this.dimen, _appstate, this.mask_img);
+        this.reset(this.dimen1, _appstate, this.mask_img);
       } else {
         this.label_hiearchy();
       }

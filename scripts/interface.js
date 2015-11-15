@@ -8,15 +8,111 @@ define([
   var exports = _interface = {};
   var Class = util.Class;
   
+  var MaskConfig = exports.MaskConfig = Class([
+    function constructor() {
+      this.update();
+      
+      this.RELAX_CURRENT_LEVEL = false;
+    },
+    
+    function update() {
+      this.CMYK = CMYK;
+      this.GEN_MASK = GEN_MASK;
+      this.FFT_TARGETING = FFT_TARGETING;
+      
+      this.RADIUS_CURVE = RADIUS_CURVE;
+      this.TONE_CURVE = TONE_CURVE;
+      this.SPH_CURVE = SPH_CURVE;
+      this.FFT_CURVE = FFT_CURVE;
+      
+      this.GEN_CMYK_MASK = GEN_CMYK_MASK;
+      this.TILABLE = TILABLE;
+      this.LIMIT_DISTANCE = LIMIT_DISTANCE;
+      this.DISTANCE_LIMIT = DISTANCE_LIMIT;
+      this.HIEARCHIAL_SCALE = HIEARCHIAL_SCALE;
+      this.HIEARCHIAL_LEVELS = HIEARCHIAL_LEVELS;
+      this.SPH_SPEED = SPH_SPEED;
+      
+      this.ALLOW_OVERDRAW = ALLOW_OVERDRAW;
+      this.SMALL_MASK = SMALL_MASK;
+    }
+  ]);
+  
   var MaskGenerator = exports.MaskGenerator = Class([
     function constructor(appstate) {
       this.appstate = appstate;
       this.colors = CMYK;
+      this.config = new MaskConfig();
       
       this.draw_rmul = 1.0;
       
       this.points = [];
       this.kdtree = new kdtree.KDTree();
+    },
+    
+    function set_config(config) {
+      this.config = config;
+    },
+    
+    function update_fscale(adaptive) {
+      var totpoint = this.points.length/PTOT;
+      
+      if (!adaptive) {
+        totpoint = this.dimen*this.dimen;
+      }
+      
+      //from PSA
+      var fnorm = 2.0 / Math.sqrt(totpoint);
+      var frange  = 10; // Frequency range relative to Nyq. freq. of hexagonal lattice
+      var fsize = Math.floor(frange/fnorm);
+      
+      //but, really use another size
+      var fsize2 = this.fft.size;
+      
+      this.fscale = fsize2/fsize;
+      
+      return this.fscale;
+    },
+
+    function ff_weight(seed) {
+      //randomly sample in fft;
+      var steps = 32;
+      
+      var err = 0.0;
+      var tot=0;
+      
+      if (seed != undefined) {
+        util.seed(seed);
+      }
+      
+      for (var i=0; i<steps; i++){ 
+        var x = util.random(), y = util.random();
+        var _i = 0;
+        
+        
+        while (x*x + y*y > 1.0) {
+          x = util.random(), y = util.random();
+          
+          if (_i++ > 1000) {
+            console.log("infinite loop! eek!");
+            break;
+          }
+        }
+        
+        var r = (x-0.5)*(x-0.5) + (y-0.5)*(y-0.5);
+        r = r != 0 ? Math.sqrt(r)*2.0 : r;
+        
+        var goal = FFT_CURVE.evaluate(r);
+        var f = this.fft.get(x, y)*0.5;
+        
+        var e = Math.abs(f-goal);
+        err += e*e;
+      }
+      
+      //use. . . variance of error?
+      err = err != 0.0 ? Math.sqrt(err) : 0.0;
+      
+      return err;
     },
     
     //console.log-style function, but without text coloring or anything like that
@@ -31,16 +127,21 @@ define([
       var searchfac = 5.0;
       
       var avgdis=0.0, tot=0.0;
+      var hr = this.r;
       
       for (var i=0; i<plen; i += PTOT) {
         var x = ps[i], y = ps[i+1], r = ps[i+PR];
         var gen1 = ps[i+PGEN];
+        
+        //in hiearchal mode, r might really be bigger
+        r = Math.max(r, hr);
         
         var searchrad = r*searchfac;
         
         this.kdtree.forEachPoint(x, y, searchrad, function(pi) {
           var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], r2=ps[pi*PTOT+PR];
           var gen2 = ps[pi*PTOT+PGEN];
+          r2 = Math.max(r, hr);
           
           if (pi == i/PTOT) {
             return;
@@ -65,13 +166,18 @@ define([
     function relax(use_avg_dis) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
-      console.log("warning, default implementation");
+      //console.log("warning, default implementation");
+      
+      var cf = this.config;
       
       var plen = this.points.length;
       var ps = this.points;
       var searchfac = 5.0;
       var msize = this.mask_img.width;
+      
       var r = this.r;
+      var curgen = this.current_level();
+      curgen = this.hlvl;
       
       if (use_avg_dis) {
         r = this.calc_avg_dis();
@@ -80,9 +186,16 @@ define([
       for (var i=0; i<plen; i += PTOT) {
         var x = ps[i], y = ps[i+1], r1 = ps[i+PR];
         var gen1 = ps[i+PGEN];
+        var hgen1 = ps[i+PD];
+        
+        //if (hgen1 != curgen && cf.RELAX_CURRENT_LEVEL) {
+        //  continue;
+        //}
         
         if (use_avg_dis)
           r1 = r;
+        else //r1 is often final radius, not current hiearchial one
+          r1 = Math.max(r1, r);
         
         var searchrad = r1*searchfac;
         var sumtot=1, sumx=x, sumy=y;
@@ -100,12 +213,12 @@ define([
             if (use_avg_dis)
               r2 = r;
             
-            if (pi == i/PTOT) {
+            if ((cf.GEN_MASK) && gen1 < gen2) {
               return;
             }
             
-            if (gen1 < gen2) {
-              //return;
+            if (pi == i/PTOT) {
+              return;
             }
             
             var dx = x2-x, dy = y2-y;
@@ -119,9 +232,8 @@ define([
             var r3 = Math.max(r2, r1);
             
             var w = 1.0 - dis/searchrad;
-            w = w*w;
             
-            var fac = 0.00001;
+            w = cf.SPH_CURVE.evaluate(w);
             
             dx /= dis;
             dy /= dis;
@@ -137,8 +249,9 @@ define([
         
         sumx /= sumtot;
         sumy /= sumtot;
-        ps[i] = sumx;
-        ps[i+1] = sumy;
+        
+        ps[i] += (sumx - ps[i])*cf.SPH_SPEED;
+        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED;
           
         ps[i] = Math.fract(ps[i]);
         ps[i+1] = Math.fract(ps[i+1]);
@@ -154,6 +267,9 @@ define([
     },
     
     function sort() {
+      console.trace("sort was called!");
+      return;
+      
       var plen = this.points.length/PTOT;
       var index = [];
       var ps = this.points;
@@ -210,6 +326,7 @@ define([
     function reset(size, appstate, mask_image) {
       this.appstate = appstate;
       
+      this.dimen = size;
       this.mask_img = mask_image;
       this.mask = mask_image.data;
       

@@ -3,8 +3,11 @@
 var _void_cluster = undefined;
 
 define([
-  "util", "const", "interface", "vectormath", "kdtree", "darts", "sph"
-], function(util, cconst, sinterface, vectormath, kdtree, darts, sph) {
+  "util", "const", "interface", "vectormath", "kdtree", "darts", "sph",
+  "fft"
+], function(util, cconst, sinterface, vectormath, kdtree, darts, 
+            sph, fft) 
+{
   'use strict';
   
   var exports = _void_cluster = {};
@@ -54,6 +57,9 @@ define([
       this.dimen = dimen;
       this.totfilled = 0;
       this.maxgen = 0;
+
+      this.fft = new fft.FFT(64);
+      this.fscale = 1.0;
       
       this.gridsize = ~~(dimen);
       this.grid = new Float64Array(this.gridsize*this.gridsize*GTOT);
@@ -77,6 +83,9 @@ define([
       this.dimen = dimen;
       
       var genmask = window.GEN_MASK;
+      var dofft = window.FFT_TARGETING;
+      
+      window.FFT_TARGETING = false;
       window.GEN_MASK = false;
       
       var gen = new darts.DartsGenerator(appstate);
@@ -85,18 +94,22 @@ define([
         gen.next_level();
       }
       
-      for (var i=0; i<9; i++) {
+      for (var i=0; i<15; i++) {
         gen.step();
       }
       
       var ps = gen.points;
       //*
       var sgen = new sph.SPHGenerator(appstate);
+      var smidsize = ~~(1.0 / (midr/Math.sqrt(2.0)));
       sgen.reset(midsize, appstate, mask_image);
       
+      sgen.r = midr;
       sgen.points = ps;
       sgen.regen_spatial();
-      sgen.step();
+      for (var i=0; i<5; i++) {
+        sgen.step();
+      }
       //*/
       
       var gridsize = this.gridsize;
@@ -139,6 +152,7 @@ define([
       this.regen_spatial();
       
       window.GEN_MASK = genmask;
+      window.FFT_TARGETING = dofft;
       
       this.raster();
     },
@@ -202,6 +216,9 @@ define([
     function filter(ix, iy, mode2) {
       var size = this.gridsize, grid = this.grid, ps = this.points;
       
+      var maxpoints = this.gridsize*this.gridsize;
+      var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
+      
       var r = this.r;
       var ir = r*Math.sqrt(2)*size;
       var rd = ~~(ir+2.0);
@@ -242,8 +259,12 @@ define([
           }
           
           var w = 1.0 - dis / ir;
+          //w = VOIDCLUSTER_CURVE.evaluate(w);
+          var pw = VOIDCLUSTER_CURVE.evaluate(tfac);
+          w = pw==0.0 ? w : Math.pow(w, pw*10.0);
+          
           //w *= w*w*(3.0-2.0*w);
-          w *= w*w*w*w*w;
+          //w *= w*w*w*w*w;
           
           sum += w;
           sumtot++;
@@ -291,14 +312,15 @@ define([
         
         this.maxgen += this.midpoints;
         
-        for (var i=0; i<grid.length; i += GTOT) {
-          grid[i+GW] = this.filter2(i % gridsize, ~~(i / gridsize));
-        }
+        //for (var i=0; i<grid.length; i += GTOT) {
+        //  grid[i+GW] = this.filter2(i % gridsize, ~~(i / gridsize));
+        //}
       }
       
       console.log("points:", this.points.length/PTOT);
       
       this.raster();
+      this.fft_image = this.fft.raster(this.fft_image);
     },
     
     function cluster_step() {
@@ -319,9 +341,9 @@ define([
         if (grid[i*GTOT] >= this.midpoints) continue;
         
         var ix = i % size, iy = ~~(i / size);
-        //var f = this.filter(ix, iy);
+        var f = this.filter2(ix, iy);
 
-        var f = grid[i*GTOT+GW];
+        //var f = grid[i*GTOT+GW];
         
         //if (Math.random() > 0.9) {
           //console.log(f)
@@ -339,6 +361,7 @@ define([
       }
       
       console.log("minf, maxf", minf, maxf, mini, maxi);
+      mini = maxi;
       if (mini < 0) return;
       
       var pi = this.grid[mini*GTOT]
@@ -350,7 +373,7 @@ define([
       var iy = ~~(mini / size);
       this.totfilled--;
       
-      this.grid_update(ix, iy, true);
+      //this.grid_update(ix, iy, true);
     },
     
     function void_step(custom_steps) {
@@ -366,17 +389,32 @@ define([
       //stochastic to the rescue!
       
       var cells = this.cells;
-      var tot = 24;
+      var tot = this.gridsize;
+      var cs = [];
       
+      var idxs = []
       for (var _i=0; _i<tot; _i++) {
         var ri = ~~(Math.random()*cells.length*0.9999999);
+        idxs.push(ri);
+      }
+      
+      var empty = undefined;
+      
+      for (var _i=0; _i<idxs.length; _i++) {
+        var ri = idxs[_i];
         var i = cells[ri];
         
-        if (grid[i*GTOT] >= 0) continue;
+        if (cells.length == 0) break;
+        if (grid[i*GTOT] >= 0) {
+          cs.push(empty);
+          continue;
+        }
         
         var ix = i % size, iy = ~~(i / size);
+        
         var f = this.filter(ix, iy, false);
-
+        cs.push(f);
+        
         //var f = grid[i*GTOT+GW];
         
         //if (Math.random() > 0.9) {
@@ -389,12 +427,86 @@ define([
           maxri = ri;
         }
         
-        if (f < minf) {
+        if (f < minf) { // || (Math.abs(f-minf)<Math.min(f, minf)*0.01 && Math.random() > 0.5)) {
           minf = f;
           mini = i;
           minri = ri;
         }
       }
+      
+      var idxs2 = [];
+      var idxs3 = [];
+      var cs2 = [];
+      
+      for (var i=0; i<idxs.length; i++) {
+        if (cs[i] != empty) {
+          idxs3.push(idxs[i]);
+          cs2.push(cs[i]);
+          idxs2.push(idxs3.length-1);
+        }
+      }
+      
+      if (cs.length == 0) 
+        return;
+      
+      idxs = idxs3;
+      cs = cs2;
+      
+      idxs2.sort(function(a, b) {
+        return (cs[a] - cs[b]);
+      });
+
+      if (cs.length != idxs.length) throw new Error();
+      //console.log(cs, idxs, idxs2);
+      
+      console.log("start");
+      var last = undefined;
+      var mini2 = 0;
+      
+      var minf = 1e17;
+      var seed = Math.random();
+      var arr = [0, 0, 0, 0, 0, 0];
+      
+      for (var i=0; i<idxs2.length; i++) {
+        var ci = idxs2[i];
+        
+        if (!FFT_TARGETING) {
+          mini2 = 0;
+          break;
+        }
+        
+        if (i > 0 && Math.abs(cs[ci] - last) > 0.01) {
+          break;
+        }
+        
+        var ii = idxs[ci];
+        
+        var x = ((ii+0.5) % size)/size;
+        var y = (~~(ii/size)+0.5)/size;
+        
+        arr[0] = x;
+        arr[1] = y;
+        
+        var pi = this.points.length/PTOT;
+        this.fft.add_points(arr, this.fscale, 0, 1, pi);
+        
+        var f1 = this.ff_weight(seed);
+        
+        this.fft.remove_points(arr, 0, 1, pi);
+        
+        if (f1 < minf) {
+          minf = f1;
+          mini2 = i;
+        }
+        
+        //console.log(f1.toFixed(3), minf.toFixed(3), mini2); //cs[ci]);
+        last = cs[ci];
+      }
+      if (mini2 == 1e17) mini2 = 0;
+      
+      minri = idxs[idxs2[mini2]];
+      mini = cells[minri];
+      //console.log("mini", mini, cs[idxs2[mini2]], mini2, idxs2[mini2]);
       
       //console.log("minf, maxf", minf, maxf, mini, maxi);
 
@@ -422,10 +534,21 @@ define([
       ps[pi+PGEN] = this.maxgen++;
       
       grid[mini*GTOT] = pi/PTOT;
+      
+      this.update_fscale(true);
+      this.fft.add_points(ps, this.fscale, pi/PTOT, pi/PTOT+1);
     },
     
     function draw(g) {
       var size = this.gridsize;
+      
+      if (this.fft_image != undefined) {
+        this.fft.raster(this.fft_image);
+        this.fft.calc_radial();
+        this.fft.draw(g, 80, 450, this.fft_image);
+      }
+      
+      return;
       
       g.strokeStyle = "grey";
       

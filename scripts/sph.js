@@ -36,7 +36,7 @@ define([
       
       this.search_rmul = 3.0;
       this.base = 1.00012;
-      this.maxgen = HIEARCHIAL_LEVELS;
+      this.maxgen = this.config.HIEARCHIAL_LEVELS;
       
       this.points = [];
     },
@@ -49,7 +49,8 @@ define([
         //steps = steps == undefined ? 0.4*DIMEN*DIMEN : steps;
         steps = steps == undefined ? 110 : steps;
         var size=this.gridsize, grid=this.grid;
-            
+        var cf = this.config;
+        
         console.log("points", this.points.length);
         
         for (var si=0; si<steps; si++) {
@@ -61,8 +62,8 @@ define([
             var x = (i1 % size2) / size2;
             var y = i1 / (size2*size2);
             
-            //x += Math.random()/size;
-            //y += Math.random()/size;
+            x += Math.random()/size;
+            y += Math.random()/size;
             
             var ix = ~~(x*size), iy = ~~(y*size);
             
@@ -104,7 +105,7 @@ define([
         }
         
         var maxgen = this.maxgen;
-        var final_scale = HIEARCHIAL_SCALE;
+        var final_scale = cf.HIEARCHIAL_SCALE;
         var final_r = this.r*final_scale;
         
         var d = 1.0 / (final_r*Math.sqrt(2.0));
@@ -172,11 +173,13 @@ define([
     
     //custom_steps, noreport are ignored for now
     function step(custom_steps, noreport) {
+      var cf = this.config;
+      
       //if (this._ki++ % 5 == 0) {
         this.regen_kdtree();
       //}
       
-      if (GEN_MASK) {
+      if (cf.GEN_MASK) {
         this.step_b();
         //this.mode ^= 1;
         
@@ -188,6 +191,8 @@ define([
     },
 
     function step_b() {
+        var cf = this.config;
+        
         var ps = this.points, grid = this.grid;
         var size = this.gridsize, plen=this.points.length;
         var rmul = 4.0;
@@ -209,7 +214,7 @@ define([
           var rr2 = ps[pi*PTOT+PR2];
           var color2 = ps[pi*PTOT+PCLR];
           
-          if (GEN_MASK && this.mode == Modes.SHUFFLE && gen2 > gen) {
+          if (cf.GEN_MASK && this.mode == Modes.SHUFFLE && gen2 > gen) {
             return;
           }
           
@@ -247,8 +252,8 @@ define([
           var w = dis/(r3*rmul);
           w = 1.0 - w;
           
-          if (window.SPH_CURVE != undefined) {
-            w = window.SPH_CURVE.evaluate(w);
+          if (cf.SPH_CURVE != undefined) {
+            w = cf.SPH_CURVE.evaluate(w);
           } else {
             w *= w;
           }
@@ -293,7 +298,7 @@ define([
           clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
           
           for (var sj=0; sj<_poffs.length; sj++) {
-            if (!TILABLE && sj > 0) break;
+            if (!cf.TILABLE && sj > 0) break;
             
             var x1 = x + _poffs[sj][0];
             var y1 = y + _poffs[sj][1];
@@ -338,10 +343,11 @@ define([
           if (dot != 0.0) err /= dot;
           
           var fac;
-          if (!GEN_MASK) {
-            fac = SPH_SPEED*0.07;
+          
+          if (!cf.GEN_MASK) {
+            fac = cf.SPH_SPEED*0.07;
           } else {
-            fac = SPH_SPEED*(0.965*this.speedmul+0.035)*0.1;
+            fac = cf.SPH_SPEED*(0.965*this.speedmul+0.035)*0.1;
           }
           
           var sx = ps[i], sy = ps[i+1];
@@ -355,7 +361,7 @@ define([
           ps[i+PDX] *= 0.5;
           ps[i+PDY] *= 0.5;
           
-          if (TILABLE) {
+          if (cf.TILABLE) {
             ps[i] = Math.fract(ps[i]);
             ps[i+1] = Math.fract(ps[i+1]);
           } else {
@@ -404,8 +410,9 @@ define([
 
     function reset(basesize, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
+      var cf = this.config;
       
-      this.maxgen = HIEARCHIAL_LEVELS;
+      this.maxgen = cf.HIEARCHIAL_LEVELS;
       this.speedmul = 1.0;
       this.mode = Modes.SHUFFLE;
       this.targetpoints = 0;          
@@ -415,7 +422,7 @@ define([
       this.first = true;
       this._ci = 0;
       
-      this.r = Math.sqrt(2.0) / (DIMEN);
+      this.r = Math.sqrt(2.0) / (basesize);
       this.start_r = this.r;
       
       this.gen = 0;
@@ -461,7 +468,7 @@ define([
       this.grid = new Float64Array(size*size*GTOT);
       this.grid.fill(0, 0, this.grid.length);
       
-      var starting_points = DIMEN*DIMEN;//*(1.0/this.b)+0.5);
+      var starting_points = basesize*basesize;//*(1.0/this.b)+0.5);
       
       for (var i=0; i<1500; i++) {
           this.pthrow(starting_points - this.points.length/PTOT);
@@ -471,6 +478,12 @@ define([
           }
       }
 
+    },
+    
+    function relax(use_avg_dis) {
+      use_avg_dis = use_avg_dis==undefined ? true : use_avg_dis;
+      use_avg_dis=1
+      MaskGenerator.prototype.relax.call(this, use_avg_dis);
     },
     
     function current_level() {
@@ -483,48 +496,6 @@ define([
     
     //optional
     function next_level() {
-    },
-    
-    function raster() {
-      this.mask[0] = this.mask[1] = this.mask[2] = 0.0;
-      this.mask[0] = 0;
-      this.mask[1] = 0;
-      this.mask[3] = 255;
-      
-      var iview = new Int32Array(this.mask.buffer);
-      iview.fill(iview[0], 0, iview.length);
-      
-      var plen = this.points.length/PTOT;
-      
-      for (var i=0; i<plen; i++) {
-        this.raster_point(i);
-      }
-    },
-    
-    function raster_point(pi) {
-      var mask = this.mask, ps = this.points, msize = this.mask_img.width
-      
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
-      var color = ps[pi*PTOT+PCLR];
-      
-      var d = 1.0 - gen/this.max_ni;
-      
-      var ix = ~~(x*msize), iy = ~~(y*msize);
-      var idx = (iy*msize+ix)*4;
-      
-      if (GEN_CMYK_MASK) {
-        var r = ~~(CMYK[color][0]*255);
-        var g = ~~(CMYK[color][1]*255);
-        var b = ~~(CMYK[color][2]*255);
-        
-        mask[idx] = r;
-        mask[idx+1] = g;
-        mask[idx+2] = b;
-      } else {
-        mask[idx] = mask[idx+1] = mask[idx+2] = ~~(d*255);
-      }
-      
-      mask[idx+3] = 255;
     },
     
     function regen_spatial() {

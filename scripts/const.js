@@ -23,14 +23,14 @@ window.CMYK = [
   [0, 0, 0]
 ];
 
+window.ALIGN_GRID = false;
+
 window.AA_ADD_JITTER = 0;
 
 //only used if EXPLORE_AA_SEED is false
 //var AA_SEED = Math.sqrt(3.0)*0.1443375
 //var AA_SEED = 0.001327338899593235; //0.617411; //2.3683055473992147;
 
-//simplex version
-var AA_SEED = 0.07350273436363906; //0.07037613901662089
 
 //0.617411
 //0.40656
@@ -50,6 +50,15 @@ var AA_SEED = 0.07350273436363906; //0.07037613901662089
   limit   : 0.45325
   base    : 22383453
 */
+//simplex version
+var AA_SEED = 0.07350273436363906; //0.07037613901662089
+
+//AA_SEED=0.38324;
+//0.6248679265099781
+//0.5941456868986279
+//0.6949176827929477
+//0.6250683314465277
+//0.6246505611816247
 
 //be very careful with changing this one
 //affects quality and periocity of patterns
@@ -70,6 +79,10 @@ var PX=0, PY=1, PR=2, PGEN=3, PDX=4, PDY=5, PR2=6, PD=7, PIX=8, PIY=9, PCLR=10, 
 window.SPH_CURVE = undefined;
 window.TONE_CURVE = undefined;
 window.RADIUS_CURVE = undefined;
+window.VOIDCLUSTER_CURVE = undefined;
+window.FFT_CURVE = undefined;
+
+window.FFT_TARGETING = false;
 
 window.GEN_MASK = true;
 window.GEN_CMYK_MASK = false;

@@ -6,9 +6,11 @@ var _app = undefined;
 
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
-  'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster'
-], function(util, cconst, ui, kdtree, sample_removal, darts, sph, sph_presets,
-            spectral, jitter, aa_noise, presets, void_cluster) 
+  'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster', 'fft',
+  'interface'
+], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
+           sph_presets, spectral, jitter, aa_noise, presets, void_cluster,
+           fftmod, iface) 
 {
   'use strict';
   
@@ -113,6 +115,7 @@ define([
       this.mask_g = this.mask_canvas.getContext("2d");
       this.mask_canvas.width = this.mask_canvas.height = this.mask_img.width;
       
+      this.generator.set_config(new iface.MaskConfig());
       this.generator.reset(size, this, this.mask_img);
     },
     
@@ -123,6 +126,8 @@ define([
       
       var maxlvl = this.generator.max_level();
       restrict /= maxlvl;
+      
+      var ps2 = [];
       
       for (var i=0; i<ps.length; i += PTOT) {
         var gen = ps[i+PGEN]/maxlvl;
@@ -135,29 +140,92 @@ define([
           continue;
         }
         
+        for (var j=0; j<PTOT; j++) {
+          ps2.push(ps[i+j]);
+        }
+        
         plen++;
       }
       
       var gen = this.generator;
-      var fnorm = 2.0 / Math.sqrt(plen);
       
       //from PSA
+      var fnorm = 2.0 / Math.sqrt(plen);
       var frange  = 10// Frequency range relative to Nyq. freq. of hexagonal lattice
-      
       var size = Math.floor(frange/fnorm);
       
-      var fft_img, fft;
+      var size2 = size; //64;
+      var fscale = size/size2;
+      size = size2;
+      
+      var fft_image, fft;
 
       if (this.fft_image != undefined && this.fft_image.width == size) {
-        fft_img = this.fft_image;
-        fft = fft_img.data;
+        fft_image = this.fft_image;
+        fft = fft_image.data;
       } else {
-        fft_img = new ImageData(size, size);
-        fft = fft_img.data;
+        fft_image = new ImageData(size, size);
+        fft = fft_image.data;
         fft.fill(200, 0, fft.length);
         
-        this.fft_image = fft_img;
+        this.fft_image = fft_image;
       }
+      
+      var fft = new fftmod.FFT(size);
+      
+      this._fft = fft;
+      
+      var pi = 0;
+      var this2 = this;
+      
+      var next = function() {
+        var steps = 95;
+        
+        var pi2 = Math.min(pi+steps*PTOT, ps.length);
+        if (pi >= ps2.length) return 0;
+        
+        fft.add_points(ps2, fscale, pi/PTOT, pi2/PTOT);
+        pi = pi2;
+
+        this2.report("completed " + (pi/PTOT) + " of " + (ps2.length/PTOT) + " points");
+        return 1;
+      }
+      
+      var update = function update() {
+        fft.raster(fft_image);
+        fft.calc_radial();
+      }
+      
+      next = next.bind(this);
+      update = update.bind(this);
+      var last_update = util.time_ms();
+      
+      window._fft_timer = window.setInterval(function() {
+        if (!next()) {
+          window.clearInterval(_fft_timer);
+          window._fft_timer = undefined;
+          
+          if (util.time_ms() - last_update > 150) {
+            update();
+            last_update = util.time_ms();
+          }
+          
+          redraw_all();
+          return;
+        }
+        
+        if (util.time_ms() - last_update > 150) {
+          update();
+          last_update = util.time_ms();
+          redraw_all();
+        }
+      });
+      
+      redraw_all();
+    },
+    
+    function _old() {
+      return;
       
       
       var ps = this.generator.points;
@@ -593,6 +661,8 @@ define([
     }),
     
     function report(s) {
+      console.log(s);
+      
       //this.report_queue.push(s);
       this.report_lines.push(s);
       
@@ -624,7 +694,39 @@ define([
       g.clearRect(0, 0, this.canvas.width, this.canvas.height);
       
       if (this.fft_image != undefined) {
-        g.putImageData(this.fft_image, 20, 350);
+        var fftx=20, ffty=350;
+        g.putImageData(this.fft_image, fftx, ffty);
+        
+        var steps = 32;
+        var t = 0, dt = 1.0 / (steps-1);
+        
+        var h = 40;
+        var y = ffty+this.fft_image.height + h + 2;
+        
+        g.strokeStyle = "black";
+        g.beginPath();
+        
+        var first = 1;
+        
+        for (var i=0; i<steps; i++, t += dt) {
+          var f = this._fft.eval_radial(t);
+          
+          //if (f < 0) continue; //fft wants us to skip this t value
+          f = 1.0 - f;
+          
+          var x2 = fftx + i*3;
+          var y2 = y + f*h;
+          //y2 = y;
+          
+          if (first) {
+            g.moveTo(x2, y2);
+            first = 0;
+          } else {
+            g.lineTo(x2, y2);
+          }
+        }
+        
+        g.stroke();
       }
       
       if (DRAW_MASK) {
@@ -637,7 +739,7 @@ define([
         var tottile= DISPLAY_TILED ? 4 : 1;
         
         g.save();
-        g.scale(SCALE, SCALE);
+        g.scale(SCALE*7, SCALE*7);
         
         for (var x=0; x<tottile; x++) {
           for (var y=0; y<tottile; y++) {
@@ -657,9 +759,11 @@ define([
       g.save();
       this.draw_transform(g);
       
-      g.beginPath();
-      g.rect(0, 0, 1, 1);
-      g.stroke();
+      if (!DRAW_TILED) {
+        g.beginPath();
+        g.rect(0, 0, 1, 1);
+        g.stroke();
+      }
       
       if (DRAW_KDTREE) {
         this.generator.kdtree.draw(g);
@@ -686,8 +790,10 @@ define([
           g.fillStyle = "black";
         }
         
+        var maxgen = this.generator.max_level();
+        
         for (var si=0; si<_poffs.length; si++) {
-          if (!DRAW_TILED && si > 0) 
+          if (!DRAW_TILED && si > 0)
             break;
             
           g.beginPath();
@@ -702,7 +808,7 @@ define([
             //CMYK
             if (color != j) continue;
             
-            var gen2 = (i/ps.length);
+            var gen2 = gen/maxgen;//(i/ps.length);
             restrict = DRAW_RESTRICT_LEVEL;
             
             if (gen2 != -1 && gen2 > restrict)
@@ -745,6 +851,23 @@ define([
       console.log(e.keyCode);
       
       switch (e.keyCode) {
+        case 76: //lkey
+          if (this.rtimer != undefined) {
+            this.report("stoping timer");
+            window.clearInterval(this.rtimer)
+            this.rtimer = undefined;
+            
+            break;
+          }
+          
+          this.report("start timer");
+          
+          this.rtimer = window.setInterval(function() {
+            _appstate.generator.config.update();
+            _appstate.generator.relax();
+            redraw_all();
+          }, 50);
+          break;
         case 75: //kkey
           this.generator.relax();
           redraw_all();
@@ -832,6 +955,16 @@ define([
         window.RADIUS_CURVE = undefined;
       }
       
+      if (window.VOIDCLUSTER_CURVE != undefined) {
+        window.VOIDCLUSTER_CURVE.destroy_all_settings();
+        window.VOIDCLUSTER_CURVE = undefined;
+      }
+      
+      if (window.FFT_CURVE != undefined) {
+        window.FFT_CURVE.destroy_all_settings();
+        window.FFT_CURVE = undefined;
+      }
+      
       this.gui.destroy();
       this.gui2.destroy();
       this.gui = undefined;
@@ -905,9 +1038,11 @@ define([
       panel.slider('distance_limit', 'Pack Threshold', 0.01, 1.2, 0.001, false, false);
       
       panel.check('tilable', 'Make Tilable');
+      panel.check('align_grid', 'Align To Grid');
+      
       panel.slider('draw_restrict_level', 'Display Level', 0, 1, 0.0001, false, true);
       panel.check("draw_color", "Show Colors");
-      panel.check("GEN_CMYK_MASK", "Make Color Mask");
+      panel.check("gen_cmyk_mask", "Make Color Mask");
       
       panel.button('save_mask', "Save To Cache", function() {
         this2.report("\nSaving blue noise mask to local storage");
@@ -916,11 +1051,19 @@ define([
         localStorage.startup_mask_bn4 = _appstate.save();
       });
       
+      var panel2 = panel.panel("Void-Cluster Filter Curve");
+      panel2.curve('voidcluster_curve', 'VC Filter Curve');
+      panel2.close();
+      
+      var panel2 = panel.panel("FFT");
+      panel2.curve('fft_curve', 'Radial Spectrum');
+      panel2.close();
+      
       var panel = this.gui = new ui.UI();
         
       panel.button('fft', "FFT", function() {
         if (window._fft_timer != undefined) {
-          console.log("stopping current fft");
+          this.report("stopping current fft");
           clearInterval(window._fft_timer);
           window._fft_timer = undefined;
           return;
@@ -995,6 +1138,7 @@ define([
       panel.check('draw_mask', 'Show Mask');
       panel.check('small_mask', 'Small Mask');
       panel.check('draw_tiled', 'Draw Tiled');
+      panel.check('fft_targeting', 'Target FFT');
       
       if (DEV_MODE) {
         panel.check("allow_overdraw", "Allow Overdraw");

@@ -1,8 +1,8 @@
 var _darts = undefined;
 
 define([
-  "util", "const", "interface"
-], function(util, cconst, sinterface) {
+  "util", "const", "interface", "fft"
+], function(util, cconst, sinterface, fft) {
   'use strict';
   
   var exports = _darts = {};
@@ -19,24 +19,31 @@ define([
       this.cells = this.cellsize = undefined;
       this._colortots = [0, 0, 0, 0]; //temporary variable
       
+      this.totfft = 0;
       this.pass = 0;
       this.r = this.final_r = undefined;
       this.hlvl = this.hmul = this.hsteps = undefined;
+      this.maxgen = undefined;
     },
     
     function max_level() {
-      return this.hsteps;
+      return this.maxgen;
+    },
+    
+    function relax() {
+      this.config.RELAX_CURRENT_LEVEL = true;
+      
+      MaskGenerator.prototype.relax.apply(this, arguments);
     },
     
     function find_mask_pixel(pi) {
       var ps = this.points, grid = this.maskgrid;
       var size = this.masksize;
-      
       var x = ps[pi*PTOT], y = ps[pi*PTOT+1];
-      var ix = ~~(x*size*0.9999999), iy = ~~(y*size*0.9999999);
+      var ix = ~~(x*size+0.0001), iy = ~~(y*size+0.0001);
       var idx = iy*size + ix;
-      
-      if (grid[idx] == -1) {
+
+      if (grid[idx] == -1 || ALIGN_GRID) {
         ps[pi*PTOT+PIX] = ix;
         ps[pi*PTOT+PIY] = iy;
         grid[idx] = pi;
@@ -92,6 +99,8 @@ define([
     },
     
     function update_cell(ci) {
+      return; //XXX
+      
       var cells = this.cells, csize = this.cellsize;
       var cx = cells[ci*CTOT], cy = cells[ci*CTOT+1];
       var ix1 = cells[ci*CTOT+CIX], cy1 = cells[ci*CTOT+CIY];
@@ -185,7 +194,7 @@ define([
         if (cells.length == 0)
           break; //should never happen (not implementing full maximal), but still. . .
         
-        var x = Math.random(), y = Math.random();
+        var x, y;
         var ci = ~~(Math.random()*(~~(cells.length/CTOT))*0.999999999);
         ci *= CTOT;
         
@@ -194,8 +203,13 @@ define([
         
         var cx = cells[ci], cy = cells[ci+1], cix = cells[ci+CIX];
         
-        x = cx + icellsize*x;
-        y = cy + icellsize*y;
+        if (!ALIGN_GRID) {
+          x = cx + icellsize*Math.random();
+          y = cy + icellsize*Math.random();
+        } else {
+          x = cx+0.0001;
+          y = cy+0.0001;
+        }
         
         if (isNaN(x) || isNaN(y)) {
           throw new Error("nan!");
@@ -212,6 +226,8 @@ define([
         
         mindis = undefined;
         for (var i=0; i<_poffs.length; i++) {
+          //if (FFT_TARGETING) break;
+          
           if (i > 0 && !TILABLE)
             break;
           
@@ -275,6 +291,9 @@ define([
           bad = true;
         }
         
+        //XXX
+        bad = bad && !FFT_TARGETING
+        
         if (bad) continue;
         
         var pi = ps.length;
@@ -285,6 +304,9 @@ define([
         
         var pi2 = ~~(pi/PTOT);
         
+        //store original level gen here
+        ps[pi+PD] = this.hlvl;
+        
         ps[pi+PR2] = r;
         ps[pi+PCLR] = color;
         ps[pi] = x, ps[pi+1] = y, ps[pi+PR]=final_r, ps[pi+PGEN]=hlvl;
@@ -292,6 +314,15 @@ define([
         
         this.find_mask_pixel(pi2);
         this.raster_point(pi2);
+        
+        if (FFT_TARGETING && this.totfft % 25 == 0) {
+          this.do_fft(25);
+          
+          console.log((this.points.length/PTOT) % 25);
+        }
+        
+        this.totfft++;
+        this.regen_spatial();
       }
       
       /*
@@ -308,6 +339,75 @@ define([
         this.report("hiearchial level: ", this.hlvl, "of", this.hsteps);
         this.report("cells:", this.cells.length/CTOT);
       }
+    },
+    
+    function do_fft(steps) {
+      steps = steps == undefined ? 5 : steps;
+      
+      var ps = this.points;
+      
+      this.update_fscale();
+      
+      this.fft.add_points(ps, this.fscale, this.fft.totpoint, ps.length/PTOT);
+      this.fft.raster(this.fft_image);
+      
+      //check last 5 points
+      var ps2 = [];
+      
+      for (var i=0; i<steps; i++) {
+        if (ps.length-i*PTOT < 0) break;
+        
+        ps2.push((ps.length-i*PTOT)/PTOT);
+      }
+      
+      if (ps2.length < steps) 
+        return; //wait for more points
+      
+      var seed = Math.random();
+      
+      var w = this.ff_weight(seed);
+      console.log("fft error estimate", w);
+      
+      var ws = [];
+      var minw=1e17, mini=0;
+      
+      for (var i=0; i<ps2.length; i++) {
+        this.fft.remove_points(ps, ps2[i], ps2[i]+1);
+        
+        var w2 = this.ff_weight(seed);
+        console.log(ps2[i], "fft error estimate", w2);
+        this.fft.add_points(ps, this.fscale, ps2[i], ps2[i]+1);
+        
+        ws.push(w2);
+        
+        if (w2 < minw) {
+          minw = w2;
+          mini = i;
+        }
+      }
+      
+      mini = ps2[mini];
+      
+      console.log("least error:", mini, ps2);
+      
+      var tmp = []
+      for (var i=0; i<PTOT; i++) {
+        tmp.push(ps[mini*PTOT+i]);
+      }
+      
+      for (var i=0; i<ps2.length; i++) {
+        this.fft.remove_points(ps, ps2[i], ps2[i]+1);
+      }
+      
+      ps.length -= ps2.length*PTOT;
+      var pi = ps.length/PTOT;
+      
+      for (var i=0; i<PTOT; i++) {
+        ps.push(tmp[i]);
+      }
+
+      this.fft.add_points(ps, this.fscale, pi, pi+1);
+      this.regen_spatial();
     },
     
     function color_point(pi) {
@@ -412,16 +512,27 @@ define([
     function reset(size, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       
+      var cf = this.config;
+      
+      this.totfft = 0;
       this.pass = 0;
       this._cur = 0;
+      this.dimen = size;
       
       var totpoint = size*size;
+
+      if (cf.FFT_TARGETING) {
+        this.fft = new fft.FFT(64);
+        this.fscale = 1.0;
+        
+        this.fft_image = this.fft.raster();
+      }
       
       //this.final_r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint));
       this.final_r = 1.0 / (Math.sqrt(1.5)*size);
       
-      if (HIEARCHIAL_LEVELS > 1) {
-        this.start_r = GEN_MASK ? this.final_r*HIEARCHIAL_SCALE : this.final_r;
+      if (cf.HIEARCHIAL_LEVELS > 1) {
+        this.start_r = cf.GEN_MASK ? this.final_r*cf.HIEARCHIAL_SCALE : this.final_r;
         this.r = this.start_r;
       } else {
         this.r = this.start_r = this.final_r;
@@ -440,26 +551,34 @@ define([
       
       iview.fill(iview[0], 0, iview.length);
       
-      if (HIEARCHIAL_LEVELS > 1 && GEN_MASK) {
+      if (cf.HIEARCHIAL_LEVELS > 1 && cf.GEN_MASK) {
         this.hlvl = 0;
-        this.hsteps = HIEARCHIAL_LEVELS;
-        this.hmul = 1.0 / Math.pow(HIEARCHIAL_SCALE, 1.0/HIEARCHIAL_LEVELS);
+        this.hsteps = cf.HIEARCHIAL_LEVELS;
+        this.hmul = 1.0 / Math.pow(cf.HIEARCHIAL_SCALE, 1.0/cf.HIEARCHIAL_LEVELS);
       } else {
         this.hlvl = 0;
         this.hsteps = 1;
         this.hmul = 1;
       }
       
+      this.maxgen = this.hsteps;
+      
       this.make_cells();
     },
     
     function draw(g) {
       MaskGenerator.prototype.draw.call(this, g);
+      var cf = this.config;
+      
+      if (cf.FFT_TARGETING) {
+        this.fft.draw(g, 80, 450, this.fft_image);
+      }
     },
     
     //optional
     function raster_point(pi) {
       var mask = this.mask, ps = this.points, msize = this.mask_img.width
+      var cf = this.config;
       
       var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
       var color = ps[pi*PTOT+PCLR];
@@ -469,8 +588,8 @@ define([
       //XXX
       d = 1.0 - (pi*PTOT) / this.points.length;
       
-      if (TONE_CURVE != undefined) {
-        d = 1.0 - TONE_CURVE.evaluate(1.0-d);
+      if (cf.TONE_CURVE != undefined) {
+        d = 1.0 - cf.TONE_CURVE.evaluate(1.0-d);
       }
       
       //d = (~~(d*16))/16;
@@ -491,9 +610,9 @@ define([
       //console.log(d)
       
       var idx = (iy*msize+ix)*4;
-      if (!ALLOW_OVERDRAW && mask[idx] != 0) return;
+      if (!cf.ALLOW_OVERDRAW && mask[idx] != 0) return;
       
-      if (GEN_CMYK_MASK) {
+      if (cf.GEN_CMYK_MASK) {
         var r = ~~(d*CMYK[color][0]*255);
         var g = ~~(d*CMYK[color][1]*255);
         var b = ~~(d*CMYK[color][2]*255);
@@ -509,8 +628,10 @@ define([
     },
     
     function raster() {
+      var cf = this.config;
+      
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = SMALL_MASK ? 255 : 0;
+      this.mask[3] = cf.SMALL_MASK ? 255 : 0;
       
       var iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
@@ -527,9 +648,13 @@ define([
     },
     
     function next_level(steps) {
+      var cf = this.config;
+      
+      this.maxgen = this.hsteps;
       
       //scramble order of first level if pack densely is on
-      if (this.hlvl == 0 && LIMIT_DISTANCE) {
+      /*
+      if (this.hlvl == 0 && cf.LIMIT_DISTANCE) {
         var ps = this.points;
         
         for (var i=0; i<ps.length; i += PTOT) {
@@ -547,6 +672,12 @@ define([
         }
       }
       
+      var ps = this.points;
+      for (var i=0; i<ps.length; i += PTOT) {
+        ps[i+PGEN] = i/PTOT;
+      }
+      this.maxgen = ps.length/PTOT;
+      //*/
       
       steps = steps == undefined ? 1 : steps;
       
