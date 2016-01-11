@@ -1,3 +1,4 @@
+
 var _darts = undefined;
 
 define([
@@ -24,6 +25,7 @@ define([
       this.r = this.final_r = undefined;
       this.hlvl = this.hmul = this.hsteps = undefined;
       this.maxgen = undefined;
+      this.cur = 0;
     },
     
     function max_level() {
@@ -31,80 +33,17 @@ define([
     },
     
     function relax() {
-      this.config.RELAX_CURRENT_LEVEL = true;
-      
+      //this.config.RELAX_CURRENT_LEVEL = true;
       MaskGenerator.prototype.relax.apply(this, arguments);
     },
     
-    function find_mask_pixel(pi) {
-      var ps = this.points, grid = this.maskgrid;
-      var size = this.masksize;
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1];
-      var ix = ~~(x*size+0.0001), iy = ~~(y*size+0.0001);
-      var idx = iy*size + ix;
-
-      if (grid[idx] == -1 || ALIGN_GRID) {
-        ps[pi*PTOT+PIX] = ix;
-        ps[pi*PTOT+PIY] = iy;
-        grid[idx] = pi;
-        return;
-      }
-      
-      var d = 16;
-      var mindis = 1e17, min = undefined;
-      
-      for (var i=-d; i<=d; i++) {
-        for (var j=-d; j<=d; j++) {
-          var ix2 = ix + i, iy2 = iy + j;
-          
-          if (ix2 < 0 || iy2 < 0 || ix2 >= size || iy2 >= size)
-            continue;
-          
-          var idx = iy2*size+ix2;
-          var dis = i*i + j*j;
-          
-          if (grid[idx] == -1 && (min == undefined || dis < mindis)) {
-            min = idx;
-            mindis = dis;
-          }
-        }
-      }
-      
-      if (min == undefined || grid[min] != -1) {
-        for (var ix2=0; ix2<size; ix2++) {
-          for (var iy2=0; iy2<size; iy2++) {
-            
-            var dis = (ix2-ix)*(ix2-ix) + (iy2-iy)*(iy2-iy);
-            var idx = iy2*size + ix2;
-            
-            if (grid[idx] == -1 && (min == undefined || dis < mindis)) {
-              min = idx;
-              mindis = dis;
-            }
-          }
-        }
-      }
-
-      if (min != undefined) { //grid[min] == -1) {
-        ps[pi*PTOT+PIX] = ix;
-        ps[pi*PTOT+PIY] = iy;
-        grid[min] = pi;
-        return;
-      }
-      
-      this.report("WARNING: dropping a point");
-      
-      ps[pi*PTOT+PIX] = -1;
-      ps[pi*PTOT+PIY] = -1;
-    },
-    
     function update_cell(ci) {
-      return; //XXX
+      //return; //XXX
       
       var cells = this.cells, csize = this.cellsize;
       var cx = cells[ci*CTOT], cy = cells[ci*CTOT+1];
       var ix1 = cells[ci*CTOT+CIX], cy1 = cells[ci*CTOT+CIY];
-      var r =this.r;
+      var r = this.r;
       
       var icsize = 1.0 / csize;
       
@@ -147,6 +86,8 @@ define([
     },
     
     function update_cells() {
+      return; //XXX
+      
       var cells = this.cells, csize = this.cellsize;
       var _i = 0;
       
@@ -171,6 +112,7 @@ define([
       var ps = this.points, kdtree = this.kdtree, r = this.r;
       var final_r = this.final_r;
       var hlvl = this.hlvl;
+      var size = this.dimen;
       
       this.pass++;
       
@@ -194,8 +136,13 @@ define([
         if (cells.length == 0)
           break; //should never happen (not implementing full maximal), but still. . .
         
-        var x, y;
-        var ci = ~~(Math.random()*(~~(cells.length/CTOT))*0.999999999);
+        var x, y, ci;
+        
+        if (SCAN_MODE) {
+          ci = this.cur++ % (cells.length/CTOT);
+        } else {
+          ci = ~~(Math.random()*(~~(cells.length/CTOT))*0.999999999);
+        }
         ci *= CTOT;
         
         //ci = (this._cur++) % (cells.length/CTOT);
@@ -207,9 +154,20 @@ define([
           x = cx + icellsize*Math.random();
           y = cy + icellsize*Math.random();
         } else {
-          x = cx+0.0001;
-          y = cy+0.0001;
+          x = (cx+0.0000*icellsize)*size;
+          y = (cy+0.0000*icellsize)*size;
+          x = (~~x+0.5) / size;
+          y = (~~y+0.5) / size;
         }
+        
+        //x += icellsize*Math.random()*3;
+        //y += icellsize*Math.random()*3;
+        
+        //if (x < 0 || x >= 1 || y < 0 || y >= 1) 
+        //  continue;
+        
+        x = Math.fract(x);// Math.min(Math.max(x, 0), 1);
+        y = Math.fract(y);//min(Math.max(y, 0), 1);
         
         if (isNaN(x) || isNaN(y)) {
           throw new Error("nan!");
@@ -488,13 +446,13 @@ define([
     
     function make_cells() {
       var r = this.r;
-      var dimen = ~~(1 / r);
-      dimen *= 2;
+      var dimen = this.dimen; //~~(Math.sqrt(2) / r);
+      //dimen *= 2;
       
       //console.log("cell size:", dimen);
       
       var cells = this.cells = [];
-      this.cellsize = dimen;
+      this.cellsize = Math.max(~~dimen, 16);
       
       for (var i=0; i<dimen*dimen; i++) {
         var x = i % dimen;
@@ -512,6 +470,7 @@ define([
     function reset(size, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       
+      this.cur = 0;
       var cf = this.config;
       
       this.totfft = 0;
@@ -568,13 +527,34 @@ define([
     
     function draw(g) {
       MaskGenerator.prototype.draw.call(this, g);
-      var cf = this.config;
-      
-      if (cf.FFT_TARGETING) {
-        this.fft.draw(g, 80, 450, this.fft_image);
+            
+      if (FFT_TARGETING && this.fft_image != undefined) {
+        this.fft.raster(this.fft_image);
+        this.fft.calc_radial();
+        this.fft.draw(g, 180, 350, this.fft_image);
       }
+      
+      if (!ALIGN_GRID)
+        return;
+
+      var cf = this.config;
+      var size = this.dimen;
+      
+      g.strokeStyle = "grey";
+      
+      g.beginPath();
+      var dx = 1.0 / size;
+      for (var i=0; i<size; i++) {
+        g.moveTo(i*dx, 0);
+        g.lineTo(i*dx, 1);
+        
+        g.moveTo(0, i*dx);
+        g.lineTo(1, i*dx);
+      }
+      g.stroke();
     },
     
+    /*
     //optional
     function raster_point(pi) {
       var mask = this.mask, ps = this.points, msize = this.mask_img.width
@@ -642,18 +622,20 @@ define([
         this.raster_point(i);
       }
     },
-    
+    */
     function current_level() {
       return this.hlvl;
     },
     
     function next_level(steps) {
+      this.cur = 0;
+      
       var cf = this.config;
       
       this.maxgen = this.hsteps;
       
       //scramble order of first level if pack densely is on
-      /*
+      //*
       if (this.hlvl == 0 && cf.LIMIT_DISTANCE) {
         var ps = this.points;
         
@@ -663,7 +645,7 @@ define([
           ps[i+PGEN] = ~~(Math.random()*5);
         }
         
-        this.sort();
+        //this.sort();
         
         for (var i=0; i<ps.length; i += PTOT) {
           var gen = ps[i+PGEN];
@@ -688,7 +670,7 @@ define([
         }
       }
       
-      this.make_cells();
+      //this.make_cells();
     },
     
     function regen_spatial() {

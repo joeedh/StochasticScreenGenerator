@@ -147,10 +147,10 @@ if (String.prototype.contains == undefined) {
   }
 }
 
-String.prototype[Symbol.keystr] = function() {
+String.prototype[Symbol.keystr] = function keystr() {
   return this;
 }
 
-Number.prototype[Symbol.keystr] = Boolean.prototype[Symbol.keystr] = function() {
+Number.prototype[Symbol.keystr] = Boolean.prototype[Symbol.keystr] = function keystr() {
   return ""+this;
 }

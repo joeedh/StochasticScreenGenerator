@@ -11,10 +11,13 @@ window.MODES = {
 //  SPECTRAL : 2,
   JITTER   : 3,
   AA       : 4,
-  VOID_CLUSTER : 5
+  VOID_CLUSTER : 5,
+  BAYER : 6
 };
 
 window.MODE = MODES.DART;
+window.VOIDCLUSTER_MID_R = 0.5;
+window.VOID_HEX_MODE = false;
 
 window.CMYK = [
   [0, 1, 1],
@@ -24,6 +27,7 @@ window.CMYK = [
 ];
 
 window.ALIGN_GRID = false;
+window.VOID_BAYER_MODE = false;
 
 window.AA_ADD_JITTER = 0;
 
@@ -50,8 +54,14 @@ window.AA_ADD_JITTER = 0;
   limit   : 0.45325
   base    : 22383453
 */
-//simplex version
-var AA_SEED = 0.07350273436363906; //0.07037613901662089
+
+//offset aa domain.  is multipled by DIMEN and then floored
+var AA_PAN_X = 0.0;
+var AA_PAN_Y = 0.0;
+
+//2.6254769999997
+
+var AA_SEED = 2.6254769999997; //-0.41652300000028097; //-0.40652300000028097; //2.5214769999997158; //0.46347699999971903;//-0.413476999999719; //1.624937913//0.5758898//0.07350273436363906; //0.07037613901662089
 
 //AA_SEED=0.38324;
 //0.6248679265099781
@@ -65,7 +75,7 @@ var AA_SEED = 0.07350273436363906; //0.07037613901662089
 var AA_BASE = 22383453;
 //previously: 23355
 
-var AA_LIMIT = 0.45325; //0.5837
+var AA_LIMIT = 1.1; //0.45325; //0.5837
   
 var EXPLORE_AA_SEED = 0;
 var EXPLORE_AA_LIMIT = 0;
@@ -103,6 +113,7 @@ window.PANX = 0.0;
 window.PANY = 0.0;
 window.DRAW_KDTREE = false;
 window.DRAW_MASK = false;
+window.SCAN_MODE = false;
 
 window.TILABLE = true;
 
@@ -158,6 +169,71 @@ define([
   
   var exports = _const = {};
   
+  function gen_soff_variants(soff) {
+    var steps = 16;
+    var hash = {};
+    
+    function shuffle(lst) {
+      for (var i=0; i<lst.length; i++) {
+        var ri = ~~(Math.random()*lst.length*0.999999);
+        var t = lst[ri];
+        
+        lst[ri] = lst[i];
+        lst[i] = t;
+      }
+    }
+    
+    for (var i=0; i<soff.length; i++) {
+      var ix = soff[i][0], iy = soff[i][1];
+      var dis = ix*ix + iy*iy;
+      
+      if (!(dis in hash)) {
+        hash[dis] = [];
+      }
+      
+      var lvl = hash[dis];
+      lvl.push([ix, iy]);
+    }
+    
+    var ret = [];
+    
+    for (var si=0; si<steps; si++) {
+      var lst = [];
+      
+      for (var k in hash) {
+        var lvl = hash[k];
+        
+        //don't shuffle base level
+        if (si > 0) {
+          shuffle(lvl);
+        }
+        
+        for (var j=0; j<lvl.length; j++) {
+          lst.push(lvl[j]);
+        }
+      }
+      
+      lst.sort(function(a, b) {
+        return a[0]*a[0] + a[1]*a[1] - b[0]*b[0] - b[1]*b[1];
+      });
+      
+      ret.push(lst);
+    }
+    
+    return ret
+  }
+  
+  var get_searchoff_norand = exports.get_searchoff_norand = function get_searchoff_norand(n, noreport) {
+    if (_search_offs[n] != undefined) {
+      var variants = _search_offs[n];
+      return variants[0];
+    }
+    
+    get_searchoff(n, noreport);
+    
+    return _search_offs[n][0];
+  }
+  
   var get_searchoff = exports.get_searchoff = function get_searchoff(n, noreport) {
     var r = n, i=n;
     
@@ -166,15 +242,18 @@ define([
     }
     
     if (_search_offs[n] != undefined) {
-      return _search_offs[n];
+      var variants = _search_offs[n];
+      var ri = ~~(Math.random()*variants.length*0.99999);
+      
+      return variants[ri];
     }
-    
+
     if (!noreport)
       console.trace("generate search a off of radius", n, "...");
     
     var lst = [];
-    for (var x=-i; x<i; x++) {
-      for (var y=-i; y<i; y++) {
+    for (var x=-i; x<=i; x++) {
+      for (var y=-i; y<=i; y++) {
         var x2 = x < 0 ? x+1 : x;
         var y2 = y < 0 ? y+1 : y;
         
@@ -196,12 +275,14 @@ define([
       return a[0]*a[0] + a[1]*a[1] - b[0]*b[0] - b[1]*b[1];
     });
     
-    _search_offs[n] = lst;
+   _search_offs[n] = gen_soff_variants(lst);
     
-    return lst;
+    return exports.get_searchoff(n);
   }
 
-  for (var i=0; i<32; i++) {
+  window.gen_soff_variants = gen_soff_variants;
+  
+  for (var i=0; i<16; i++) {
       get_searchoff(i, true);
   }
   

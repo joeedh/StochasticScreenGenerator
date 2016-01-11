@@ -441,6 +441,10 @@ define([
           this.seed(seed);
       },
       
+      function random() {
+        return this.extract_number() / (1<<30);
+      },
+      
       function seed(seed) {
           seed = ~~(seed*8192);
         
@@ -498,8 +502,272 @@ define([
   }
   
   exports.seed = function(n) {
+  //  console.trace("seed called");
     _mt.seed(n);
   }
   
+  var _inthash_none = (1<<31)-1;
+  
+  var hashsizes = [
+    5, 11, 19, 37, 67, 127, 223, 383, 653, 1117, 1901, 3251, 
+    5527, 9397, 15991, 27191, 46229, 78593, 133631, 227177, 38619,
+    656587, 1116209, 1897561, 3225883, 5484019, 9322861, 15848867,
+    26943089, 45803279, 77865577, 132371489, 225031553
+  ];
+
+  var IntHash = exports.IntHash = exports.Class(Array, [
+    function constructor(totelem) {
+      Array.call(this);
+      
+      this.used = 0;
+      this.cursize = 0;
+      this.totelem = totelem + 1 //make sure we're including key
+      this.forEach_rets = new exports.cachering(function() {
+        return new Array(totelem);
+      }, 512);
+      this.get_rets = new exports.cachering(function() {
+        return new Array(totelem);
+      }, 512);
+      
+      this.nextsize();
+    },
+    
+    function toJSON() {
+      var hash = [];
+      var totelem = this.totelem;
+      
+      for (var i=0; i<this.length; i += totelem) {
+        if (this[i] == _inthash_none) {
+          continue;
+        }
+        
+        for (var j=0; j<totelem; j++) {
+          hash.push(this[i+j]);
+        }
+      }
+      
+      var ret = {
+        size    : this.used,
+        totelem : this.totelem,
+        hash    : hash
+      };
+      
+      return ret;
+    },
+    
+    exports.Class.static(function fromJSON(obj) {
+      var ret = new IntHash(obj.totelem - 1);
+      
+      var hash = obj.hash, totelem = obj.totelem;
+      var vals = new Array(totelem);
+      
+      //console.log("TOTELEM", totelem, hash);
+      //return ret;
+      
+      for (var i=0; i<hash.length; i += totelem) {
+        for (var j=0; j<totelem-1; j++) {
+          vals[j] = hash[i+j+1];
+        }
+        
+        ret.set(hash[i], vals);
+      }
+      
+      return ret;
+    }),
+    
+    function nextsize() {
+      var size = hashsizes[++this.cursize];
+      var old = this.length, totelem = this.totelem;
+      
+      var cpy = [];
+      for (var i=0; i<this.length; i++) {
+        cpy.push(this[i]);
+      }
+      //var cpy = this.slice(0, this.length);
+      
+      this.length = size*totelem;
+      this.fill(_inthash_none, 0, this.length);
+      this.used = 0;
+      
+      var vals = new Array(totelem-1);
+      
+      for (var i=0; i<cpy.length; i += totelem) {
+        var key = cpy[i];
+        if (key === _inthash_none) {
+          continue;
+        }
+        
+        for (var j=1; j<totelem; j++) {
+          vals[j-1] = cpy[i+j];
+        }
+        
+        this.set(key, vals);
+      }
+    },
+    
+    //args after key, vals is array of integer values
+    function set(key, vals) {
+      key = ~~key;
+      
+      var totelem = this.totelem;
+      
+      if (this.used > this.length/(3*totelem)) {
+        this.nextsize();
+      }
+      if (this.used > this.length/(3*totelem)) {
+        this.nextsize();
+      }
+      if (this.used > this.length/(3*totelem)) {
+        this.nextsize();
+      }
+      
+      
+      var size = ~~(this.length/totelem);
+      var h = (key % size)*totelem;
+      var _i = 0;
+      
+      var add = 1;
+      while (this[h] != key && this[h] != _inthash_none) {
+        add = add*2 + 1;
+        
+        h = (key+add) % size
+        h = (h < 0 ? h+size : h)*totelem;
+
+        if (_i++ > this.length*50) {
+          console.log("infinite loop in integer hash!", add, h, key, key%size, size, this.used);
+          break;
+        }
+      }
+      
+      if (this[h] != key)
+        this.used++;
+      
+      this[h] = key;
+      
+      for (var i=1; i<totelem; i++) {
+        this[h+i] = vals[i-1];
+      }
+    },
+    
+    function forEach(cb, thisvar) {
+      thisvar = thisvar == undefined ? this : thisvar;
+      
+      var totelem = this.totelem;
+      var vals = this.forEach_rets.next();
+      
+      for (var i=0; i<this.length; i += totelem) {
+        var key = this[i];
+        var vals = this.forEach_rets.next();
+        
+        if (key == _inthash_none && this[i+1] == _inthash_none) {
+          continue;
+        }
+        
+        for (var j=0; j<totelem-1; j++) {
+          vals[j] = this[i+1+j];
+        }
+        
+        cb.call(thisvar, key, vals);
+      }
+    },
+    
+    function get(key) {
+      key = ~~key;
+      
+      var totelem = this.totelem;
+      
+      var size = ~~(this.length/totelem);
+      var h = (key % size)*totelem;
+      var _i = 0;
+      
+      var add = 1;
+      while (this[h] != key && this[h] != _inthash_none) {
+        add = add*2 + 1;
+        h = (key+add) % size
+        h = (h < 0 ? h+size : h)*totelem;
+
+        if (_i++ > this.length*10) {
+          console.log("infinite loop in integer hash!", add, h, key, size, this.used);
+          break;
+        }
+      }
+      
+      if (this[h] != key) 
+        return undefined;
+      
+      var ret = this.get_rets.next();
+      for (var i=0; i<totelem-1; i++) {
+        ret[i] = this[h+i+1];
+      }
+      
+      return ret;
+    },
+    
+    function has(key) {
+      key = ~~key;
+      
+      var totelem = this.totelem;
+      
+      var size = ~~(this.length/totelem);
+      var h = (key % size)*totelem;
+      var _i = 0;
+      
+      var add = 1;
+      while (this[h] != key && this[h] != _inthash_none) {
+        add = add*2 + 1;
+        h = (key+add) % size
+        h = (h < 0 ? h+size : h)*totelem;
+
+        if (_i++ > this.length*10) {
+          console.log("infinite loop in integer hash!", add, h, key, size, this.used);
+          break;
+        }
+      }
+      
+      return this[h] == key;
+    },
+    
+    //function remove(key) {
+    //}
+  ]);
+  
+  exports.test_inthash = function() {
+    var ihash = new IntHash(1);
+    var vals = [0, 1];
+    
+    exports.seed(0);
+    
+    for (var i=0; i<29; i++) {
+      var ri = ~~(exports.random()*4096);
+      vals[0] = i;
+      vals[1] = ri;
+      
+      console.log(ri, vals);
+      ihash.set(ri, vals);
+      ihash.set(ri, vals);
+      ihash.set(ri, vals);
+    }
+    
+    console.log("\n\n=====");
+    var c = 0;
+    ihash.forEach(function(key, vals) {
+      //console.log(key, ""+vals);
+      console.log(ihash.has(key), ihash.get(key), vals);
+      c++;
+    }, this);
+    
+    var json = JSON.stringify(ihash);
+    console.log(json);
+    console.log("\nused", ihash.used, c);
+    
+    var ihash2 = IntHash.fromJSON(JSON.parse(json));
+    var json2 = JSON.stringify(ihash2);
+
+    var ihash3 = IntHash.fromJSON(JSON.parse(json2));
+    var json3 = JSON.stringify(ihash3);
+    console.log(json2, "\n", json3, "\n", json2 == json3);
+    
+    return undefined;
+  }
   return exports;
 });

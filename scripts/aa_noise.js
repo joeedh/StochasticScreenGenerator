@@ -1,152 +1,172 @@
 var _aa_noise = undefined;
 
 define([
-  "util", "const", "interface", "vectormath", "kdtree"
-], function(util, cconst, sinterface, vectormath, kdtree) {
+  "util", "const", "interface", "vectormath", "kdtree", "void_cluster",
+  "aa_hex", "aa_simple", "aa_simple_hex", "aa_types", "aa_simple_2"
+], function(util, cconst, sinterface, vectormath, kdtree, void_cluster,
+            aa_hex, aa_simple, aa_simple_hex, aa_types, aa_simple_2) 
+{
   'use strict';
+
+  var exports = _aa_noise = {};
+  
+  var test_unique_ids = 0;
+  
+  var Generators = exports.Generators = {
+    aa_simple     : new aa_simple.SimpleGen(),
+    aa_hex        : new aa_hex.HexGen(),
+    aa_simple_hex : new aa_simple_hex.SimpleHexGen(),
+    aa_really_simple : new aa_simple.ReallySimpleGen(),
+    aa_simple_2 : new aa_simple_2.SimpleGen()
+  };
+  
+  var GENERATOR = exports.GENERATOR = Generators.aa_simple_2;
   
   var OX=0, OY=1, OGEN=2, OTOT=3;
-  
+  var test_without_offsets = 0;
+
   var dxdy_rets = new util.cachering(function() {
-    return [0, 0];
+    return [0, 0, 0];
   }, 256);
   
-  function get_id2(ix, iy, p, q, limit, depth) {
-    if (depth > 1) return undefined;
-    
-    depth = depth == undefined ? 0 : depth;
-    
-    var d = 9;
-    var t = (p-q) / (2*q);
-    
-    var ret1 = dxdy(ix, iy, p, q);
-    var mask = 0;
-    
-    if (ret1[0] > limit || ret1[1] > limit) {
-      return undefined;
-    }
-    
-    var mi = 0;
-    for (var si=0; si<2; si++) {
-      for (var i=-d; i<=d; i++, mi++) {
-        var tx1 = 0, ty1 = 0;
-
-        if (si) {
-          ty1 += i/d;
-        } else {
-          tx1 += i/d;
-        }
-
-        var ret = dxdy(ix+tx1, iy+ty1, p, q);
-        
-        if (ret[0] < limit && ret[1] < limit) {
-          mi++;
-        }
-        
-        if (ret[0] < limit && ret[1] < limit) {
-          var bit = 1 << (mi % 31);
-          
-          mask = si ? mask ^ bit : mask | bit;
-          
-          var id2 = get_id(ix+tx1, iy+ty1, p, q, limit, depth+1);
-          
-          if (id2 != undefined) {
-            mask = mask ^ id2;
-          }
-        }
-      }
-    }
-    
-    var offs = cconst.get_searchoff(d);
-    for (var i=0; i<offs.length; i++, mi++) {
-      break; //XXX
-      
-      var tx1 = offs[i][0], ty1 = offs[i][1];
-      var ret = dxdy(ix+tx1, iy+ty1, p, q);
-      
-      if (ret[0] < limit && ret[1] < limit) {
-        mi++;
-      }
-      
-      if (ret[0] < limit && ret[1] < limit) {
-        mask |= 1 << (mi>>1);
-      }
-      
-      continue;
-      var a, b;
-      
-      if (ret[0] > t - ret1[0] && ret[0] < t) {
-        mask |= 1<<mi;
-      } else if (ret[0] >= 1.0 - ret[0] && ret[0] > 1.0 - t) {
-        mask |= 1<<(mi+d*d);
-      } else { //impossible
-        continue;
-      }
-    }
-    
-    window.max_mi = mi;
-    
-    return mask;
+  var LEVEL_STEPS = 4
+  var seedrand = new util.MersenneRandom();
+  seedrand.seed(0);
+  
+  var seeds = [], muls = [];
+  for (var i=0; i<LEVEL_STEPS*3; i++) {
+    seeds.push(~~(seedrand.random()*(1<<24)));
+    muls.push(~~(seedrand.random()*(1<<17)));
   }
   
-  function get_id(ix, iy, p, q, limit, depth) {
-    if (depth > 1) return undefined;
+  var LARGE_PRIME = 2147483249; //~(1<<31)
+  
+  var _id_cache = new Float64Array(8192*8192);
+  _id_cache.fill(-12345, 0, _id_cache.length);
+  
+  function id_cache_get(ix, iy) {
+    ix += 4096;
+    iy += 4096;
+    ix = ~~ix;
+    iy = ~~iy;
     
-    depth = depth == undefined ? 0 : depth;
-    
-    var d = 4;
-    var t = (p-q) / (2*q);
-    
-    var ret1 = dxdy(ix, iy, p, q);
-    var mask = 0;
-    
-    if (ret1[0] > limit || ret1[1] > limit) {
+    if (ix >= 8192 || iy >= 8192 || ix < 0 || iy < 0) {
+      console.log("out of bounds:", ix, iy);
       return undefined;
     }
     
-    var mi = 0;
-    var offs = cconst.get_searchoff(d);
-    for (var i=0; i<offs.length; i++, mi) {
-      var tx1 = offs[i][0], ty1 = offs[i][1];
-      var ret = dxdy(ix+tx1, iy+ty1, p, q);
+    var key = iy*8192+ix;
+    
+    var ret = _id_cache[key];
+    return ret == -12345 ? undefined : ret;
+    
+    /*
+    if (key in _id_cache) {
+      return _id_cache[key];
+    }
+    
+    return undefined;
+    //*/
+  }
+  
+  function id_cache_set(ix, iy, val) {
+    ix += 4096;
+    iy += 4096;
+    ix = ~~ix;
+    iy = ~~iy;
+    
+    if (ix >= 8192 || iy >= 8192 || ix < 0 || iy < 0) {
+      console.log("out of bounds:", ix, iy);
+      return undefined;
+    }
+    
+    var key = ~~(iy*8192+ix);
+    _id_cache[key] = val;
+  }
+  
+  var get_id = exports.get_id = function get_id(ix, iy, size, seed, limit, depth) {
+    if (test_unique_ids) {
+      ix = ~~ix + 1024;
+      iy = ~~iy + 1024;
       
-      if (ret[0] > limit || ret[1] > limit) {
-        mi++;
-      }
-      
-      if (ret[0] < limit && ret[1] < limit) {
-        mask |= 1 << (mi>>1);
-      }
-      
-      /*
-      var id2 = get_id(ix, iy, p, q, limit, depth+1);
-      if (id2 != undefined) {
-        mask = mask ^ id2;
-      }*/
-      
-      continue;
-      var a, b;
-      
-      if (ret[0] > t - ret1[0] && ret[0] < t) {
-        mask |= 1<<mi;
-      } else if (ret[0] >= 1.0 - ret[0] && ret[0] > 1.0 - t) {
-        mask |= 1<<(mi+d*d);
-      } else { //impossible
-        continue;
+      return iy*2048 + ix;
+    }
+    
+    if (depth > 0) return undefined;
+
+    depth = depth == undefined ? 0 : depth;
+    
+    //lookup in cache
+    if (depth == 0) {
+      var ret = id_cache_get(ix, iy);
+      if (ret != undefined) {
+        return ret;
       }
     }
     
-    window.max_mi = mi;
+    var ret1 = dxdy(ix, iy, size, AA_SEED);
+    if (ret1 == undefined) return undefined;
+    
+    var mask = 0;
+    var childmask = 0;
+    
+    var mi = 0;
+    var d = 5;
+    var offs = cconst.get_searchoff_norand(d);
+    var mask2 = 0;
+    
+    for (var i=0; i<offs.length; i++, mi) {
+      var tx1 = offs[i][0], ty1 = offs[i][1];
+      var ret = dxdy(ix+tx1, iy+ty1, size, AA_SEED);
+      
+      if (ret == undefined)
+        continue;
+      
+      var lvl = ~~(ret[2]*LEVEL_STEPS);
+      mask = (mask*muls[lvl] + seeds[lvl]) % LARGE_PRIME;
+      
+      var submask = get_id(ix, iy, size, seed, limit, depth+1);
+      if (submask != undefined) {
+        mask2 ^= submask;
+      }
+      
+      mask2 = mask2 < 0 ? -mask2 : mask2;
+    }
+    
+    mask = mask2 != 0 ? mask ^ mask2 : mask;
+    mask = mask < 0 ? -mask : mask;
+    
+    if (depth == 0) {
+      if (Math.random() > 0.995) {
+        console.log("set id...", ix, iy, mask);
+      }
+      id_cache_set(ix, iy, mask);
+    }
     
     return mask;
   }
-
+  window.maxmask = 0;
+  
   window.get_id = get_id;
   
     var F2 = 0.5*(Math.sqrt(3.0)-1.0);
     var G2 = (3.0-Math.sqrt(3.0))/6.0;
+  
+  //p and q are ignored for now . . .  
+  var dxdy = exports.dxdy = function dxdy(ix, iy, size, seed) {
+    /*
+      //for hex...
+      size = 128;
+      return aa_hex.dxdy(ix/size, iy/size, size, p, q);
+    */
     
-    function dxdy(ix, iy, p, q) {
+    //ix += ~~(DIMEN*AA_PAN_X);
+    //iy += ~~(DIMEN*AA_PAN_Y);
+    
+    return GENERATOR.dxdy(ix, iy, size, seed);
+  }
+  
+  function dxdy_old(ix, iy, p, q) {
       var flipx = ix < 0, flipy = iy < 0;
       
       ix = flipx ? -ix : ix;
@@ -167,8 +187,12 @@ define([
       
       var ret = dxdy_rets.next();
       
-      ret[0] = dx1/(2*q);
-      ret[1] = dy1/(2*q);
+      var dx = ret[0] = dx1/(2*q);
+      var dy = ret[1] = dy1/(2*q);
+      
+      var gen = Math.min(dx, dy);
+      ret[2] = gen;
+      
       return ret;
     }
     
@@ -206,7 +230,6 @@ define([
   0.39822   | 0.50743
   
   */
-  var exports = _aa_noise = {};
   
   var CDFS = {
     //dummy
@@ -404,20 +427,25 @@ define([
   ]);
   
   var AANoiseGenerator = exports.AANoiseGenerator = Class(MaskGenerator, [
+    Class.getter(function dilute_small_mask() {
+      return false;
+    }),
+    Class.setter(function dilute_small_mask(val) {
+      //do nothing
+    }),
+    
     function constructor(appstate) {
-      MaskGenerator.call(this, appstate);
+      MaskGenerator.call(this, appstate, false);
       
-      this.offsets = new util.hashtable();
+      this.pass = 0;
+      
+      this.offsets = new util.IntHash(OTOT);
             
       if ("bn9_aa_offsets" in localStorage) {
         var offs = JSON.parse(localStorage["bn9_aa_offsets"]);
-
-        window._offs = offs;
+        this.offsets = util.IntHash.fromJSON(offs);
         
-        for (var i=0; i<offs.length; i += 2) {
-          var key = offs[i], val = offs[i+1];
-          this.offsets.set(parseInt(key), parseFloat(val));
-        }
+        window._offs = offs;
       }
       
       this.colors = [];
@@ -464,8 +492,8 @@ define([
     },
     
     function delete_gens() {
-      this._gen_ws = new util.hashtable();
-      this._gen_tots = new util.hashtable();
+      console.trace("deprecation error: delete_gens called");
+      return;
       
       var ps = this.points;
       var offs = this.offsets;
@@ -485,7 +513,7 @@ define([
     function delete_offsets() {
       delete localStorage.bn9_aa_offsets;
       
-      this.offsets = new util.hashtable();
+      this.offsets = new util.IntHash(OTOT);
       this.apply_offsets();
       
       redraw_all();
@@ -498,12 +526,7 @@ define([
     }),
     
     function save_offsets() {
-      var offs = [];
-      
-      this.offsets.forEach(function(k, v) {
-        offs.push(k);
-        offs.push(v);
-      }, this);
+      var offs = this.offsets.toJSON();
       
       localStorage.bn9_aa_offsets = JSON.stringify(offs);
     },
@@ -511,18 +534,16 @@ define([
     function reset(dimen, appstate, mask_image) {
       this.dimen1 = dimen;
       
-      dimen *= 2;
+      //dimen *= 2;
 
       if (EXPLORE_AA_LIMIT || EXPLORE_AA_SEED) {
         this.report("\nPress 'R' accept pointset, 'N' too reject it\n");
       }
       
+      this.totfilled = 0;
       this.maxgen = 1;
       this.orig_kdtree = new kdtree.KDTree();
       this.relax_first = true;
-      
-      this._gen_ws = new util.hashtable();
-      this._gen_tots = new util.hashtable();
       
       if (EXPLORE_AA_LIMIT) {
         if (this.limit != undefined && this.nice)  {
@@ -584,6 +605,10 @@ define([
       
       this.p = base;
       this.q = ~~(this.seed*base);
+      
+      //this.voidcluster = new void_cluster.VoidClusterGenerator(appstate);
+      //this.voidcluster.ignore_initial_points = true;
+      //this.voidcluster.reset.apply(this.voidcluster, arguments);
     },
     
     function toggle_timer_loop(appstate, simple_mode) {
@@ -617,6 +642,7 @@ define([
         this.reset(this.dimen1, _appstate, this.mask_img);
       } else {
         this.label_hiearchy();
+        this.raster();
       }
     },
     
@@ -631,17 +657,21 @@ define([
       var seed = this.seed;
       var limit = this.limit;
       
+      var size2 = ~~(size*1.5);
+      var pad = ~~((size2-size)*0.5+0.5);
+      
       for (var si=0; si<steps; si++, this.cur++) {
-        var pi = ps.length;;
+        var pi = ps.length;
         var cur = this.cur;
         
-        if (cur >= size*size) {
+        if (cur >= size2*size2) {
           this.report("done generating points", cur);
+          
           break;
         }
         
-        var ix = cur % size;
-        var iy = ~~(cur / size);
+        var ix = cur % size2 - pad;
+        var iy = ~~(cur / size2) - pad;
       
         //if (ix == 0 || iy == 0) continue;
         var x = (ix+0.001)/size;
@@ -653,67 +683,45 @@ define([
         
         var ix2 = ix;
         var iy2 = iy;
+       
+        var ax = ~~(DIMEN*AA_PAN_X);
+        var ay = ~~(DIMEN*AA_PAN_Y);
         
-        var ret = dxdy(ix, iy, this.p, this.q);
-        var dx = ret[0];
-        var dy = ret[1];
+        var ret = dxdy(ix+ax, iy+ay, this.dimen, AA_SEED);
+        if (ret == undefined) continue;
         
-        var ax = 0.5*(ix*seed - iy);
-        var ay = 0.5*(ix + iy*seed); 
+        var dx  = ret[0];
+        var dy  = ret[1];
+        var gen = ret[2];
         
-        if ((dx > limit || dy > limit)) {
-          continue;
-        }
+        //if ((dx > limit || dy > limit)) {
+          //continue;
+        //}
 
-        var id = get_id(ix, iy, this.p, this.q, limit);
-        var color = id % this.colors.length;
+        var id = get_id(ix+ax, iy+ay, DIMEN, AA_SEED, limit);
+        var color = Math.abs(id % this.colors.length);
+        
+        if (this.config.AA_ADD_JITTER) {
+          //gen += Math.random()*0.05;
+          
+          x += Math.random()/size2/2;
+          y += Math.random()/size2/2;
+        }
+        
+        //if (x < 0 || y < 0 || x >= 1.0 || y >= 1.0) {
+           //x = Math.min(Math.max(x, 0.0), 1.0);
+           //y = Math.min(Math.max(y, 0.0), 1.0);
+           //continue;
+        //}
         
         //create space for point
         for (var j=0; j<PTOT; j++) {
           ps.push(0);
         }
         
-        //progressive sampling labeler
-        //var gen = Math.min(dx, dy)// + (Math.random()-0.5)*0.3;
-        
         var dx2 = dx-0.5, dy2 = dy-0.5;
         
-        var gen = (Math.sqrt(dx2*dx2+dy2*dy2+0.000001));
-        var gen = Math.min(dx, dy);
-        
-        /*
-        gen = Math.min(Math.max(gen, 0), 0.9999);
-        if (gen < 0) 
-          gen = Math.random()*0.01;
-        else if (gen > 1.0) 
-          gen = 1.0 - Math.random()*0.01;
-        */
-        
-        //correction offset labeler
-        /*
-        var vx = (ax-ix), vy = (ay-iy);
-        
-        vx = (vx + 50.5);
-        vy = (vy + 50.5);
-        if (vx < 0 || vy < 0) {
-          console.log(vx, vy, "|", ax, ay, ix, iy);
-          throw new Error("eek!");
-        }
-        
-        var color = vx*vx + vy*vy;
-        */
-        
-        if (AA_ADD_JITTER) {
-          //gen += Math.random()*0.05;
-          
-          x += Math.random()/size/2;
-          y += Math.random()/size/2;
-        }
-        
-        color = ~~(gen*this.colors.length);
         gen = ~~(gen*256);
-        
-        if (x < 0 || y < 0 || x >= 1.0 || y >= 1.0) continue;
         
         //if (x == 0 && y == 0) continue;
         
@@ -726,20 +734,18 @@ define([
         ps[pi+PCLR] = color % this.colors.length;
         
         ps[pi+PGEN] = gen; //gen;
-        this.offsets.set(id*OTOT+OGEN, gen);
         
         ps[pi+PFLAG] = -1; //flag for if point has been labeled yet, can't use gen
         ps[pi+PD]   = id;
         
-        this.maxgen = Math.max(this.maxgen, gen);
+        this.maxgen = Math.max(this.maxgen, gen+1);
         
         this.kdtree.insert(x, y, pi/PTOT);
         this.orig_kdtree.insert(x, y, pi/PTOT);
       }
       
-      this.save_offsets();
+      //this.save_offsets();
       this.apply_offsets();
-      this.sort();
       
       this.raster();
     },
@@ -811,13 +817,15 @@ define([
       for (var i=0; i<ps.length; i += PTOT) {
         var c = ps[i+PD];
         
-        if (this.offsets.has(c*OTOT)) {
-          //if (this.offsets.has(c*OTOT+OGEN))
-          ps[i+PGEN] = this.offsets.get(c*OTOT+OGEN);
+        
+        if (this.offsets.has(c)) {
+          var vals = this.offsets.get(c);
+          
+          ps[i+PGEN] = vals[OGEN];
           this.maxgen = Math.max(ps[i+PGEN]+1, this.maxgen);
           
-          var dx = this.offsets.get(c*OTOT);
-          var dy = this.offsets.get(c*OTOT+1);
+          var dx = vals[OX];
+          var dy = vals[OY];
           
           ps[i] = ps[i+PDX] + dx/this.dimen;
           ps[i+1] = ps[i+PDY] + dy/this.dimen;
@@ -836,6 +844,7 @@ define([
     function jitter(fac) {
         fac = fac == undefined ? 1.0 : fac;
         
+        var tmp = new Array(OTOT);
         var offs = this.offsets;
         var bl = 0.3;
         
@@ -843,10 +852,14 @@ define([
           var c = this.points[i+PD];
           
           var dx=0, dy=0;
-          
-          if (offs.has(c*OTOT)) {
-            dx = offs.get(c*OTOT);
-            dy = offs.get(c*OTOT+1);
+          var savegen=undefined;
+        
+          if (offs.has(c)) {
+            var vals = offs.get(c);
+            
+            dx = vals[0];
+            dy = vals[1];
+            savegen = vals[2];
           }
           
           var x = this.points[i], y = this.points[i+1];
@@ -858,11 +871,11 @@ define([
           dx += fac*0.1*(Math.random()-0.5)//this.dimen;
           dy += fac*0.1*(Math.random()-0.5)//this.dimen;
           
-          offs.set(c*OTOT, dx);
-          offs.set(c*OTOT+1, dy);
+          tmp[0] = dx;
+          tmp[1] = dy;
+          tmp[2] = savegen != undefined ? savegen : this.points[i+PGEN];
           
-          if (!offs.has(c*OTOT+OGEN))
-            offs.set(c*OTOT+OGEN, this.points[i+PGEN]);
+          offs.set(c, tmp);
           
           this.points[i] = this.points[i+PDX] + dx/this.dimen;
           this.points[i+1] = this.points[i+PDY] + dy/this.dimen;
@@ -877,45 +890,177 @@ define([
         redraw_all();
     },
     
+    function relax2() {
+      var cf = this.config;
+      var do_mask = (this.pass & 1) && cf.GEN_MASK;
+      this.pass++;
+      
+      var offs = this.offsets;
+      var size = this.dimen;
+      var r1 = new Array(3), r2 = new Array(3);
+      var LSTEPS = 64;
+      var tmp = new Array(OTOT);
+      
+      this.report("relaxing...");
+      
+      var ax = ~~(DIMEN*AA_PAN_X);
+      var ay = ~~(DIMEN*AA_PAN_Y);
+        
+      for (var _i=0; _i<size*size; _i++) {
+        //var i = ~~(Math.random()*size*size*0.999999);
+        var i = _i;
+        
+        var ix = i % size, iy = ~~(i / size);
+        var id = get_id(ix+ax, iy+ay, size, AA_SEED, this.limit);
+        
+        var ox=0, oy=0;
+        if (offs.has(id)) {
+          var vals = offs.get(id);
+          ox = vals[0], oy = vals[1];
+        }
+        var x = ix/size + ox/size, y = iy/size + oy/size;
+
+        var ret = dxdy(ix+ax, iy+ay, size, AA_SEED);
+        r1[0] = ret[0], r1[1] = ret[1], r1[2] = ret[2];
+        var lvl1 = r1[2];
+        
+        var r = do_mask ? ~~((1.0-lvl1)*9) + 3 : 2;
+        var rd = Math.ceil(r);
+        
+        var soffs = cconst.get_searchoff(rd+1);
+        var sx=0, sy=0, sw=0;
+        
+        for (var j=0; j<soffs.length; j++) {
+          var ix2 = ~~(x*size) + soffs[j][0], iy2 = ~~(y*size) + soffs[j][1];
+          var id2 = get_id(ix2+ax, iy2+ay, size, AA_SEED, this.limit);
+        
+          if (soffs[j][0] == 0 && soffs[j][1] == 0) {
+            continue;
+          }
+          
+          var ox2=0, oy2=0;
+          if (offs.has(id2)) {
+            var vals = offs.get(id2);
+            ox2 = vals[0], oy2 = vals[1];
+          }
+          
+          var x2 = ix2/size + ox2/size, y2 = iy2/size + oy2/size;
+          
+          var ret = dxdy(ix2+ax, iy2+ay, size, AA_SEED);
+          r2[0] = ret[0], r2[1] = ret[1], r2[2] = ret[2];
+          var lvl2 = r2[2];
+          
+          var l1 = (~~(lvl1*LSTEPS))/LSTEPS;
+          var l2 = (~~(lvl2*LSTEPS))/LSTEPS;
+          
+          if (do_mask && l2 > l1) {
+            continue;
+          }
+          
+          var dx = x2-x, dy = y2-y;
+          var dis = dx*dx + dy*dy;
+          var r3;
+          
+          if (do_mask && l2 != l1) {
+            var lf = l1 != 0.0 ? 1.3*l2 / l1 : 1.0;
+            
+            r3 = lf*r/size;
+          } else {
+            r3 = r/size;
+          }
+          
+          if (dis > r3*r3) {
+            continue;
+          }
+          
+          dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
+          var w = 1.0 - dis/r3;
+          w *= w*w;
+          //w = SPH_CURVE.evaluate(w);
+          
+          if (dis > 0) {
+            dx *= r3/dis;
+            dy *= r3/dis;
+          }
+          
+          sx += -dx*w;
+          sy += -dy*w;
+          sw += w;
+        }
+        
+        if (sw == 0) continue;
+        
+        sx /= sw;
+        sy /= sw;
+        
+        if (Math.random() > 0.999) {
+          //console.log(sx, sy, sw);
+        }
+        
+        ix = i % size, iy = ~~(i / size);
+        
+        sx = ((sx+x)*size-ix);
+        sy = ((sy+y)*size-iy);
+        
+        var f = (~~(lvl1*LSTEPS))/LSTEPS;
+        
+        var fac = 0.15*AA_SPEED;
+        
+        sx = ox + (sx - ox)*fac;
+        sy = oy + (sy - oy)*fac;
+        
+        tmp[OX] = sx;
+        tmp[OY] = sy;
+        tmp[OGEN] = ~~(f*256);
+        offs.set(id, tmp);
+        
+        //if (Math.random() > 0.99) {
+        //  console.log(lvl1);
+        //}
+      }
+      
+      this.save_offsets();
+      this.regen_spatial();
+      this.apply_offsets();
+      this.raster();
+      
+      this.report("done relaxing");
+    },
+    
     function relax() {
       var use_avg_dis = true;
       
-      var test_without_offsets = 0;
-      
-      //initial jitter
       var offs = this.offsets;
       
       //threshold to not affect boundary points
-      var bl = 0.2;
+      var bl = 0.1;
       
-      if (this.relax_first) {
+      //initial jitter
+      if (this.relax_first && !GEN_MASK) {
         this.relax_first = 0;
-
+        var tmp = [0, 0, 0];
+        
         for (var i=0; i<this.points.length; i += PTOT) {
           var c = this.points[i+PD];
           
           var dx=0, dy=0;
-          if (offs.has(c*OTOT)) {
+          if (offs.has(c)) {
             continue;
             
-            //dx = offs.get(c*OTOT);
-            //dy = offs.get(c*OTOT+1);
+            var vals = offs.get(c);
+            dx = vals[0], dy = vals[1];
           }
           
           var x = this.points[i], y = this.points[i+1];
           
-          if (x < bl || x > 1.0 - bl || y < bl || y > 1.0 - bl) {
-          //  continue;
-          }
+          dx += 0.7*(Math.random()-0.5)//this.dimen;
+          dy += 0.7*(Math.random()-0.5)//this.dimen;
           
-          dx += 1.1*(Math.random()-0.0)//this.dimen;
-          dy += 1.1*(Math.random()-0.0)//this.dimen;
+          tmp[0] = dx;
+          tmp[1] = dy;
+          tmp[2] = this.points[i+PGEN];
           
-          offs.set(c*OTOT, dx);
-          offs.set(c*OTOT+1, dy);
-          
-          if (!offs.has(c*OTOT+OGEN))
-            offs.set(c*OTOT+OGEN, this.points[i+PGEN]);
+          offs.set(c, tmp);
           
           this.points[i] = this.points[i+PDX] + dx/this.dimen;
           this.points[i+1] = this.points[i+PDY] + dy/this.dimen;
@@ -925,6 +1070,9 @@ define([
         this.apply_offsets();
         //return;
       }
+      
+      this.relax2();
+      return;
       
       var plen = this.points.length;
       var ps = this.points;
@@ -945,9 +1093,9 @@ define([
         var x = ps[i], y = ps[i+1], r1 = ps[i+PR], c = ps[i+PD];
         var gen1 = ps[i+PGEN];
 
-        if (offs.has(c*OTOT) && !test_without_offsets) {
-          var dx1 = offs.get(c*OTOT);
-          var dy1 = offs.get(c*OTOT+1);
+        if (offs.has(c) && !test_without_offsets) {
+          var vals = offs.get(c);
+          var dx1 = vals[0], dy1 = vals[1];
           
           x = ps[i+PDX] + dx1/dimen;
           y = ps[i+PDY] + dy1/dimen;
@@ -970,12 +1118,12 @@ define([
             continue;
           }
           
-          var ret = dxdy(ix2, iy2, this.p, this.q);
+          var ret = dxdy(ix2, iy2, this.dimen, AA_SEED);
           
           if (ret[0] > this.limit || ret[1] > this.limit)
             continue;
           
-          var id = get_id(ix2, iy2, this.p, this.q, this.limit);
+          var id = get_id(ix2, iy2, DIMEN, AA_SEED, this.limit);
           
           if (Math.random() > 0.99) {
             console.log(id, ix2, iy2);
@@ -999,6 +1147,12 @@ define([
           this.kdtree.forEachPoint(x1, y1, searchrad, function(pi) {
             var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], r2=ps[pi*PTOT+PR];
             var gen2 = ps[pi*PTOT+PGEN];
+            
+            //ignore points too far outside of boundary
+            var lmt = 0.05;
+            if (x2 < lmt || y2 < lmt || x2 >= 1.0+lmt || y2 >= 1.0+lmt) {
+              return;
+            }
             
             x2 -= _poffs[j][0];
             y2 -= _poffs[j][1];
@@ -1045,7 +1199,7 @@ define([
         y = ps[i+1] - sumy*0.5*AA_SPEED;
         
         if (x < bl || x > 1.0-bl*2 || y < bl || y > 1.0 - bl*2) {
-        //  continue;
+          continue;
         }
         
         ps[i]   = x;
@@ -1081,7 +1235,7 @@ define([
         this.kdtree.insert(ps[i], ps[i+1], i/PTOT);
         
         //if (/*!test_without_offsets &&*/ Math.abs(dx) <= l && Math.abs(dy) <= l) {
-        if (1) { //ps[i] > bl && ps[i] < 1.0-bl*2 && ps[i+1] > bl && ps[i+1] < 1.0 - bl*2) {
+        if (ps[i] > bl && ps[i] < 1.0-bl*2 && ps[i+1] > bl && ps[i+1] < 1.0 - bl*2) {
           offs.set(c*OTOT, dx);
           offs.set(c*OTOT+1, dy);
           
@@ -1101,159 +1255,34 @@ define([
     },
     
     function label_hiearchy() {
-      return; //unused
-      
-      var use_avg_dis = true;
-      
-      var test_without_offsets = 0;
-      
-      //initial jitter
-      var offs = this.offsets;
-      
-      //threshold to not affect boundary points
-      var bl = 0.2;
-      
-      var plen = this.points.length;
+      return;
       var ps = this.points;
-      var searchfac = 3;
-      var msize = this.mask_img.width;
-      var r = this.r;
       
-      if (use_avg_dis) {
-        r = this.calc_avg_dis();
+      if (this.voidcluster.points !== this.points) {
+        this.report("initializing clusterer. . .");
+        //this.voidcluster.init_from_points(this.points);
       }
 
-      var tots = this._gen_ws;
-      var ws = this._gen_tots;
+      //console.log("assigning hiearchial tags");
       
-      var offs = this.offsets;
+      for (var i=0; i<32; i++) {
+        this.voidcluster.cluster_step();
+      }
       
-      for (var si=0; si<15; si++) {
-        var offs = this.offsets;
-        var dimen = this.dimen;
+      for (var i=0; i<ps.length; i += PTOT) {
+        var c = ps[i+PD];
         
-        var soffs = cconst.get_searchoff(~~(searchfac+2));
-        var maxweight = -1, maxweight2 = -1, maxpi = -1, maxpi2 = -1;
+        this.maxgen = Math.max(this.maxgen, ps[i+PGEN]+1);
         
-        for (var i=0; i<plen; i += PTOT) {
-          var x = ps[i], y = ps[i+1], r1 = ps[i+PR], c = ps[i+PD];
-          var gen1 = ps[i+PGEN];
-
-          //if (x < bl || x > 1.0-bl || y < bl || y > 1.0 - bl) {
-          //  continue;
-          //}
-          
-          if (ps[i+PFLAG] >= 0) continue;
-          //if (ps[i+PGEN] >= 0) continue;
-          
-          var ix = ~~(ps[i+PDX]*this.dimen+0.0001);
-          var iy = ~~(ps[i+PDY]*this.dimen+0.0001);
-          
-          if (use_avg_dis)
-            r1 = r;
-          
-          var searchrad = r1*searchfac;
-          var sumtot=0, sumx=0, sumy=0, sumtot2=0;
-          
-          for (var j=0; j<_poffs.length; j++) {
-            var x1 = x + _poffs[j][0], y1 = y + _poffs[j][1];
-            
-            this.kdtree.forEachPoint(x1, y1, searchrad, function(pi) {
-              var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], r2=ps[pi*PTOT+PR];
-              var gen2 = ps[pi*PTOT+PGEN];
-              
-              if (ps[pi*PTOT+PFLAG] >= 0) return;
-              if (ps[pi*PTOT+PGEN] >= 0) return;
-              
-              if (use_avg_dis)
-                r2 = r;
-              
-              if (pi == i/PTOT) {
-                return;
-              }
-              
-              if (GEN_MASK && gen1 < gen2) {
-                //return;
-              }//*/
-              
-              var dx = x2-x1, dy = y2-y1;
-              var dis = dx*dx + dy*dy;
-              
-              if (dis == 0 || dis > searchrad*searchrad) {
-                return;
-              }
-              
-              dx += 2*Math.random()/this.dimen;
-              dy += 2*Math.random()/this.dimen;
-              dis = dx*dx + dy*dy;
-              
-              dis = Math.sqrt(dis);
-              
-              var w = 1.0 - dis/searchrad;
-              //w = w != 0.0 ? Math.sqrt(w) : 0.0;
-              w = w <= 0 ? 0 : Math.pow(w, 0.5);
-              
-              sumtot += w;
-              sumtot2++;
-           }, this);
-          }
-          
-          c = ps[i+PD];
-          var density = sumtot//sumtot2 != 0 ? sumtot / sumtot2 : 0.0;
-          
-          if (tots.has(c*OTOT+OGEN)) {
-            var d = ws.get(c*OTOT+OGEN);
-            var tot = tots.get(c*OTOT+OGEN);
-            
-            ws.set(c*OTOT+OGEN, d+density)
-            tots.set(c*OTOT+OGEN, tot+1);
-            
-            density = (density+d) / (tot+1);
-          } else {
-            ws.set(c*OTOT+OGEN, density);
-            tots.set(c*OTOT+OGEN, 1);
-          }
-          
-          if (density > maxweight) {
-            var id = ps[i+PD], g1=-1;
-            
-            if (offs.has(id*OTOT+OGEN)) {
-              g1 = offs.get(id*OTOT+OGEN);
-            }
-            
-            maxweight = density;
-            maxpi = i/PTOT;
-          }
+        if (!this.offsets.has(c*OTOT)) {
+          this.offsets.set(c*OTOT, 0);
+          this.offsets.set(c*OTOT+1, 0);
         }
         
-        console.log("max pi:", maxpi, maxweight);
-        
-        if (maxweight < 0) {
-          continue;
-        }
-        
-        var pi = maxpi*PTOT;
-        var gen = this.maxgen++;
-        ps[pi+PGEN] = gen;
-        
-        var id = ps[pi+PD];
-        
-        //ensure we have full record
-        if (!offs.has(id*OTOT)) {
-          offs.set(id*OTOT,   0);
-          offs.set(id*OTOT+1, 0);
-        }
-        
-        offs.set(id*OTOT+OGEN, gen);
-        
-        //flag point as done
-        ps[pi+PFLAG] = 1;
-      } 
+        this.offsets.set(c*OTOT+OGEN, ps[i+PGEN]);
+      }
       
       this.save_offsets();
-      this.apply_offsets();
-      this.sort();
-      this.raster();
     },
         
     function draw(g) {

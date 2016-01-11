@@ -7,10 +7,10 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster', 'fft',
-  'interface'
+  'interface', 'bayer'
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
            sph_presets, spectral, jitter, aa_noise, presets, void_cluster,
-           fftmod, iface) 
+           fftmod, iface, bayer) 
 {
   'use strict';
   
@@ -23,7 +23,8 @@ define([
     spectral.SpectralGenerator,
     jitter.JitterGenerator,
     aa_noise.AANoiseGenerator,
-    void_cluster.VoidClusterGenerator
+    void_cluster.VoidClusterGenerator,
+    bayer.BayerGenerator
   ];
   
   var sin_table = (function() {
@@ -127,25 +128,8 @@ define([
       var maxlvl = this.generator.max_level();
       restrict /= maxlvl;
       
-      var ps2 = [];
-      
-      for (var i=0; i<ps.length; i += PTOT) {
-        var gen = ps[i+PGEN]/maxlvl;
-        
-        if (TONE_CURVE != undefined) {
-          gen = TONE_CURVE.evaluate(gen);
-        }
-
-        if (gen != -1 && gen > restrict) {
-          continue;
-        }
-        
-        for (var j=0; j<PTOT; j++) {
-          ps2.push(ps[i+j]);
-        }
-        
-        plen++;
-      }
+      var ps2 = this.generator.get_visible_points(restrict, true);
+      var plen = ps2.length/PTOT;
       
       var gen = this.generator;
       
@@ -172,6 +156,7 @@ define([
       }
       
       var fft = new fftmod.FFT(size);
+      //fft.jitter = 1;
       
       this._fft = fft;
       
@@ -194,185 +179,6 @@ define([
       var update = function update() {
         fft.raster(fft_image);
         fft.calc_radial();
-      }
-      
-      next = next.bind(this);
-      update = update.bind(this);
-      var last_update = util.time_ms();
-      
-      window._fft_timer = window.setInterval(function() {
-        if (!next()) {
-          window.clearInterval(_fft_timer);
-          window._fft_timer = undefined;
-          
-          if (util.time_ms() - last_update > 150) {
-            update();
-            last_update = util.time_ms();
-          }
-          
-          redraw_all();
-          return;
-        }
-        
-        if (util.time_ms() - last_update > 150) {
-          update();
-          last_update = util.time_ms();
-          redraw_all();
-        }
-      });
-      
-      redraw_all();
-    },
-    
-    function _old() {
-      return;
-      
-      
-      var ps = this.generator.points;
-      var TWOPI = Math.PI*2.0;
-      
-      var size2 = ~~(size/2);
-      
-      var ft = new Float64Array(size*size*2);
-      ft.fill(0, 0, ft.length);
-      
-      var ft2 = new Float64Array(size*size);
-      var min = undefined, max = undefined;
-      
-      var start = util.time_ms();
-      var stop = 0;
-      
-      var tb = [
-        1,
-        0,
-        -1,
-        0
-      ];
-      
-      var tb2 = [
-        0,
-        1,
-        0,
-        -1,
-      ];
-      
-      var x = 0;
-      var next = function next() {
-        if (x >= size)
-          return 0;
-        if (x % 15 == 0) {
-          console.log("doing column", x, "of", size);
-        }
-        
-        var plen = ps.length;
-        
-        for (var y=0; /*!stop && */y<size; y++) {
-          var fx=0, fy=0, wx = x-size2, wy = y-size2;
-          var plen2 = 0;
-          
-          for (var i=0; /*!stop && */i < plen; i += PTOT) {
-            plen2++
-            
-            var px = ps[i], py = ps[i+1], r = ps[i+PR];
-            //var gen = ps[i+PGEN]/maxlvl;
-            
-            //if (TONE_CURVE != undefined) {
-            //  gen = TONE_CURVE.evaluate(gen);
-            //}
-
-            //if (gen != -1 && gen > restrict) {
-            //  continue;
-            //}
-            
-            //if (util.time_ms() - start > 7000) {
-            //  console.log("timeout", x, y, fx, fy);
-            //  stop = 1;
-            //  break;
-            //}
-            var exp = -TWOPI * (wx * px + wy * py);
-            /*
-            
-            /*
-              on factor;
-              off period;
-              
-              f1 := -2*pi*sin(wx*py + wy*py);
-            */
-            /*
-            var f = (exp+Math.PI*0.5)/(2*Math.PI);
-            f = Math.tent(f);
-            f = f*f*(3.0-2.0*f);
-            fx += f*2-1;
-            
-            var f = exp/(2*Math.PI);
-            f = Math.tent(f);
-            f = f*f*(3.0-2.0*f);
-            fy += f*2-1;
-            //*/
-            
-            /*
-            exp = ~~(exp*4.0/Math.PI);
-            exp = exp & 3;
-            
-            fx += tb[exp];
-            fy += tb2[exp];
-            //*/
-            
-            fx += sin_table.cos(exp);
-            fy += sin_table.sin(exp);
-          }
-          
-          var idx = (y*size+x)*2
-          
-          ft[idx] = fx;
-          ft[idx+1] = fy;
-          
-          var periodogram = fx*fx + fy*fy;
-          periodogram /= plen2;
-          
-          ft2[y*size+x] = periodogram;
-          
-          if (min == undefined) {
-            min = [fx, fy, periodogram];
-            max = [fx, fy, periodogram];
-          } else {
-            min[0] = Math.min(min[0], fx);
-            min[1] = Math.min(min[1], fy);
-            min[2] = Math.min(min[2], periodogram);
-            
-            max[0] = Math.max(max[0], fx);
-            max[1] = Math.max(max[1], fy);
-            max[2] = Math.max(max[2], periodogram);
-          }
-        }
-        
-        x++;
-        return 1;
-      }
-      
-      var update = function update() {
-        for (var i=0; i<ft.length; i += 2) {
-          var fx = (ft[i] - min[0]) / (max[0] - min[0]);
-          var fy = (ft[i+1] - min[1]) / (max[1] - min[1]);
-          var fp = ft2[i/2]//(ft2[i/2] - min[2]) / (max[2] - min[2]);
-          
-          //fp /= plen;
-          
-          //if (Math.random() > 0.995) {
-          //  console.log(fp, fx, ft[i])
-          //}
-          
-          var r = ~~(fx*255);
-          var g = ~~(fy*255);
-          var b = ~~(fp*255);
-          
-          var idx = (i/2)*4;
-          
-          fft[idx] = b;
-          fft[idx+1] = b;
-          fft[idx+2] = b;
-          fft[idx+3] = 255;
-        }
       }
       
       next = next.bind(this);
@@ -660,7 +466,15 @@ define([
       throw new Error("refactor error!");
     }),
     
-    function report(s) {
+    function report() {
+      var s = "";
+      
+      for (var i=0; i<arguments.length; i++) {
+        if (i > 0) s += " "
+        
+        s += arguments[i];
+      }
+      
       console.log(s);
       
       //this.report_queue.push(s);
@@ -770,11 +584,12 @@ define([
       }
       g.beginPath();
       
-      var restrict = ~~(DRAW_RESTRICT_LEVEL*this.generator.max_level());
+      var restrict = DRAW_RESTRICT_LEVEL;
       
       var ps = this.generator.points;
-      var colors = this.generator.colors;
+      var ps2 = this.generator.get_visible_points(restrict);
       
+      var colors = this.generator.colors;
       var drmul = DRAW_RMUL*this.generator.draw_rmul;
       
       for (var _j=0; _j<colors.length; _j++) {
@@ -797,22 +612,15 @@ define([
             break;
             
           g.beginPath();
-          for (var i=0; i<ps.length; i += PTOT) {
-            var x = ps[i], y = ps[i+1], r = ps[i+PR], gen = ps[i+PGEN];
-            var color = ps[i+PCLR];
+          for (var i=0; i<ps2.length; i += PTOT) {
+            var x = ps2[i], y = ps2[i+1], r = ps2[i+PR], gen = ps2[i+PGEN];
+            var color = ps2[i+PCLR];
             
             x += _poffs[si][0], y += _poffs[si][1];
-            
             r = this.generator.r;
             
             //CMYK
             if (color != j) continue;
-            
-            var gen2 = gen/maxgen;//(i/ps.length);
-            restrict = DRAW_RESTRICT_LEVEL;
-            
-            if (gen2 != -1 && gen2 > restrict)
-              continue;
             
             g.moveTo(x, y);
             g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
@@ -869,6 +677,7 @@ define([
           }, 50);
           break;
         case 75: //kkey
+          _appstate.generator.config.update();
           this.generator.relax();
           redraw_all();
           break;
@@ -884,6 +693,8 @@ define([
               e.preventDefault();
             }
           } else {
+            _appstate.generator.config.update();
+            
             this.step();
             redraw_all();
           }
@@ -899,6 +710,7 @@ define([
         case 82: //rkey
           if (!e.ctrlKey) {
             this.reset();
+            _appstate.generator.config.update();
             redraw_all();
           }
           break;
@@ -915,7 +727,8 @@ define([
           var start = util.time_ms();
           var report = 0;
           
-          while (util.time_ms() - start < 300) {
+          while (util.time_ms() - start < 700) {
+            this.step(undefined, report++);
             this.step(undefined, report++);
           }
           
@@ -1032,13 +845,18 @@ define([
           _appstate.report("Error: not in AA mode");
         }
       }, this);
+      
+      var panel3 = panel2.panel("Pan");
+      panel2.slider('aa_pan_x', "X%", 0.0, 27.0, 0.0001, false, false);
+      panel2.slider('aa_pan_y', "Y%", 0.0, 27.0, 0.0001, false, false);
       panel2.close();
       
-      panel.check('limit_distance', 'Pack Densely');
-      panel.slider('distance_limit', 'Pack Threshold', 0.01, 1.2, 0.001, false, false);
-      
-      panel.check('tilable', 'Make Tilable');
-      panel.check('align_grid', 'Align To Grid');
+      var panel2 = panel.panel("Dart");
+      panel2.close();
+      panel2.check('limit_distance', 'Pack Densely');
+      panel2.slider('distance_limit', 'Pack Threshold', 0.01, 1.2, 0.001, false, false);
+      panel2.check('align_grid', 'Align To Grid');
+      panel2.check('scan_mode', 'Scan Mode');
       
       panel.slider('draw_restrict_level', 'Display Level', 0, 1, 0.0001, false, true);
       panel.check("draw_color", "Show Colors");
@@ -1052,11 +870,15 @@ define([
       });
       
       var panel2 = panel.panel("Void-Cluster Filter Curve");
-      panel2.curve('voidcluster_curve', 'VC Filter Curve');
+      
+      panel2.curve('voidcluster_curve', 'VC Filter Curve',  presets.VOIDCLUSTER_CURVE);
+      panel2.slider('voidcluster_mid_r', 'Middle Radius', 0, 1, 0.001, false, false);
+      panel2.check('void_hex_mode', 'Hexagon Mode');
+      panel2.check("void_bayer_mode", "Bayer Mode");
       panel2.close();
       
       var panel2 = panel.panel("FFT");
-      panel2.curve('fft_curve', 'Radial Spectrum');
+      panel2.curve('fft_curve', 'Radial Spectrum', presets.FFT_CURVE);
       panel2.close();
       
       var panel = this.gui = new ui.UI();
@@ -1139,6 +961,8 @@ define([
       panel.check('small_mask', 'Small Mask');
       panel.check('draw_tiled', 'Draw Tiled');
       panel.check('fft_targeting', 'Target FFT');
+      
+      panel.check('tilable', 'Make Tilable');
       
       if (DEV_MODE) {
         panel.check("allow_overdraw", "Allow Overdraw");

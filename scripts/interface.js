@@ -24,7 +24,9 @@ define([
       this.TONE_CURVE = TONE_CURVE;
       this.SPH_CURVE = SPH_CURVE;
       this.FFT_CURVE = FFT_CURVE;
+      this.VOIDCLUSTER_MID_R = VOIDCLUSTER_MID_R;
       
+      this.VOID_HEX_MODE = VOID_HEX_MODE;
       this.GEN_CMYK_MASK = GEN_CMYK_MASK;
       this.TILABLE = TILABLE;
       this.LIMIT_DISTANCE = LIMIT_DISTANCE;
@@ -39,15 +41,42 @@ define([
   ]);
   
   var MaskGenerator = exports.MaskGenerator = Class([
-    function constructor(appstate) {
+    function constructor(appstate, dilute_small_mask) {
+      this.dilute_small_mask = dilute_small_mask == undefined ? true : dilute_small_mask;
+      
       this.appstate = appstate;
       this.colors = CMYK;
       this.config = new MaskConfig();
       
+      this.ff_rand = new util.MersenneRandom();
       this.draw_rmul = 1.0;
       
       this.points = [];
       this.kdtree = new kdtree.KDTree();
+    },
+    
+    function get_visible_points(restrict, for_fft, invert) {
+      var ps2 = [];
+      var ps = this.points;
+      var maxlvl = this.max_level();
+      
+      for (var i=0; i<ps.length; i += PTOT) {
+        var gen = ps[i+PGEN]/maxlvl;
+        
+        if (TONE_CURVE != undefined) {
+          gen = TONE_CURVE.evaluate(gen);
+        }
+        
+        if (gen != -1 && (invert ? gen < restrict : gen > restrict)) {
+          continue;
+        }
+        
+        for (var j=0; j<PTOT; j++) {
+          ps2.push(ps[i+j]);
+        }
+      }
+      
+      return ps2;
     },
     
     function set_config(config) {
@@ -80,18 +109,19 @@ define([
       
       var err = 0.0;
       var tot=0;
+      var ff_rand = this.ff_rand;
       
       if (seed != undefined) {
-        util.seed(seed);
+        ff_rand.seed(seed);
       }
       
       for (var i=0; i<steps; i++){ 
-        var x = util.random(), y = util.random();
+        var x = ff_rand.random(), y = ff_rand.random();
         var _i = 0;
         
         
         while (x*x + y*y > 1.0) {
-          x = util.random(), y = util.random();
+          x = ff_rand.random(), y = ff_rand.random();
           
           if (_i++ > 1000) {
             console.log("infinite loop! eek!");
@@ -163,8 +193,11 @@ define([
       return avgdis;
     },
     
-    function relax(use_avg_dis) {
+    function relax(use_avg_dis, max_lvl_perc) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
+      
+      max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
+      //max_lvl_perc = DRAW_RESTRICT_LEVEL;
       
       //console.log("warning, default implementation");
       
@@ -179,6 +212,8 @@ define([
       var curgen = this.current_level();
       curgen = this.hlvl;
       
+      var maxgen = this.max_level();
+      
       if (use_avg_dis) {
         r = this.calc_avg_dis();
       }
@@ -188,9 +223,11 @@ define([
         var gen1 = ps[i+PGEN];
         var hgen1 = ps[i+PD];
         
-        //if (hgen1 != curgen && cf.RELAX_CURRENT_LEVEL) {
-        //  continue;
-        //}
+        if (hgen1 != curgen && cf.RELAX_CURRENT_LEVEL) {
+          continue;
+        } else if (gen1/maxgen > max_lvl_perc) {
+          continue;
+        }
         
         if (use_avg_dis)
           r1 = r;
@@ -217,6 +254,12 @@ define([
               return;
             }
             
+            var filterwid = searchrad;
+            
+            //var f1 = gen1/maxgen, f2 = gen2/maxgen;
+            //var ratio = cf.GEN_MASK ? f2/(0.00001+f1) : 1.0;
+            //filterwid /= f1/f2;
+            
             if (pi == i/PTOT) {
               return;
             }
@@ -224,14 +267,14 @@ define([
             var dx = x2-x, dy = y2-y;
             var dis = dx*dx + dy*dy;
             
-            if (dis == 0 || dis > searchrad*searchrad) {
+            if (dis == 0 || dis > filterwid*filterwid) {
               return;
             }
             
             dis = Math.sqrt(dis);
             var r3 = Math.max(r2, r1);
             
-            var w = 1.0 - dis/searchrad;
+            var w = 1.0 - dis/filterwid;
             
             w = cf.SPH_CURVE.evaluate(w);
             
@@ -330,6 +373,12 @@ define([
       this.mask_img = mask_image;
       this.mask = mask_image.data;
       
+      var msize = mask_image.width;
+      this.maskgrid = new Int32Array(msize*msize);
+      
+      this.maskgrid.fill(-1, 0, this.maskgrid.length);
+      this.masksize = mask_image.width;
+  
       var iview = new Int32Array(this.mask.buffer);
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
       this.mask[3] = 0;
@@ -363,7 +412,7 @@ define([
       //d = 1.0 - (pi*PTOT) / this.points.length;
       
       if (TONE_CURVE != undefined) {
-        d = 1.0 - TONE_CURVE.evaluate(1.0-d);
+        d = 1.0 - this.config.TONE_CURVE.evaluate(1.0-d);
       }
       
       if (d < 0 || d > 1.0 || isNaN(d)) {
@@ -373,12 +422,16 @@ define([
       var ix = ps[pi*PTOT+PIX], iy = ps[pi*PTOT+PIY];
       if (ix < 0) return; //dropped point
       
-      ix = Math.min(Math.max(ix, 0), msize-1);
-      iy = Math.min(Math.max(iy, 0), msize-1);
+      if (ix < 0 || iy < 0 || ix >= msize || iy >= msize)
+        return;
+      
+      //ix = Math.min(Math.max(ix, 0), msize-1);
+      //iy = Math.min(Math.max(iy, 0), msize-1);
       
       var idx = (iy*msize+ix)*4;
       if (!ALLOW_OVERDRAW && mask[idx] != 0) return;
       
+      var color = ps[pi*PTOT+PCLR];
       if (GEN_CMYK_MASK) {
         var r = ~~(d*CMYK[color&3][0]*255);
         var g = ~~(d*CMYK[color&3][1]*255);
@@ -393,10 +446,11 @@ define([
       
       mask[idx+3] = 255;
     },
-    
+    /*
     function raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = 0;
+      this.mask[1] = 255;
+      this.mask[3] = SMALL_MASK ? 255 : 0;
       
       var iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
@@ -406,6 +460,191 @@ define([
       for (var i=0; i<plen; i++) {
         this.raster_point(i);
       }
+    },*/
+    
+    function assign_mask_pixels() {
+      this.maskgrid.fill(-1, 0, this.maskgrid.length);
+      var ps = this.points, plen = ps.length/PTOT;
+      
+      for (var i=0; i<plen; i++) {
+        this.find_mask_pixel(i);
+      }
+      
+      //deal with any empty grid cells
+      var size = this.masksize;
+      var grid = this.maskgrid;
+      var cf = this.config;
+      
+      if (cf.SMALL_MASK && this.dilute_small_mask) {
+        var off = cconst.get_searchoff(4);
+        console.log(this.dilute_small_mask, this, this.__proto__, this.constructor.name);
+        console.trace("glen", grid.length, size, grid[0], off.length);
+        
+        var refgrid = new Float64Array(this.maskgrid);
+        
+        for (var i=0; i<grid.length; i++) {
+          var off = cconst.get_searchoff(4);
+          
+          var ix = i % size, iy = ~~(i / size);
+          if (grid[i] >= 0) continue;
+          var ok = false;
+          
+          for (var j=0; j<off.length; j++) {
+            var ix1 = ix + off[j][0], iy1 = iy + off[j][1];
+            
+            if (ok) 
+              break;
+            
+            for (var k=0; k<_poffs.length; k++) {
+              var ix2 = (ix1 + _poffs[k][0]*size) % size;
+              var iy2 = (iy1 + _poffs[k][1]*size) % size;
+              
+              if (ix2 < 0 || iy2 < 0 || ix2 >= size || iy2 >= size)
+                continue;
+              
+              var idx = (iy2*size+ix2);
+              
+              if (Math.random() > 0.9) {
+                //console.log("g", ix2, iy2, ix, iy, grid[idx]);
+              }
+              
+              if (refgrid[idx] >= 0) { 
+                grid[i] = refgrid[idx];
+                ok = 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      //raster
+      var mask = this.mask;
+      var msize = this.mask_img.width;
+      var maxgen = this.max_level();
+      var cf = this.config;
+      
+      for (var i=0; i<grid.length; i++) {
+        var ix = i % size, iy = ~~(i / size);
+        var idx = (iy*msize+ix)*4;
+
+        if (grid[i] < 0 || ps[grid[i]*PTOT+PGEN] < 0) continue;
+        
+        var gen = 1.0 - ps[grid[i]*PTOT+PGEN] / maxgen;
+        
+        var f = 1.0-cf.TONE_CURVE.evaluate(1.0-gen);
+        
+        var color = ps[grid[i]*PTOT+PCLR];
+        if (GEN_CMYK_MASK) {
+          var r = ~~(f*CMYK[color&3][0]*255);
+          var g = ~~(f*CMYK[color&3][1]*255);
+          var b = ~~(f*CMYK[color&3][2]*255);
+          
+          mask[idx]   = r;
+          mask[idx+1] = g;
+          mask[idx+2] = b;
+        } else {
+          mask[idx] = mask[idx+1] = mask[idx+2] = ~~(f*255);
+        }
+        
+        mask[idx+3] = 255;
+      }
+    },
+    
+    function raster() {
+      this.mask[0] = this.mask[1] = this.mask[2] = 0;
+      this.mask[1] = 255;
+      this.mask[3] = SMALL_MASK ? 255 : 0;
+      
+      var iview = new Int32Array(this.mask.buffer);
+      iview.fill(iview[0], 0, iview.length);
+      
+      if (this.config.SMALL_MASK) {
+        this.assign_mask_pixels();
+      } else {
+        this.mask[0] = this.mask[1] = this.mask[2] = 0;
+        this.mask[1] = 255;
+        this.mask[3] = SMALL_MASK ? 255 : 0;
+        
+        var iview = new Int32Array(this.mask.buffer);
+        iview.fill(iview[0], 0, iview.length);
+        
+        var plen = ~~(this.points.length/PTOT);
+        
+        for (var i=0; i<plen; i++) {
+          this.raster_point(i);
+        }
+      }
+    },
+    
+    function find_mask_pixel(pi) {
+      var ps = this.points, grid = this.maskgrid;
+      var size = this.masksize;
+      var x = ps[pi*PTOT], y = ps[pi*PTOT+1];
+      var ix = ~~(x*size+0.0001), iy = ~~(y*size+0.0001);
+      var idx = iy*size + ix;
+
+      //ignore if out of bounds
+      //if (ix < 0 || iy < 0 || x >= size || y >= size) {
+      //  return;
+      //}
+      
+      if (grid[idx] == -1 || ALIGN_GRID) {
+        ps[pi*PTOT+PIX] = ix;
+        ps[pi*PTOT+PIY] = iy;
+        grid[idx] = pi;
+        return;
+      }
+      
+      var d = 4;
+      var mindis = 1e17, min = undefined;
+      
+      var offs = cconst.get_searchoff(d);
+      for (var i=0; i<offs.length; i++) {
+        var ix2 = ix + offs[i][0], iy2 = iy + offs[i][1];
+        
+        if (ix2 < 0 || iy2 < 0 || ix2 >= size || iy2 >= size)
+          continue;
+        
+        var idx = iy2*size+ix2;
+        var dis = offs[i][0]*offs[i][0] + offs[i][1]*offs[i][1];
+        
+        if (grid[idx] == -1 && (min == undefined || dis < mindis)) {
+          min = idx;
+          mindis = dis;
+        }
+      }
+      
+      if (min == undefined || grid[min] != -1) {
+        console.log("eek!");
+        return;
+        
+        for (var ix2=0; ix2<size; ix2++) {
+          for (var iy2=0; iy2<size; iy2++) {
+            break; //XXX evil loop
+            
+            var dis = (ix2-ix)*(ix2-ix) + (iy2-iy)*(iy2-iy);
+            var idx = iy2*size + ix2;
+            
+            if (grid[idx] == -1 && (min == undefined || dis < mindis)) {
+              min = idx;
+              mindis = dis;
+            }
+          }
+        }
+      }
+
+      if (min != undefined) { //grid[min] == -1) {
+        ps[pi*PTOT+PIX] = ix;
+        ps[pi*PTOT+PIY] = iy;
+        grid[min] = pi;
+        return;
+      }
+      
+      //this.report("WARNING: dropping a point");
+      
+      ps[pi*PTOT+PIX] = -1;
+      ps[pi*PTOT+PIY] = -1;
     },
 
     function toggle_timer_loop(appstate, simple_mode) {
@@ -430,6 +669,8 @@ define([
             var report = 0;
             
             while (util.time_ms() - start2 < 700) {
+              appstate.step(undefined, report++);
+              appstate.step(undefined, report++);
               appstate.step(undefined, report++);
             }
           }

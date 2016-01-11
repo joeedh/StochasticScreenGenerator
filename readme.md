@@ -6,14 +6,18 @@ Stochastic Screen Generator (for printing, stippling, etc)
 This little web app generates stochastic (blue noise) screens
 for digital halftoning/stippling.  It has four methods:
 
+* Void-and-cluster: A classic, this one works best for generating
+  stochastic screens for printers.
+  
 * Dart:  Classic, progressive dart throwing.  Generates
   the highest quality masks.
   
 * SPH: SPH fluid method.  Not quite as good as dart, and 
   a bit harder to control.  Is much slower at higher resolutions.
   
-* Jitter: A very simple randomlized hexagonal grid method.  Produces
-  the worst results
+* Jitter: A very simple randomlized hexagonal grid method.  Randomizes the
+  hiearhcial levels, not the point positions.  Mostly for reference purposes.
+  Produces the worst results.
   
 * AA: AA patterns, optimized to have blue noise properties via the SPH
       method.  Based on papers by Abdalla G. M. Ahmed, but modified to use skewed 

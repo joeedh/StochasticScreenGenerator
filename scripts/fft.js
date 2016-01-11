@@ -15,7 +15,7 @@ define([
     return [0, 0];
   }, 64);
   
-  var sin_table = (function() {
+  var _sin_table = (function() {
     var steps = 32768;
     var table = new Float64Array(steps);
     
@@ -57,14 +57,44 @@ define([
     }
   })();
   
-  
+  /*
+  var _sin_table = window._sin_table = {
+    cos1 : function(n) {
+      if (isNaN(n)) {
+        throw new Error("NaN!");
+      }
+      
+      function wave(f) {
+        f = Math.tent(f);
+        return f;
+      }
+      
+      var f = (1.0 - wave(n/(Math.PI*2.0)))
+      //f = f*f*(3.0-2.0*f);
+      
+      return f*2.0 - 1.0;
+    },
+    
+    cos : function(n) {
+      return this.cos1(n);
+    },
+    
+    sin : function(n) {
+      return this.cos1(n+Math.PI*0.5);
+    },
+    
+    test : function() {
+    }
+  }
+  //*/
   
   var FFT = exports.FFT = Class([
-  
     function constructor(dimen) {
       this.size = dimen;
       this.radial = undefined;
       this.fft = new Float64Array(dimen*dimen*FTOT);
+      
+      this.rand = new util.MersenneRandom();
       
       this.fft_pointcachefx = new util.hashtable();
       this.fft_pointcachefy = new util.hashtable();
@@ -72,6 +102,14 @@ define([
 //      this.fft_pointcachefmax = new util.hashtable();
       
       this.fmin = 1e17, this.fmax = -1e17;
+      
+      this.jitter = 0.5; //jitter added to points;
+      this.jittab = [];
+      
+      this.rand.seed(0);
+      for (var i=0; i<128; i++) {
+        this.jittab.push(this.rand.random());
+      }
       
       this.totpoint = 0;
     },
@@ -268,7 +306,6 @@ define([
     },
 
     function draw(g, fftx, ffty, image) {
-      var fftx=20, ffty=350;
       g.putImageData(image, fftx, ffty);
       
       var steps = 32;
@@ -332,8 +369,13 @@ define([
       var wx=ifx-size*0.5, wy=ify-size*0.5;
       var th = -TWOPI * (wx * x + wy * y);
       
-      ret[0] = sin_table.cos(th);
-      ret[1] = sin_table.sin(th);
+      if (isNaN(th)) {
+        console.log(ifx, ify, x, y, wx, wy);
+        throw new Error("NaN!");
+      }
+      
+      ret[0] = _sin_table.cos(th);
+      ret[1] = _sin_table.sin(th);
       
       return ret;
     },
@@ -355,9 +397,19 @@ define([
       var TWOPI = Math.PI*2.0;
       this.totpoint += (i2-i1)/PTOT;
     
+      var jit = this.jitter, jt = this.jittab;
+      
       for (var i=i1; i<i2; i += PTOT) {
         var x = ps[i]*scale, y = ps[i+1]*scale;
         var pi = ~~(i/PTOT);
+        
+        //purpose of jitter to so we can handle
+        //analyizing grid-aligned data, like void and cluster makes
+        var j1 = (i/PTOT) % jt.length;
+        var j2 = (j1 + i/PTOT) % jt.length;
+        
+        x += jit*(jt[j1]-0.5)/scale/size;
+        y += jit*(jt[j2]-0.5)/scale/size;
         
         var key = "" + (pi+idxoff);
         fxcache.set(key, x);

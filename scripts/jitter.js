@@ -42,7 +42,7 @@ define([
       var msize = mask_image.width;
       
       var si = 0;
-      size = dimen;
+      size = ~~(dimen/1);
       
       function random() {
         var f = Math.random();
@@ -51,8 +51,10 @@ define([
       }
       
       if (1) { //for (var si=0; si<this.hsteps; si++) {
-        size = ~~(dimen/Math.pow(rmul, si)+0.501);
+        //size = ~~(dimen/Math.pow(rmul, si)+0.501);
         var r = 0.5 / size;
+        var maxgen = 0;
+        var mi = 0;
         
         for (var ix=0; ix<size; ix++) {
           for (var iy=0; iy<size; iy++) {
@@ -92,15 +94,18 @@ define([
             
             ps[pi+PR] = r;
             ps[pi+PGEN] = lvl;
+            ps[pi+PCLR] = 0;
             
             this.kdtree.insert(x, y, pi/PTOT);
           }
         }
       }
       
-      this.step();
-      this.step();
-      this.step();
+      this.maxgen = this.hsteps;
+      
+      //this.step();
+      //this.step();
+      //this.step();
       this.raster();
     },
     
@@ -140,9 +145,9 @@ define([
         for (var j=0; j<_poffs.length; j++) {
           var x1 = x + _poffs[j][0], y1 = y + _poffs[j][1];
           
-          this.kdtree.forEachPoint(x1, y1, 2.0*this.r*this.hscale, function(pi) {
+          this.kdtree.forEachPoint(x1, y1, 4.0*this.r*this.hscale, function(pi) {
             var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], lvl2=ps[pi*PTOT+PGEN];
-            var r2 = rs[lvl2]*mul;
+            var r2 = rs[lvl2]*2.0;
             
             if (pi == i/PTOT) return;
             
@@ -152,8 +157,8 @@ define([
               var w = d != 0 ? Math.sqrt(d) : 0.0;
               w = 1.0 - w/r2;
               
-              w = w*w*(3.0 - 2.0*w);
-              w = Math.pow(w, 7.0);
+              //w = w*w*(3.0 - 2.0*w);
+              w = Math.pow(w, 2.0);
               
               sumw += w;
               sumtot += 1;
@@ -203,11 +208,11 @@ define([
     },
     
     function max_level() {
-      return this.hsteps;
+      return this.maxgen;
     },
     
     function current_level() {
-      return this.hlvl;
+      return this.maxgen;
     }
   ]);
   
