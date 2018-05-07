@@ -1,10 +1,15 @@
+/*
+all pattern generators are required to 
+distribute brightness values linearly,
+such that there is area/255 black pixels and 1 white pixel.
+*/
 var _aa_noise = undefined;
 
 define([
   "util", "const", "interface", "vectormath", "kdtree", "void_cluster",
-  "aa_hex", "aa_simple", "aa_simple_hex", "aa_types", "aa_simple_2"
+  "aa_hex", "aa_simple", "aa_simple_hex", "aa_types", "aa_simple_2", "cz"
 ], function(util, cconst, sinterface, vectormath, kdtree, void_cluster,
-            aa_hex, aa_simple, aa_simple_hex, aa_types, aa_simple_2) 
+            aa_hex, aa_simple, aa_simple_hex, aa_types, aa_simple_2, cz) 
 {
   'use strict';
 
@@ -29,7 +34,7 @@ define([
     return [0, 0, 0];
   }, 256);
   
-  var LEVEL_STEPS = 4
+  var LEVEL_STEPS = 255
   var seedrand = new util.MersenneRandom();
   seedrand.seed(0);
   
@@ -41,47 +46,242 @@ define([
   
   var LARGE_PRIME = 2147483249; //~(1<<31)
   
-  var _id_cache = new Float64Array(8192*8192);
-  _id_cache.fill(-12345, 0, _id_cache.length);
+  var IXY=0, IID=1, ITOT=2;
+  
+  var IDCache = exports.IDCache = util.Class([
+    function constructor(size) {
+      size = size == undefined ? 4096 : size;
+      
+      this.max_used_id = 1;
+      this.size = size;
+      this.cache = new Int32Array(size*size);
+      this.cache.fill(-1, 0, this.cache.length);
+      
+      this.id_xymap = {};
+      this.id_users_min = 1e17;
+      this.id_users_max = -1e17;
+      this.id_users_avg = 0;
+      this._id_users_avg = 0;
+      this.id_users_avg_tot = 0;
+      
+      //XXX uses too much memory
+      //this.ids = [];
+      
+      this.min = [-256, -256];
+      this.max = [size-256, size-256];
+      this.length = 0;
+      
+      //stores how many positions an id was found at
+      this.usedmap = {};
+    },
+    
+    function reset() {
+      this.length = 0;
+
+      this.id_xymap = {};
+      this.id_users_min = 1e17;
+      this.id_users_max = -1e17;
+      this.id_users_avg = 0;
+      this._id_users_avg = 0;
+      this.id_users_avg_tot = 0;
+      
+      this.usedmap = {};
+      this.cache.fill(0, 0, this.cache.length);
+      this.max_used_id = 1;
+    },
+    
+    function toJSON() {
+      var c = this.cache;
+      
+      var fields = ["packed_xy", "geoid"];
+      
+      //XXX uses too much memory
+      var data = []; //new Int32Array(this.ids.length);
+      var ids = []; //this.ids;
+      
+      for (var i=0; i<ids.length; i++) {
+        data[i] = ids[i];
+      }
+      
+      var chars = new Uint8Array(data.buffer);
+      var len1 = chars.length;
+      
+      /*
+      chars = cz.compress(chars);
+      console.log(":", len1, chars.length, (chars.length/len1).toFixed(3));
+      
+      var buf = "";
+      for (var i=0; i<chars.length; i++) {
+        buf += String.fromCharCode(chars[i]);
+      }*/
+      
+      return {
+        size   : this.size,
+        min    : this.min,
+        max    : this.max,
+        //data   : this.ids,
+        //buf    : buf,
+        length : this.length,
+        datafields : fields
+      }
+    },
+    
+    util.Class.static(function fromJSON(obj) {
+      var ret = new IDCache(obj.size);
+      var d = obj.data, totfield = obj.datafields.length;
+      
+      if (totfield <= 0 || isNaN(totfield)) {
+        throw new Error("bad totfield " + totfield + "!");
+      }
+      
+      for (var i=0; i<d.length; i += totfield) {
+        var idx = d[i], id = d[i+1];
+        var ix = idx % obj.size, iy = ~~(idx / obj.size);
+        
+        ix += obj.min[0];
+        iy += obj.min[1];
+        
+        ret.set(ix, iy, id);
+      }
+      
+      return ret;
+    }),
+    
+    function set(ix, iy, id) {
+      ix = ~~ix, iy = ~~iy; //paranoia check
+      
+      ix -= this.min[0];
+      iy -= this.min[1];
+      var size = this.size;
+      
+      if (ix < 0 || iy < 0 || ix >= size || iy >= size) {
+        console.log("Eek! Out of cache bounds!", size, ix, iy);
+        return;
+      }
+      
+      var key = iy*size + ix;
+      
+      if (!(id in this.id_xymap)) {
+        this.id_xymap[id] = new util.set();
+        this.id_users_avg_tot++;
+      }
+      
+      var set = this.id_xymap[id];
+      
+      this._id_users_avg -= set.length;
+      set.add(key);
+      this._id_users_avg += set.length;
+
+      this.id_users_avg = this._id_users_avg / this.id_users_avg_tot;
+      
+      this.id_users_min = Math.min(this.id_users_min, set.length);
+      this.id_users_max = Math.max(this.id_users_max, set.length);
+      
+      if (key < 0 || id < 0) {
+        throw new Error("invalid data in idcache.get! " + key + " " + ix + " " + iy);
+      }
+      
+      if (!(id in this.usedmap)) {
+        this.usedmap[id] = 1;
+      }
+      
+      if (this.cache[key] < 0) {
+        this.length++;
+        
+        this.usedmap[id]++;
+        this.max_used_id = Math.max(this.max_used_id, this.usedmap[id]);
+        //XXX uses too much memory
+        //this.ids.push(key);
+        //this.ids.push(id);
+      }
+      
+      this.cache[key] = id;
+    },
+    
+    function get(ix, iy) {
+      ix = ~~ix, iy = ~~iy; //paranoia check
+      
+      ix -= this.min[0];
+      iy -= this.min[1];
+      var size = this.size;
+      
+      if (ix < 0 || iy < 0 || ix >= size || iy >= size) {
+        console.log("Eek! Out of cache bounds!", size, ix, iy);
+        return undefined;
+      }
+      
+      var key = iy*size + ix;
+      var ret = this.cache[key];
+      
+      return ret < 0 ? undefined : ret;
+    },
+    
+    util.Class.static(function test() {
+      var cache = new IDCache();
+      var bad = false;
+      var data = [];
+      
+      bad = bad || cache.get(22, 33) != undefined;
+      
+      for (var i=0; i<5; i++) {
+        var x = i % 16, y = ~~(i / 16);
+        var id = (x*235 + y*2354 + x*y*42) % 1024;
+        
+        cache.set(x, y, id);
+        bad = bad || cache.get(x, y) != id;
+        
+        console.log(x, y, id, cache.get(x, y));
+        data.push([x, y, id]);
+      }
+      
+      cache = IDCache.fromJSON(JSON.parse(JSON.stringify(cache)));
+      console.log("");
+      
+      for (var i=0; i<data.length; i++) {
+        bad = bad || cache.get(data[i][0], data[i][1]) != data[i][2];
+        
+        console.log(data[i][0], data[i][1], data[i][2], cache.get(data[i][0], data[i][1]));
+      }
+      
+      console.log(cache);
+      console.log(bad ? "bad!" : "success");
+      
+      return !bad;
+    })
+  ]);
+  
+  exports.id_cache = new IDCache();
+
+  var SpatialGrid = exports.SpatialGrid = util.Class(IDCache, [
+    //size is optional, see IDCache constructor
+    function constructor(size) {
+       IDCache.call(this, size);
+       
+       this.id_xymap = {};
+    },
+    
+    function set(ix, iy, finalx, finaly, id) {
+      var size = this.size;
+      var key = iy*size + ix;
+      var xymap = this.id_xymap;
+      
+      if (!(id in xymap)) {
+        xymap[id] = {};
+      }
+      
+      var submap = xymap[id];
+      if (key in submap) {
+        
+      }
+    }
+  ]);
   
   function id_cache_get(ix, iy) {
-    ix += 4096;
-    iy += 4096;
-    ix = ~~ix;
-    iy = ~~iy;
-    
-    if (ix >= 8192 || iy >= 8192 || ix < 0 || iy < 0) {
-      console.log("out of bounds:", ix, iy);
-      return undefined;
-    }
-    
-    var key = iy*8192+ix;
-    
-    var ret = _id_cache[key];
-    return ret == -12345 ? undefined : ret;
-    
-    /*
-    if (key in _id_cache) {
-      return _id_cache[key];
-    }
-    
-    return undefined;
-    //*/
+    return exports.id_cache.get(ix, iy);
   }
   
-  function id_cache_set(ix, iy, val) {
-    ix += 4096;
-    iy += 4096;
-    ix = ~~ix;
-    iy = ~~iy;
-    
-    if (ix >= 8192 || iy >= 8192 || ix < 0 || iy < 0) {
-      console.log("out of bounds:", ix, iy);
-      return undefined;
-    }
-    
-    var key = ~~(iy*8192+ix);
-    _id_cache[key] = val;
+  function id_cache_set(ix, iy, id) {
+    exports.id_cache.set(ix, iy, id);
   }
   
   var get_id = exports.get_id = function get_id(ix, iy, size, seed, limit, depth) {
@@ -92,12 +292,14 @@ define([
       return iy*2048 + ix;
     }
     
+    var max_depth = 0;
+    
     if (depth > 0) return undefined;
 
     depth = depth == undefined ? 0 : depth;
     
     //lookup in cache
-    if (depth == 0) {
+    if (max_depth == 0) {
       var ret = id_cache_get(ix, iy);
       if (ret != undefined) {
         return ret;
@@ -111,9 +313,9 @@ define([
     var childmask = 0;
     
     var mi = 0;
-    var d = 5;
+    var d = 1;
     var offs = cconst.get_searchoff_norand(d);
-    var mask2 = 0;
+    var nmask = 0; //neighborhood mask
     
     for (var i=0; i<offs.length; i++, mi) {
       var tx1 = offs[i][0], ty1 = offs[i][1];
@@ -127,17 +329,20 @@ define([
       
       var submask = get_id(ix, iy, size, seed, limit, depth+1);
       if (submask != undefined) {
-        mask2 ^= submask;
+        nmask ^= submask;
       }
       
-      mask2 = mask2 < 0 ? -mask2 : mask2;
+      nmask = nmask < 0 ? -nmask : nmask;
     }
     
-    mask = mask2 != 0 ? mask ^ mask2 : mask;
+    if (depth >= max_depth-1) {
+      mask = nmask != 0 ? mask ^ nmask : mask;
+    }
+    
     mask = mask < 0 ? -mask : mask;
     
     if (depth == 0) {
-      if (Math.random() > 0.995) {
+      if (Math.random() > 0.999) {
         console.log("set id...", ix, iy, mask);
       }
       id_cache_set(ix, iy, mask);
@@ -426,6 +631,13 @@ define([
     }
   ]);
   
+  window._AA_MAX_OFFSET_LEN = 6;
+  window._AA_MAX_OFFSET_SEARCH = 7; //_AA_MAX_OFFSET_LEN;
+  window._AA_MASK_INTERVAL = 5;
+  window._AA_RELAX_STEPS = 16;
+  window._AA_MASSIVE_DOMAIN = 1024; //size of domain used by relax2(), it randomly samples it.
+  window._AA_TEST_ONLY_DOMAIN = false;
+  
   var AANoiseGenerator = exports.AANoiseGenerator = Class(MaskGenerator, [
     Class.getter(function dilute_small_mask() {
       return false;
@@ -434,9 +646,16 @@ define([
       //do nothing
     }),
     
+    function load_offsets(json) {
+      this.offsets = util.IntHash.fromJSON(json);
+    },
+    
     function constructor(appstate) {
       MaskGenerator.call(this, appstate, false);
+    
+      this.adjmap = new SpatialGrid();
       
+      this.relax2_visit = undefined;
       this.pass = 0;
       
       this.offsets = new util.IntHash(OTOT);
@@ -448,10 +667,16 @@ define([
         window._offs = offs;
       }
       
+      if ("bn9_aa_idcache" in localStorage) {
+        //var idcache = JSON.parse(localStorage.bn9_aa_idcache);
+        //exports.id_cache = IDCache.fromJSON(idcache);
+      }
+      
       this.colors = [];
       util.seed(0);
       
-      for (var i=0; i<64; i++) {
+      for (var i=0; i<128; i++) {
+        //this.colors.push([i/128, i/128, i/128, 1.0]);
         this.colors.push([util.random(), util.random(), util.random(), 1.0]);
       }
       
@@ -513,6 +738,9 @@ define([
     function delete_offsets() {
       delete localStorage.bn9_aa_offsets;
       
+      //delete localStorage.bn9_aa_idcache;
+      //exports.id_cache = new IDCache();
+      
       this.offsets = new util.IntHash(OTOT);
       this.apply_offsets();
       
@@ -523,16 +751,39 @@ define([
       delete localStorage.bn9_aa_cdf;
       delete localStorage.bn9_aa_limit_cdf;
       delete localStorage.bn9_aa_offsets;
+      //delete localStorage.bn9_aa_idcache;
     }),
     
+    function export_offsets() {
+      var offs = {
+        offs     : this.offsets.toJSON(),
+        func     : ""+GENERATOR.dxdy,
+        aa_seed  : AA_SEED,
+        aa_limit : AA_LIMIT
+      };
+      
+      var offs = JSON.stringify(offs);
+      var blob = new Blob([offs], {type : "application/x-octet-stream"});
+      var url = URL.createObjectURL(blob);
+      
+      window.open(url);
+    },
+    
     function save_offsets() {
+      if (!this.config.AA_USE_OFFSETS) {
+        return;
+      }
+      
       var offs = this.offsets.toJSON();
       
+      //localStorage.bn9_aa_idcache = JSON.stringify(exports.id_cache);
       localStorage.bn9_aa_offsets = JSON.stringify(offs);
     },
     
     function reset(dimen, appstate, mask_image) {
       this.dimen1 = dimen;
+      
+      this.relax2_visit = new util.set(); //new util.IntHash(1);
       
       //dimen *= 2;
 
@@ -699,6 +950,10 @@ define([
         //}
 
         var id = get_id(ix+ax, iy+ay, DIMEN, AA_SEED, limit);
+        
+        //var color = exports.id_cache.usedmap[id] / exports.id_cache.max_used_id;
+        //color = ~~(color*this.colors.length*0.999999);
+
         var color = Math.abs(id % this.colors.length);
         
         if (this.config.AA_ADD_JITTER) {
@@ -810,6 +1065,10 @@ define([
     },
 
     function apply_offsets() {
+      if (!this.config.AA_USE_OFFSETS) {
+        return;
+      }
+      
       var ps = this.points;
       var offs = this.offsets;
       var msize = this.mask_img.width;
@@ -891,9 +1150,16 @@ define([
     },
     
     function relax2() {
+      if (!this.config.AA_USE_OFFSETS) {
+        return;
+      }
+      
+     /*
+      all pattern generators are assumed to 
+      distribute brightness values linearly,
+      such that there is area/255 black pixels and 1 white pixel.
+     */
       var cf = this.config;
-      var do_mask = (this.pass & 1) && cf.GEN_MASK;
-      this.pass++;
       
       var offs = this.offsets;
       var size = this.dimen;
@@ -901,16 +1167,55 @@ define([
       var LSTEPS = 64;
       var tmp = new Array(OTOT);
       
-      this.report("relaxing...");
+      //this.report("relaxing...");
       
       var ax = ~~(DIMEN*AA_PAN_X);
       var ay = ~~(DIMEN*AA_PAN_Y);
         
-      for (var _i=0; _i<size*size; _i++) {
-        //var i = ~~(Math.random()*size*size*0.999999);
-        var i = _i;
+      var size3 = !test_unique_ids ? _AA_MASSIVE_DOMAIN : size;
+      var max_offset_len = _AA_MAX_OFFSET_LEN; //7.0;
+      
+      var test_only_domain = _AA_TEST_ONLY_DOMAIN;
+      
+      if (test_only_domain || test_unique_ids) {
+        size3 = size;
+        this.pass++;
+      }
+
+      var do_mask = (this.pass % _AA_MASK_INTERVAL != 0) && cf.GEN_MASK;
+      
+      var _ilen = (test_only_domain||test_unique_ids) ? size*size : _AA_RELAX_STEPS;
+      var __i = 0;
+      
+      for (var _i=0; _i<_ilen; _i++) {
+        var i = ~~(Math.random()*size3*size3*0.999999999);
         
-        var ix = i % size, iy = ~~(i / size);
+        if (test_only_domain || test_unique_ids) {
+          i = _i;
+        }
+        
+        if (this.relax2_visit.length >= this.offsets.used-5) {
+          console.log(" - next pass - ");
+          this.relax2_visit = new util.set();
+          this.pass++;
+        }
+        
+        if (__i++ > 100000) {
+          console.log("infinite loop");
+          break;
+        }
+        
+        if (!(test_only_domain && !test_unique_ids) && this.relax2_visit.has(i)) {
+          _i--;
+          continue;
+        }
+        
+        this.relax2_visit.add(i);
+        
+        var ix = i % size3, iy = ~~(i / size3);
+        //var ix = ~~((Math.random()-0.5)*size3);
+        //var iy = ~~((Math.random()-0.5)*size3);
+        
         var id = get_id(ix+ax, iy+ay, size, AA_SEED, this.limit);
         
         var ox=0, oy=0;
@@ -918,21 +1223,26 @@ define([
           var vals = offs.get(id);
           ox = vals[0], oy = vals[1];
         }
-        var x = ix/size + ox/size, y = iy/size + oy/size;
-
-        var ret = dxdy(ix+ax, iy+ay, size, AA_SEED);
+        var x = ix/size3 + ox/size3, y = iy/size3 + oy/size3;
+        
+        //XXX ignore points that have pushed themselves out of the unit domain
+        //if (x < 0 || y < 0 || x >= 1.0 || y >= 1.0) {
+        //  continue;
+        //}
+        
+        var ret = dxdy(ix+ax, iy+ay, size3, AA_SEED);
         r1[0] = ret[0], r1[1] = ret[1], r1[2] = ret[2];
         var lvl1 = r1[2];
         
         var r = do_mask ? ~~((1.0-lvl1)*9) + 3 : 2;
         var rd = Math.ceil(r);
         
-        var soffs = cconst.get_searchoff(rd+1);
+        var soffs = cconst.get_searchoff(rd + ~~_AA_MAX_OFFSET_SEARCH + 1);
         var sx=0, sy=0, sw=0;
         
         for (var j=0; j<soffs.length; j++) {
-          var ix2 = ~~(x*size) + soffs[j][0], iy2 = ~~(y*size) + soffs[j][1];
-          var id2 = get_id(ix2+ax, iy2+ay, size, AA_SEED, this.limit);
+          var ix2 = ~~(x*size3) + soffs[j][0], iy2 = ~~(y*size3) + soffs[j][1];
+          var id2 = get_id(ix2+ax, iy2+ay, size3, AA_SEED, this.limit);
         
           if (soffs[j][0] == 0 && soffs[j][1] == 0) {
             continue;
@@ -944,14 +1254,29 @@ define([
             ox2 = vals[0], oy2 = vals[1];
           }
           
-          var x2 = ix2/size + ox2/size, y2 = iy2/size + oy2/size;
+          var x2 = ix2/size3 + ox2/size3, y2 = iy2/size3 + oy2/size3;
           
-          var ret = dxdy(ix2+ax, iy2+ay, size, AA_SEED);
+          var ret = dxdy(ix2+ax, iy2+ay, size3, AA_SEED);
           r2[0] = ret[0], r2[1] = ret[1], r2[2] = ret[2];
           var lvl2 = r2[2];
           
-          var l1 = (~~(lvl1*LSTEPS))/LSTEPS;
-          var l2 = (~~(lvl2*LSTEPS))/LSTEPS;
+          var l1 = (~~(lvl1*LSTEPS)+1)/(LSTEPS+1);
+          var l2 = (~~(lvl2*LSTEPS)+1)/(LSTEPS+1);
+          
+          //var rad1 = 2*Math.sqrt(2.0) / (0.000001+Math.sqrt(size3*size3*l1));
+          //var rad2 = 2*Math.sqrt(2.0) / (0.000001+Math.sqrt(size3*size3*l2));
+          
+          /*XXX argh! should be sqrt(1/(2*sqrt(3)*N)), but this only works with
+            sqrt(1/(2*sqrt(3)*sqrt(N)))
+            
+            why the extra sqrt? mean!
+          */
+          var rad1 = 0.909*Math.sqrt(1 / (2*Math.sqrt(3)*Math.sqrt(size3*size3*l1)));
+          var rad2 = 0.909*Math.sqrt(1 / (2*Math.sqrt(3)*Math.sqrt(size3*size3*l2)));
+          
+          //if (Math.random() > 0.999) {
+            //console.log(l1, l2, rad1, rad2);
+          //}
           
           if (do_mask && l2 > l1) {
             continue;
@@ -962,11 +1287,12 @@ define([
           var r3;
           
           if (do_mask && l2 != l1) {
-            var lf = l1 != 0.0 ? 1.3*l2 / l1 : 1.0;
+            var lf = l1 != 0.0 ? 1.3 * (l2 / l1) : 1.0;
             
-            r3 = lf*r/size;
+            //r3 = ((1.0 + l1*(cf.HIEARCHIAL_SCALE-1.0))*r)/size3;
+            r3 = Math.min(rad1, rad2);
           } else {
-            r3 = r/size;
+            r3 = r/size3;
           }
           
           if (dis > r3*r3) {
@@ -975,7 +1301,7 @@ define([
           
           dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
           var w = 1.0 - dis/r3;
-          w *= w*w;
+          //w *= w*w;
           //w = SPH_CURVE.evaluate(w);
           
           if (dis > 0) {
@@ -993,21 +1319,34 @@ define([
         sx /= sw;
         sy /= sw;
         
-        if (Math.random() > 0.999) {
+        //if (Math.random() > 0.999) {
           //console.log(sx, sy, sw);
-        }
+        //}
         
-        ix = i % size, iy = ~~(i / size);
+        ix = i % size3, iy = ~~(i / size3);
         
-        sx = ((sx+x)*size-ix);
-        sy = ((sy+y)*size-iy);
+        sx = ((sx+x)*size3-ix);
+        sy = ((sy+y)*size3-iy);
         
-        var f = (~~(lvl1*LSTEPS))/LSTEPS;
-        
-        var fac = 0.15*AA_SPEED;
+        var fac = /*(1.15-lvl1) * */0.5*AA_SPEED;
         
         sx = ox + (sx - ox)*fac;
         sy = oy + (sy - oy)*fac;
+        
+        var olen = sx*sx + sy*sy;
+        if (olen >= 0.999*max_offset_len*max_offset_len) {
+          olen = olen != 0.0 ? Math.sqrt(olen) : 0.0;
+          
+          sx *= max_offset_len/olen;
+          sy *= max_offset_len/olen;
+        }
+        
+        if (isNaN(sx) || isNaN(sy)) {
+          console.log(sx, sy, f, fac, ox, oy, olen);
+          throw new Error("NaN!");
+        }
+        
+        var f = lvl1; //(~~(lvl1*LSTEPS))/LSTEPS;
         
         tmp[OX] = sx;
         tmp[OY] = sy;
@@ -1024,7 +1363,9 @@ define([
       this.apply_offsets();
       this.raster();
       
-      this.report("done relaxing");
+      var perc = (this.relax2_visit.length / this.offsets.used)*100.0;
+      this.report((!do_mask ? "P: " : "M: ") + perc.toFixed(2) + "%: done relaxing");
+      this.report("  total IDs: " + _aa_noise.id_cache.id_users_avg_tot);
     },
     
     function relax() {
@@ -1036,7 +1377,8 @@ define([
       var bl = 0.1;
       
       //initial jitter
-      if (this.relax_first && !GEN_MASK) {
+      //XXX doesn't make sense with new random sampling of large domain
+      if (0 && this.relax_first && !GEN_MASK) {
         this.relax_first = 0;
         var tmp = [0, 0, 0];
         

@@ -26,6 +26,7 @@ define([
       MaskGenerator.call(this, appstate);
       
       this.draw_rmul = 0.4;
+      this.encode_new_offsets = true;
       
       this._ki = 0;
       
@@ -43,7 +44,7 @@ define([
     },
     
     function max_level() {
-      return this.maxgen;
+      return this.max_ni;
     },
     
     function pthrow(steps) {
@@ -51,6 +52,8 @@ define([
         steps = steps == undefined ? 110 : steps;
         var size=this.gridsize, grid=this.grid;
         var cf = this.config;
+        
+        var size2 = this.basesize2;
         
         console.log("points", this.points.length);
         
@@ -65,10 +68,15 @@ define([
           cw = ch = size;
         }
         
+        var r = this.final_r = Math.sqrt(1 / (2*Math.sqrt(3)*size2*size2));
+        
         for (var si=0; si<steps; si++) {
             var x, y;
             
-            var size2 = size/2;
+            if (this.points.length/PTOT > size2*size2) {
+              continue;
+            }
+            
             var i1 = ~~(Math.random()*size2*size2)
             
             var x = (i1 % size2) / size2;
@@ -76,6 +84,9 @@ define([
             
             x += Math.random()/size2;
             y += Math.random()/size2;
+            
+            //x = Math.random()*0.001+0.5;
+            //y = Math.random()*0.001+0.5;
             
             var ix = ~~(x*size), iy = ~~(y*size);
             
@@ -86,10 +97,10 @@ define([
             var idx = (iy*size+ix)*GTOT;
             
             if (grid[idx+GFILLED]==1) {
-                //continue;
+            //    continue;
             }
             
-            var pi = this.points.length/PTOT;
+            var pi = this.points.length;
             
             grid[idx+GFILLED] = 1;
             grid[idx+GIDX] = pi;
@@ -98,87 +109,41 @@ define([
               ps.push(0);
             }
             
-            ps[pi*PTOT+PX] = x;
-            ps[pi*PTOT+PY] = y;
-            ps[pi*PTOT+PR] = this.r;
-            ps[pi*PTOT+PIX] = ~~(x*cw*0.99999);
-            ps[pi*PTOT+PIY] = ~~(y*ch*0.99999);
+            var gen = Math.random();//(Math.random()+Math.random()+Math.random()+Math.random())*0.25;
+            //make uniform more linear, but one sided.
+            gen = Math.log(1.0 + gen*8) / Math.log(8);
+            gen *= gen;
+            //gen = gen*gen*gen*gen*0.25 + gen*gen*gen*0.25 + gen*gen*0.5;
             
-            var plen = this.points.length/PTOT;
-            var gen=0;
+            gen = 0.005 + gen*(1.0 - 0.01);
             
-            //if (plen > 205)
-            //  gen = ~~(Math.log(plen-205) / Math.log(base));
+            //see constructor(), size from above is actually this.dimen*3
+            var size3 = Math.sqrt(3*this.points.length/PTOT);
             
-            gen = plen;
+            var r2 = Math.sqrt(1 / (2*Math.sqrt(3)*size3*size3));
             
-            if (isNaN(gen) || gen == Infinity || gen == -Infinity) gen = 0;
+            gen = pi/PTOT/(size2*size2);
+            let gsteps = window.HIEARCHIAL_LEVELS;
+            gen = (~~(gen*gsteps))/gsteps;
             
-            this.points[pi*PTOT+PGEN] = gen;
-            this.max_ni = gen;
+            //gen = Math.pow(gen, 1.0);
+            
+            //gen = Math.pow(gen, 0.75);
+            //var r = this.final_r = Math.sqrt(1 / (2*Math.sqrt(3)*size*size));
+            
+            ps[pi+PX] = ps[pi+POLDX] = x;
+            ps[pi+PY] = ps[pi+POLDY] = y;
+            ps[pi+PR] = r2;
+            ps[pi+PIX] = ~~(x*cw*0.99999);
+            ps[pi+PIY] = ~~(y*ch*0.99999);
+            
+            //gen = ~~(gen*255);
+            gen *= 255;
+            
+            this.points[pi+PGEN] = gen;
+            this.max_ni = Math.max(this.max_ni, gen+1);
         }
         
-        var maxgen = this.maxgen;
-        
-        //why do I have to multiply final_scale by 0.35 here,
-        //to get sph to match result of other generator types?
-        var final_scale = cf.HIEARCHIAL_SCALE*0.35;
-        var final_r = this.r*final_scale;
-        
-        var d = 1 / (final_r*Math.sqrt(2.0));
-        
-        var ci = 0;
-        var lvl = 0;
-        
-        var off = Math.ceil(d*d);
-        
-        var base  = Math.pow(final_scale, 1.0/this.points.length);
-        var mulbase = 1.0/base;
-
-        var base2 = Math.pow(final_scale, 1.0/maxgen);
-
-        var rmul=final_scale;
-        
-        var ps = this.points;
-        var maxgen = 0;
-        
-        for (var i=0; i<ps.length; i += PTOT) {
-            var gen;
-            
-            if (ci > off) {
-              var d = 1 / (this.r*rmul*Math.sqrt(2.0));
-              
-              off = Math.ceil(d*d);
-//              console.log(lvl, "OFF", d, off);
-              
-              rmul /= base2;
-              
-              lvl++;
-              ci = 0;
-            }
-            
-            ci++;
-            gen = lvl/255;
-            
-            //gen = (i/ps.length);
-            //gen = Math.pow(gen, 2.0);
-            //gen /= Math.log(ps.length/PTOT) / Math.log(1.0/base);
-            
-            //gen = Math.pow(base2, gen);
-            
-            
-            //gen = (~~(gen*maxgen))/maxgen;
-            
-            ps[i+PR2] = this.r*rmul // + (final_r - ps[i+PR])*(1.0 - gen) ;
-            ps[i+PGEN] = ~~(255*gen);
-            
-            maxgen = Math.max(maxgen, ps[i+PGEN]+1);
-            this.kdtree.insert(ps[i], ps[i+1], i/PTOT);
-        }
-        
-        window._max_gen = ci;
-        
-        this.max_ni = this.ni = maxgen;
     },
     
     function toggle_timer_loop(appstate, simple_mode) {
@@ -218,352 +183,184 @@ define([
         }, 100);
     },
     
-    /*
-    //sph's relax is a bit odd.  it pushes
-    //points towards grid vertices.
-    function relax() {
-      var ps = this.points;
-      var size = this.dimen; //.mask_img.width;
       
-      var set = new util.set();
-      
-      var grid = new Int32Array(size*size);
-      grid.fill(0, 0, grid.length);
-      
-      for (var i=0; i<ps.length; i += PTOT) {
-        var x = ps[i], y = ps[i+1];
-        
-        var ix = ~~(x*size*0.999999+0.0001), iy = ~~(y*size*0.999999+0.0001);
-        var idx = iy*size+ix;
-        
-        grid[idx]++;
-      }
-      
-      var off = cconst.get_searchoff(2);
-      
-      var plen = ps.length/PTOT;
-      for (var _i=0; _i<plen; _i++) {
-        //var i = _i*PTOT;
-        var i = ~~(Math.random()*plen*0.999999999)*PTOT;
-        
-        var x = ps[i], y = ps[i+1];
-        
-        var ix = ~~(x*size*0.999999), iy = ~~(y*size*0.999999);
-        var idx = iy*size+ix;
-        var minj=-1, min=1e17;
-        
-        for (var j=0; j<off.length; j++) {
-          var ix2 = ix + off[j][0];
-          var iy2 = iy + off[j][1];
-          if (ix2 < 0 || iy2 < 0 || ix2 >= size || iy2 >= size) {
-            continue;
-          }
-          
-          var idx2 = iy2*size + ix2;
-          
-          if (set.has(idx2)) continue;
-          
-          if (grid[idx2] < min) {
-            minj = j;
-            min = grid[idx2];
-          }
-        }
-        
-        grid[idx]--;
-        
-        if (minj == -1) continue;
-        
-        ix += off[minj][0];
-        iy += off[minj][1];
-        
-        var idx2 = iy*size+ix;
-        grid[idx2]++;
-        
-        set.add(idx2);
-        
-        //var i2 = i/PTOT;
-        
-        //ix = i2 % size;
-        //iy = ~~(i2 / size);
-        
-        x = (ix+0.5)/size;
-        y = (iy+0.5)/size;
-        
-        //ps[i] = x;
-        //ps[i+1] = y;
-        
-        var fac = 0.5;
-        ps[i]   += (x - ps[i])*fac;
-        ps[i+1] += (y - ps[i+1])*fac;
-        
-        ps[i+PIX] = ~~(ps[i]*size*0.99999999+0.001);
-        ps[i+PIY] = ~~(ps[i+1]*size*0.99999999+0.001);
-      }
-      
-      this.regen_kdtree();
-      this.raster();
-    },//*/
-    
-    //custom_steps, noreport are ignored for now
     function step(custom_steps, noreport) {
+      let x1, y1, r1, searchfac, searchrad;
+      let gen1;
+      let plen = this.points.length, ps = this.points;
+      let offx, offy, pi;
+      
+      var sumx, sumy, sumtot, sumw, summass;
       var cf = this.config;
+      let df = 0.0005;
+
+      let error = 0.0;
       
-      //argh.  seem to have broken original sph implementation.
-      
-      var gm = cf.GEN_MASK;
-      var sp = cf.SPH_SPEED;
-      
-      cf.GEN_MASK = this.pass & 1;
-      cf.SPH_SPEED = cf.GEN_MASK ? sp : sp*0.25;
-      
-      this.pass++;
-      this.relax();
-      
-      cf.GEN_MASK = gm;
-      cf.SPH_SPEED = sp;
-      
-      return;
-      
-      //if (this._ki++ % 5 == 0) {
-      //  this.regen_kdtree();
-      //}
-      
-      if (cf.GEN_MASK) {
-        this.step_b();
-        this.mode ^= 1;
+      let callback = (pi2) => {
+        if (pi2 == pi) return;
         
-        this.step_b();
-        this.mode ^= 1;
-      } else {
-        this.step_b();
+        let x2 = ps[pi2], y2 = ps[pi2+1], r2 = ps[pi2+PR];
+        
+        let dx = x2 - (x1+offx), dy = y2 - (y1+offy);
+        let dx2 = x2 - (x1+df+offx), dy2 = y2 - (y1+df+offy);
+        
+        let len = dx*dx + dy*dy;
+        
+        //console.log(len, searchrad*searchrad);
+        if (len == 0 || len >= searchrad*searchrad)
+          return;
+        
+        len = Math.sqrt(len);
+        let len2 = Math.sqrt(dx2*dx2 + dy*dy);
+        let len3 = Math.sqrt(dx*dx + dy2*dy2);
+
+        let w  = 1.0 - len/searchrad;
+        let w2 = 1.0 - len2/searchrad;
+        let w3 = 1.0 - len3/searchrad;
+
+        let gen1 = ps[pi+PGEN]+1;
+        let gen2 = ps[pi2+PGEN]+1;
+        
+        //if (r2 > r1) {
+          //return
+        //}
+        let mass = 1//r2 < r1 ? Math.pow(gen1/gen2, 14.0)*0.0 : 1.0;
+        if (gen1 < gen2) {
+            mass = Math.pow(gen1/gen2, 1.0);
+            //mass = 0.1;
+            //mass = 0.1
+        //    return;
+        }
+        //mass = Math.pow(mass, 0.5);
+        
+        w = cf.SPH_CURVE.evaluate(w)*mass;
+        w2 = cf.SPH_CURVE.evaluate(w2)*mass;
+        w3 = cf.SPH_CURVE.evaluate(w3)*mass;
+        
+        dx = (w2-w) / df;
+        dy = (w3-w) / df;
+        
+        let fac = 0.001;
+        
+        //ps[pi2] += dx*fac;
+        //ps[pi2+1] += dy*fac;
+        
+        /*
+        on factor;
+        off period;
+        
+        operator filter;
+        
+        w := 1.0 - sqrt(dx*dx + dy*dy) / searchrad;
+        comment: df(filter(w), dx);
+        df(w, dx);
+        df(w, dy);
+        
+        */
+        
+        //if (r2 < r1) {
+        //  return;
+        //}
+        
+        if (isNaN(w) || isNaN(x2) || isNaN(y2)) {
+          console.log("NaN!", w, x2, y2, pi);
+        }
+        
+        sumx += dx*mass;
+        sumy += dy*mass;
+        summass += mass;
+        
+        sumw += w*mass;
+        sumtot++;
       }
-    },
+        
+      searchfac = window.SPH_FILTERWID;
+      
+      for (let i=0; i<ps.length; i += PTOT) {
+        ps[i+PDX] = ps[i] - ps[i+POLDX];
+        ps[i+PDY] = ps[i+1] - ps[i+POLDY];
+        
+        ps[i+POLDX] = ps[i];
+        ps[i+POLDY] = ps[i+1];
+      }
+      
+      let maxr = 0.1;
+      let minr = 10000.0;
+      for (var pi1=0; pi1<plen; pi1 += PTOT) {
+        maxr = Math.max(maxr, ps[pi1+PR]);
+        minr = Math.min(minr, ps[pi1+PR]);
+      }
+      
+      
+      for (var pi1=0; pi1<plen; pi1 += PTOT) {
+        pi = ~~(Math.random()*(plen/PTOT - 1))*PTOT;
+        
+        x1 = ps[pi], y1 = ps[pi+1], r1 = ps[pi+PR];
+        gen1 = ps[pi+PGEN];
+        let hgen1 = ps[pi+PD];
+        
+        //searchrad = r1*searchfac;
+        searchrad = minr*searchfac;
+        
+        sumx=sumy=sumw=sumtot=summass=0;
+        
+        for (var j=0; j<_poffs.length; j++) {
+          offx = _poffs[j][0], offy = _poffs[j][1];
+          //offx = 0, offy = 0;
+          /*
+          for (var k=0; k<ps.length; k += PTOT) {
+            let x2 = ps[k+POLDX], y2 = ps[k+POLDY];
+            let dx = x2-(x1+offx), dy = y2-(y1+offy);
+            
+            if (k == pi)
+              continue;
 
-    function step_b() {
-        var cf = this.config;
-        
-        var ps = this.points, grid = this.grid;
-        var size = this.gridsize, plen=this.points.length;
-        var rmul = 4.0;
-        var msize = this.mask_img.width;
-        
-        //closure communication vars
-        var sumd, sumw, sumtot, dx1, dy1, i;
-        var gen, r, rr;
-        var minangle = Math.PI, maxangle = -Math.PI;
-        var clrtots = [0, 0, 0, 0];
-        var final_r = this.final_r;
-        
-        function pointcallback(pi) {
-          if (pi*PTOT == i) return;
-          if (ps[pi*PTOT+PR] < 0) return;
-          if (pi < 0) return;
-          
-          var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1];
-          var r2 = ps[pi*PTOT+PR], gen2=ps[pi*PTOT+PGEN];
-          var rr2 = ps[pi*PTOT+PR2];
-          var color2 = ps[pi*PTOT+PCLR];
-          var wmul = 1.0;
-          
-          if (cf.GEN_MASK && this.mode == Modes.SHUFFLE && gen2 > gen) {
-            wmul = r/r2;
-            wmul *= 0.1;
-            //return;
-          }
-          
-          var r3 = Math.max(r, r2);
-          
-          if (gen2 == gen) {
-            r3 = Math.max(rr, rr2);
-          }
-          
-          x2 -= _poffs[sj][0];
-          y2 -= _poffs[sj][1];
-          
-          var ang = Math.atan2(x2, y2);
-          minangle = Math.min(minangle, ang);
-          maxangle = Math.max(maxangle, ang);
-          
-          var dx = x2-x, dy = y2-y;
-          var dis = dx*dx + dy*dy;
-          
-          dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
-          if (dis < r3) { //(gen2 > gen && dis < final_r) || (gen2 <= gen && dis < r3)) {
-            clrtots[color2]++;
-          }
-          
-          if (dis > r3*rmul || dis == 0.0) {
-            return;
-          }
-          
-          dx /= dis;
-          dy /= dis;
-          
-          var x3 = x2;//x - dx*r3*3;
-          var y3 = y2;//y - dy*r3*3;
-          
-          var w = dis/(r3*rmul);
-          w = 1.0 - w;
-          
-          if (cf.SPH_CURVE != undefined) {
-            w = cf.SPH_CURVE.evaluate(w);
-          } else {
-            w *= w;
-          }
-          
-          w *= wmul;
-          
-          //var d1 = ps[pi*PTOT+PD];
-          //d1 *= 0.1+Math.sin((x2*x2 + y2*y2)*5)*0.5 +0.5;
-          //w *= 1.0+55*d1;
-          
-          var d = gen2/this2.max_ni;
-          
-          dx1 += dx*w;
-          dy1 += dy*w;
-          
-          sumd += ps[pi*PTOT+PD];
-          sumw += w;
-          
-          sumtot++;
-        }
-        
-        for (var i=0; i<ps.length; i += PTOT) {
-          var x = ps[i], y = ps[i+1], r = ps[i+PR];
-          var gen = ps[i+PGEN], rr = ps[i+PR2];
-          
-          if (r < 0) continue; //dead point check
-          
-          //var gridi = this.get_grid(rr);
-          //grid = this.grids[gridi];
-          //size = this.gridsizes[gridi];
-          //var rd = ~~Math.ceil(rmul*size*Math.sqrt(2.0)*rr);
-          //var ix = x*size, iy = y*size;
-          
-          minangle = Math.PI, maxangle = -Math.PI;
-          var sumw = 0;
-          var sumtot=0;
-          var dx1=0, dy1=0;
-          var sumd = 0.0;
-          var this2 = this;
-          
-          if (!GEN_MASK)
-            rr = this.r;
-          
-          clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
-          
-          for (var sj=0; sj<_poffs.length; sj++) {
-            if (!cf.TILABLE && sj > 0) break;
-            
-            var x1 = x + _poffs[sj][0];
-            var y1 = y + _poffs[sj][1];
-            //var ix1 = x1*size, iy1 = y1*size;
-             
-            this.kdtree.forEachPoint(x1, y1, rr*rmul, pointcallback, this);
-          }
-          
-          var color;
-          
-          if (clrtots[0] < clrtots[1] && clrtots[0] < clrtots[2] && clrtots[0] < clrtots[3])
-            color = 0;
-          else if (clrtots[1] < clrtots[0] && clrtots[1] < clrtots[2] && clrtots[1] < clrtots[3])
-            color = 1;
-          else if (clrtots[2] < clrtots[1] && clrtots[2] < clrtots[0] && clrtots[2] < clrtots[3])
-            color = 2;
-          else if (clrtots[3] < clrtots[1] && clrtots[3] < clrtots[2] && clrtots[3] < clrtots[0])
-            color = 3;
-          else
-            color = ~~(Math.random()*3.99999)
-          
-          if (NO_COLOR) {
-            color = 3;
-          }
-          
-          if (sumtot == 0.0 || sumw == 0.0) {
-            continue;
-          }
-          
-          ps[i+PD] = sumw/sumtot;
-          ps[i+PCLR] = color;
-          
-          dx1 /= sumw;
-          dy1 /= sumw;
-          
-          var density = sumd/sumtot;
-          
-          var err = sumw/sumtot;
-          err = Math.abs(err-density*0.5);
-          
-          var dot = dx1*dx1 + dy1*dy1;
-          if (dot != 0.0) err /= dot;
-          
-          var fac;
-          
-          if (!cf.GEN_MASK) {
-            fac = cf.SPH_SPEED*0.07;
-          } else {
-            fac = cf.SPH_SPEED*(0.965*this.speedmul+0.035)*0.1;
-          }
-          
-          var sx = ps[i], sy = ps[i+1];
-          
-          ps[i+PDX] += -dx1*0.5;//err*dx1*fac1;
-          ps[i+PDY] += -dy1*0.5;//-err*dy1*fac1;
-          
-          ps[i]   += ps[i+PDX]*fac;
-          ps[i+1] += ps[i+PDY]*fac;
-          
-          ps[i+PIX] = ~~(ps[i]*msize*0.999999);
-          ps[i+PIY] = ~~(ps[i+1]*msize*0.999999);
-          
-          ps[i+PDX] *= 0.5;
-          ps[i+PDY] *= 0.5;
-          
-          if (cf.TILABLE) {
-            ps[i] = Math.fract(ps[i]);
-            ps[i+1] = Math.fract(ps[i+1]);
-          } else {
-            var rx = ps[i], ry = ps[i+1];
-            ps[i] = Math.min(Math.max(ps[i], 0.0), 1.0);
-            ps[i+1] = Math.min(Math.max(ps[i+1], 0.0), 1.0);
-            
-            /*
-            rx -= ps[i];
-            ry -= ps[i+1];
-            
-            var boundforce = 0.5;
-            if (ps[i] == 0) ps[i] = Math.random()*0.01;
-            if (ps[i+1] == 0) ps[i+1] = Math.random()*0.01;
-            if (ps[i] == 1) ps[i] = 1-Math.random()*0.01;
-            if (ps[i+1] == 1) ps[i+1] = 1-Math.random()*0.01;
-            
-            if (ps[i] < 0.5) {
-              ps[i+PDX] += (0.5-ps[i])*0.2;
-            } else {
-              ps[i+PDX] -= (ps[i]-0.5)*0.2;
+            if (dx*dx + dy*dy < searchrad*searchrad) {
+              callback(k);
             }
-            
-            if (ps[i+1] < 0.5) {
-              ps[i+PDY] += (0.5-ps[i+1])*0.2;
-            } else {
-              ps[i+PDY] -= (ps[i+1]-0.5)*0.2;
-            }*/
-          }
+          }//*/
           
-          this.kdtree.remove(i/PTOT);
-          this.kdtree.insert(ps[i], ps[i+1], i/PTOT);
+          this.kdtree.forEachPoint(x1+offx, y1+offy, searchrad, callback, this);
         }
         
-        //XXX
-        //this.speedmul *= 0.99; //speed > 0.1 ? 0.95 : 0.97;
-        
-        if (this.speedmul < 0.0005) {
-          this.speedmul = 0.15;
+        if (sumtot == 0) {
+          continue;
         }
         
-        this.raster();
+        //sumx /= summass; //sumw;
+        //sumy /= summass; //sumw;
+        sumx /= summass;
+        sumy /= summass;
+        sumw /= summass; 
+        //summass /= sumtot;
+        
+        error += sumw;
+        
+        let dot = (sumx * sumx + sumy*sumy);
+        if (dot == 0.0) {
+          continue;
+        }
+        
+        //sumw *= 1.0 / dot;
+        
+        let mul = -cf.SPH_SPEED*0.025;
+        
+        ps[pi] += mul*sumx;
+        ps[pi+1] += mul*sumy;
+        
+        ps[pi] = Math.fract(ps[pi]);
+        ps[pi+1] = Math.fract(ps[pi+1]);
+      }
+      
+      console.log("\nerror:", error.toFixed(4), "\n\n");
+      
+      this.assign_mask_pixels();
+      this.regen_spatial();
+      this.raster();
+      
+      this.first = false;
     },
-
+    
     function reset(basesize, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       var cf = this.config;
@@ -579,7 +376,10 @@ define([
       this.first = true;
       this._ci = 0;
       
-      this.r = Math.sqrt(2.0) / (basesize);
+      var basesize2 = basesize //* 0.85;
+      this.basesize2 = basesize2;
+      
+      this.r = Math.sqrt(2.0) / (basesize2);
       this.start_r = this.r;
       
       this.gen = 0;
@@ -625,7 +425,7 @@ define([
       this.grid = new Float64Array(size*size*GTOT);
       this.grid.fill(0, 0, this.grid.length);
       
-      var starting_points = basesize*basesize;//*(1.0/this.b)+0.5);
+      var starting_points = basesize2*basesize2;//*(1.0/this.b)+0.5);
       
       for (var i=0; i<1500; i++) {
           this.pthrow(starting_points - this.points.length/PTOT);

@@ -1,3 +1,38 @@
+if (Array.prototype.set === undefined) {
+    Array.prototype.set = function set(array, src, dst, count) {
+        src = src === undefined ? 0 : src;
+        dst = dst === undefined ? 0 : dst;
+        count = count === undefined ? array.length :  count;
+        
+        if (count < 0) {
+            throw new RangeError("Count must be >= zero");
+        }
+        
+        let len = Math.min(this.length-dst, array.length-src);
+        len = Math.min(len, count);
+        
+        for (let i=0; i<len; i++) {
+            this[dst+i] = array[src+i];
+        }
+        
+        return this;
+    }
+    
+    Float64Array.prototype.set = Array.prototype.set;
+    Float32Array.prototype.set = Array.prototype.set;
+    Uint8Array.prototype.set = Array.prototype.set;
+    Uint8ClampedArray.prototype.set = Array.prototype.set;
+    Int32Array.prototype.set = Array.prototype.set;
+    Int16Array.prototype.set = Array.prototype.set;
+    Int8Array.prototype.set = Array.prototype.set;
+}
+
+if (Array.prototype.reject === undefined) {
+    Array.prototype.reject = function reject(func) {
+        return this.filter((item) => !func(item));
+    }
+}
+
 if (window.Symbol == undefined) { //eek!
   var sym_registry = {};
   

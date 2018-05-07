@@ -1,257 +1,632 @@
 var _kdtree = undefined;
-define([
-  "util", "const"
-], function(util, cconst) {
-  'use strict';
+
+//'ni' is shorthand for 'nodeindex', a point into the typed array data structure
+
+define(["util", "vectormath"], function(util, vectormath) {
+  "use strict";
   
   var exports = _kdtree = {};
-  var Class = util.Class;
+  var Vector3 = vectormath.Vector3;
+  var Matrix4 = vectormath.Matrix4;
   
-  var SQRT2 = Math.sqrt(2);
+  //maximum points per node before splitting
+  //make sure to raise this after testing
+  var MAXPOINTS = 32
   
-  var KDTree = exports.KDTree = Class([
-    function constructor(is_child) {
-      this.ps = [];
-      this.children = [];
+  /*seems like embedding the points in the nodes, while wasteful of memory,
+    should be more cache efficient than referencing another typed array*/
+  var NXMIN=0, NYMIN=1, NZMIN=2, NXMAX=3, NYMAX=4, NZMAX=5, NSPLITPLANE=6,
+      NSPLITPOS=7, NCHILDA=8, NCHILDB=9, NTOTPOINT=10, TOTN = 11 + MAXPOINTS*4;
+
+  //points are stored (x, y, z, id);
       
-      this.is_root = !is_child;
-      this.stack = this.is_root ? new Array(1024) : undefined;
+  var _insert_split_out = [0, 0];
+  var _split_tmps = util.cachering.fromConstructor(Vector3, 64);
+  var _foreach_tmp = new Vector3();
+  var _tmp = new Vector3();
+  
+  var KDTree = exports.KDTree = class KDTree {
+    constructor(min, max) {
+      this.min = new Vector3(min);
+      this.max = new Vector3(max);
       
-      this.nodemap = {};
+      this.last_warn_time = util.time_ms();
       
-      var eps = 0.000001;
-      this.min = [-eps-1, -eps-1];
-      this.max = [2+eps, 2+eps];
+      this._point_cachering = new util.cachering(() => {return {co : new Vector3(), id : undefined}}, 512);
+      this._node_cachering = new util.cachering(() => {return {min : new Vector3(), max : new Vector3(), splitpos : undefined, splitplane : undefined, id : undefined}}, 512);
+      this._search_cachering = util.cachering.fromConstructor(Vector3, 64);
       
-      this.depth = 0;
-      this.axis = 0;
+      this.usednodes = 0;
+      this.data = new Float64Array(TOTN*32);
+      this.maxdepth = 128;
+      this.maxsplit = 128;
+      this.totpoint = 0;
       
-      this.limit = 100;
-    },
+      this.root = this.newNode(min, max);
+    }
     
-    function draw(g) {
-      if (this.children.length != 0) {
-        for (var i=0; i<this.children.length; i++) {
-          this.children[i].draw(g);
+    newNode(min, max) {
+      var maxnodes = this.data.length / TOTN;
+      
+      if (this.usednodes >= maxnodes) {
+        let newdata = new Float64Array(this.data.length*2);
+        let data = this.data;
+        let ilen = data.length;
+        
+        for (let i=0; i<ilen; i++) {
+          newdata[i] = data[i];
         }
         
-        return;
+        this.data = newdata;
       }
       
-      var pad = 0.005;
+      var ni = this.usednodes*TOTN;
+      var data = this.data;
       
-      g.beginPath();
-      
-      g.rect(this.min[0]+pad, this.min[1]+pad, this.max[0]-this.min[0]-pad*2, this.max[1]-this.min[1]-pad*2);
-      g.stroke();
-      g.fillStyle = "orange";
-      g.fill();
-      
-      g.beginPath();
-      for (var i=0; i<this.ps.length; i += 3) {
-        var pi = this.ps[i], x = this.ps[i+1], y = this.ps[i+2];
-        
-        var w = 0.002//*this.depth*0.1;
-        g.rect(x-w*0.5, y-w*0.5, w, w);
+      for (let j=ni; j<ni+TOTN; j++) {
+        data[j] = 0;
       }
-      g.stroke();
-    },
+      
+      data[ni+NXMIN] = min[0];
+      data[ni+NYMIN] = min[1];
+      data[ni+NZMIN] = min[2];
+      
+      data[ni+NXMAX] = max[0];
+      data[ni+NYMAX] = max[1];
+      data[ni+NZMAX] = max[2];
+      
+      this.usednodes++;
+      
+      return ni;
+    }
     
-    function forEachPoint(x, y, r, cb, thisvar) {
-      var n = this;
-      var rsqr = r*r;
+    insert(x, y, id) {
+      let z = 0;
       
-      var eps = 0.000001;
-      x = Math.min(Math.max(x, eps), 1.0-eps);
-      y = Math.min(Math.max(y, eps), 1.0-eps);
+      if (arguments.length == 4) {
+        id = arguments[3];
+        z = arguments[2];
+      }
       
-      thisvar = thisvar == undefined ? window : thisvar;
-      var stack = this.stack;
-      var si = 0;
+      return this.insert_intern(x, y, z, id, 0);
+    }
+    
+    insert_intern(x, y, z, id, depth) {
+      var p = _tmp;
       
-      stack[si++] = this;
-      while (si > 0) {
-        var n = stack[--si];
-        var startn = n;
-        var abs = Math.abs;
+      p[0] = x, p[1] = y, p[2] = z;
+      
+      let recurse = (ni, depth) => {
+        var data = this.data;
         
-        for (var i=0; i<n.children.length; i++) {
-          var c = n.children[i];
+        if (depth >= this.maxdepth) {
+          if (util.time_ms() - this.last_warn_time > 500) {
+            console.log(depth)
+            console.warn("Malformed data: 3 to insert point", depth, p[0].toFixed(4), p[1].toFixed(4), p[2].toFixed(4), "id=", id, p);
+            this.last_warn_time = util.time_ms();
+          }
           
-          var ix = abs(c.min[0]-x) < abs(c.max[0]-x) ? c.min[0] : c.max[0];
-          var iy = abs(c.min[1]-y) < abs(c.max[1]-y) ? c.min[1] : c.max[1];
-          ix -= x, iy -= y;
+          return;
+        }
+        
+        //not a leaf node?
+        if (data[ni+NCHILDA] != 0) {
+          var axis = data[ni+NSPLITPLANE];
+          var split = data[ni+NSPLITPOS];
           
-          var rd = r*SQRT2;
-          var ok = x >= c.min[0]-rd && x < c.max[0]+rd && y >= c.min[1]-rd && y < c.max[1]+rd;
+          if (p[axis] == split) {
+            //handle case of points exactly on boundary
+            //distribute point randomly to children
+            
+            var child = !!(Math.random() > 0.5);
+            //console.log("exact!", child, p[axis], split, axis);
+            
+            recurse(data[ni+NCHILDA+child], depth+1);
+          } else if (p[axis] < split) {
+            recurse(data[ni+NCHILDA], depth+1);
+          } else {
+            recurse(data[ni+NCHILDB], depth+1);
+          }
           
-          if (ok) {
-            stack[si++] = c;
+        //a full leaf node?
+        } else if (data[ni+NTOTPOINT] >= MAXPOINTS) {
+          this.split(ni, _insert_split_out, depth+1);
+
+          this.insert_intern(x, y, z, id, depth+1);
+        } else { //add point
+          var i = ni + NTOTPOINT + 1 + data[ni+NTOTPOINT]*4;
+          
+          data[i++] = p[0];
+          data[i++] = p[1];
+          data[i++] = p[2];
+          data[i++] = id;
+          
+          data[ni+NTOTPOINT]++;
+        }
+      }
+      
+      recurse(this.root, depth);
+      this.totpoint++;
+    }
+    
+    forEachNode(cb, thisvar) {
+      let cachering = this._node_cachering;
+      let data = this.data;
+      
+      let recurse = (ni) => {
+        var n = cachering.next();
+        
+        for (var i=0; i<3; i++) {
+          n.min[i] = data[ni+i];
+          n.max[i] = data[ni+3+i];
+        }
+        
+        n.id = ni;
+        n.splitplane = data[ni+NSPLITPLANE];
+        n.splitpos = data[ni+NSPLITPOS];
+        
+        if (thisvar !== undefined) {
+          cb.call(thisvar, n);
+        } else {
+          cb(n);
+        }
+        
+        if (data[ni+NCHILDA] != 0) {
+          recurse(data[ni+NCHILDA]);
+          recurse(data[ni+NCHILDB]);
+        }
+      }
+      
+      recurse(this.root);
+    }
+    
+    iterAllPoints(cb, thisvar) {
+      let cachering = this._point_cachering;
+      
+      let recurse = (ni) => {
+        let data = this.data;
+        
+        if (data[ni+NCHILDA] != 0) {
+          recurse(data[ni+NCHILDA]);
+          recurse(data[ni+NCHILDB]);
+        } else {
+          let totpoint = data[ni+NTOTPOINT];
+          let j = ni + NTOTPOINT + 1;
+          
+          for (let i=0; i<totpoint; i++) {
+            let p = cachering.next();
+            
+            p.co[0] = data[j++];
+            p.co[1] = data[j++];
+            p.co[2] = data[j++];
+            p.id = data[j++];
+            
+            if (thisvar !== undefined) {
+              cb.call(thisvar, p);
+            } else {
+              cb(p);
+            }
           }
         }
-          
-        if (n.children.length != 0) {
+      }
+      
+      recurse(this.root);
+    }
+    
+          //this._point_cachering
+    
+    //new_nodes_out is an array 
+    split(ni, new_nodes_out, depth) {
+      //find split point
+      let data = this.data;
+      let startk = ni + NTOTPOINT + 1;
+      let totp = data[ni + NTOTPOINT];
+      
+      let bestaxis = undefined;
+      let bestsplit = undefined;
+      let bestfit = undefined;
+      
+      if (totp == 0) {
+        console.warn("TRIED TO SPLIT AN EMPTY NODE!");
+      }
+        
+      //find best split axis
+      for (let axis=0; axis<3; axis++) {
+        let centroid = 0;
+        let amin = 1e17, amax=-1e17;
+        
+        for (let j=0, k=startk; j<totp; j++, k += 4) {
+            centroid += data[k+axis];
+            
+            amin = Math.min(data[k+axis], amin);
+            amax = Math.max(data[k+axis], amax);
+        }
+        
+        if (amax-amin < 0.0001) {
           continue;
         }
         
-        for (var i=0; i<n.ps.length; i += 3) {
-          var pi = n.ps[i], x2 = n.ps[i+1]-x, y2 = n.ps[i+2]-y;
-          
-          if (x2*x2 + y2*y2 < rsqr) {
-            cb.call(thisvar, pi);
-          }
+        centroid /= totp;
+        let fit = 0;
+        
+        for (let j=0, k=startk; j<totp; j++, k += 4) {
+          fit += data[k+axis] < centroid ? -1 : 1;
         }
-      }
-    },
-    
-    function forEachPoint1(x, y, r, cb, thisvar) {
-     // return this.forEachPoint2.apply(this, arguments);
-      
-      var rsqr = r*r;
-      
-      var eps = 0.000001;
-      x = Math.min(Math.max(x, eps), 1.0-eps);
-      y = Math.min(Math.max(y, eps), 1.0-eps);
-      
-      thisvar = thisvar == undefined ? window : thisvar;
-      
-      for (var i=0; i<this.children.length; i++) {
-        var c = this.children[i];
-
-        var ix = Math.abs(c.min[0]-x) < Math.abs(c.max[0]-x) ? c.min[0] : c.max[0];
-        var iy = Math.abs(c.min[1]-y) < Math.abs(c.max[1]-y) ? c.min[1] : c.max[1];
-        ix -= x, iy -= y;
+        fit = Math.abs(fit);
         
-        var rd = r*SQRT2;
-        var ok = x >= c.min[0]-rd && x < c.max[0]+rd && y >= c.min[1]-rd && y < c.max[1]+rd;
-        
-        //if (ok) {
-          c.forEachPoint(x, y, r, cb, thisvar);
-        //}
-      }
-        
-      if (this.children.length != 0) {
-        return;
-      }
-      
-      for (var i=0; i<this.ps.length; i += 3) {
-        var pi = this.ps[i], x2 = this.ps[i+1]-x, y2 = this.ps[i+2]-y;
-        
-        if (x2*x2 + y2*y2 < rsqr) {
-          cb.call(thisvar, pi);
-        }
-      }
-    },
-    
-    function remove(pi) {
-      var node = this.nodemap[pi];
-      
-      if (node == undefined) {
-        //console.log("eek! kdtree error!");
-        return;
-      }
-      
-      for (var i=0; i<node.ps.length; i += 3) {
-        if (node.ps[i] == pi) {
-          if (node.ps.length > 3) {
-            node.ps[i] = node.ps[node.ps.length-3];
-            node.ps[i+1] = node.ps[node.ps.length-2];
-            node.ps[i+2] = node.ps[node.ps.length-1];
-          }
-          node.ps.length -= 3;
-        }
-      }
-    },
-    
-    function insert(px, py, pi) {
-      if (this.children.length > 0) {
-        var found = 0;
-        
-        for (var i=0; i<this.children.length; i++) {
-          var n = this.children[i];
-          
-          //console.log(px, py, n.min, n.max);
-          if (px >= n.min[0] && px < n.max[0] &&
-              py >= n.min[1] && py < n.max[1]) 
-          {
-            n.insert(px, py, pi);
-            
-            found = 1;
-            break;
-          }
+        var size=0;
+        for (let k=0; k<3; k++) {
+          size += Math.max(data[ni+3+k], data[ni+k]);
         }
         
-        if (!found) {
-          console.log("eek!", px, py, pi);
-          //throw new Error("eek!");
-        }
-        //console.log("found", found);
+        let aspect = (data[ni+3+axis] - data[ni+axis]) / size;
         
-        return;
+        if (aspect > 0 && aspect < 1)
+          aspect = 1 / aspect;
+        
+        if (fit != totp && aspect > 0.001) {
+          fit += aspect*7.0;
+        }
+        
+        //console.log("A2", aspect);
+      
+        if (bestaxis === undefined || fit < bestfit) {
+          bestfit = fit;
+          bestsplit = centroid;
+          bestaxis = axis;
+        }
       }
       
-      if (this.ps.length/3 > this.limit && this.depth < 18 && this.children.length==0) {
-        var axis = this.axis^1, min=1e17, max=-1e17;
-        
-        for (var i=0; i<this.ps.length; i += 3) {
-          var pi2 = this.ps[i], px2 = this.ps[i+1], py2 = this.ps[i+2];
-          
-          min = Math.min(min, axis ? py2 : px2);
-          max = Math.max(max, axis ? py2 : px2);
-        }
-        
-        var mid = (min+max)*0.5;
-        
-        var cx = (this.max[0]-this.min[0])/2;
-        var cy = (this.max[1]-this.min[1])/2;
-        
-        for (var i=0; i<2; i++) {
-          var u = !axis ? this.min[0] + i*cx : this.min[0];
-          var v =  axis ? this.min[1] + i*cy : this.min[1];
-          
-          var c = new KDTree(true);
-          
-          c.stack = this.stack;
-          c.nodemap = this.nodemap;
-          
-          //c.min = [0, 0];
-          //c.max = [0, 0];
-          
-          c.min[0] = u;
-          c.min[1] = v;
-          
-          c.max[0] = !axis ? u + cx : this.max[0];
-          c.max[1] =  axis ? v + cy : this.max[1];
-          
-          c.depth = this.depth + 1;
-          c.axis = axis;
-          
-          this.children.push(c);
-        }
-        
-        var ps = this.ps;
-        this.ps = [];
-        //console.log("splitting...", this.depth);
-        
-        this.insert(px, py, pi);
-        
-        for (var i=0; i<ps.length; i += 3) {
-          var pib = ps[i], xb = ps[i+1], yb = ps[i+2];
-          
-          this.insert(xb, yb, pib);
+      if (bestaxis === undefined) {
+        if (util.time_ms() - this.last_warn_time > 500) {
+          console.warn("Failed to split node; points were probably all duplicates of each other");
+          this.last_warn_time = util.time_ms();
         }
         
         return;
-        //return this.insert(px, py, pi);
       }
       
-      this.nodemap[pi] = this;
+//      console.log(bestsplit, bestaxis, ni);
       
-      this.ps.push(pi);
-      this.ps.push(px); 
-      this.ps.push(py);
+      //split
+      let min1 = _split_tmps.next().zero(), max1 = _split_tmps.next().zero();
+      let min2 = _split_tmps.next().zero(), max2 = _split_tmps.next().zero();
+      
+      for (let i=0; i<3; i++) {
+        min1[i] = data[ni+i];
+        max1[i] = data[ni+NXMAX+i];
+      }
+      
+      min2.load(min1);
+      max2.load(max1);
+      
+      max1[bestaxis] = bestsplit;
+      min2[bestaxis] = bestsplit;
+      
+      let c1 = this.newNode(min1, max1);
+      let c2 = this.newNode(min2, max2);
+      
+      data = this.data;
+      
+      data[ni+NCHILDA] = c1;
+      data[ni+NCHILDB] = c2;
+      data[ni+NSPLITPOS] = bestsplit;
+      data[ni+NSPLITPLANE] = bestaxis;
+      
+      totp = data[ni+NTOTPOINT];
+      startk = ni + NTOTPOINT + 1;
+      
+      data[ni+NTOTPOINT] = 0;
+      
+      if (new_nodes_out !== undefined) {
+        new_nodes_out[0] = c1;
+        new_nodes_out[1] = c2;
+      }
+      
+      for (let k=startk, j=0; j<totp; j++, k += 4) {
+        this.insert_intern(data[k], data[k+1], data[k+2], data[k+3], depth+1);
+      }
     }
-  ]);
+    
+    forEachPoint(x, y, r, callback, thisvar) {
+      var p = _foreach_tmp;
+      
+      p[0] = x;
+      p[1] = y;
+      p[2] = 0;
+      
+      return this.search(p, r, callback, thisvar);
+    }
+    
+    //if callback returns true then the search will stop
+    search(p, r, callback, thisvar) {
+      let stop = false;
+      
+      let data = this.data;
+      let cachering = this._point_cachering;
+      let co = this._search_cachering.next();
+      
+      let recurse = (ni) => {
+        if (stop) {
+          return;
+        }
+        
+        if (data[ni+NCHILDA] != 0) {
+          for (let si=0; si<2; si++) {
+            let ni2 = data[ni+NCHILDA+si];
+            let ok = 0;
+            
+            for (let i=0; i<3; i++) {
+              let a = data[ni2+i], b = data[ni2+i+3];
+              
+              //console.log(a, b, p[i], r);
+              ok += !!(p[i]+2*r > a && p[i]-2*r < b);
+            }
+            
+            if (ok == 3) {
+              recurse(ni2);
+            }
+          }
+        } else if (data[ni+NCHILDA] == 0) {
+          let totp = data[ni+NTOTPOINT];
+          let k = ni+NTOTPOINT + 1;
+          
+          for (let j=0; j<totp; j++, k += 4) {
+            co[0] = data[k];
+            co[1] = data[k+1];
+            co[2] = data[k+2];
+            
+            let dx = co[0] - p[0];
+            let dy = co[1] - p[1];
+            let dz = p.length > 2 ? (co[2] - p[2]) : 0;
+              
+            if (dx*dx + dy*dy + dz*dz < r*r) {
+              let dostop;
+              
+              if (thisvar) {
+                dostop = callback.call(thisvar, data[k+3]);
+              } else {
+                dostop = callback(data[k+3]);
+              }
+              
+              if (dostop) {
+                stop = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      recurse(this.root);
+    }
+
+    draw(g) {
+      let d = this.data;
+      
+      let recurse = (ni) => {
+        g.beginPath();
+        g.rect(d[ni+NXMIN], d[ni+NYMIN], d[ni+NXMAX] - d[ni+NXMIN], d[ni+NYMAX] - d[ni+NYMIN]);
+        g.strokeStyle = "orange";
+        g.fillStyle = "rgba(255, 150, 50, 0.25)";
+        g.stroke();
+        
+        if (d[ni+NCHILDA] == 0.0) { //leaf node?
+          g.fill();
+
+          let r = 0.125*(this.max[0] - this.min[0]) / Math.sqrt(this.totpoint);
+          let totpoint = d[ni+NTOTPOINT];
+
+          g.beginPath();
+          
+          for (let i=0; i<totpoint*4; i += 4) {
+            let i2 = ni + NTOTPOINT + 1 + i;
+            
+            let x = d[i2], y = d[i2+1], z = d[i2+2], id = d[i2+3];
+            
+            g.moveTo(x, y);
+            g.arc(x, y, r, -Math.PI, Math.PI);
+          }
+          
+          g.fillStyle = "rgba(100, 150, 250, 0.5)";
+          g.fill();
+        }
+        
+        if (d[ni+NCHILDA] != 0) {
+          recurse(d[ni+NCHILDA]);
+          recurse(d[ni+NCHILDB]);
+        }
+      }
+      
+      recurse(this.root);
+    }
+    
+    balance() {
+      //return;
+      /*
+      balance tree.  idea is to do one level at a time, insert all points, subdivide all nodes in that
+      level that needs subdivision and only then recurse.
+      
+      we can't do that with this data structure which is optimized for speed of memory access.
+      so we have to build a temporary structure.
+      */
+      
+      class Node extends Array {
+        constructor(min, max) {
+          super();
+          
+          this.min = new Vector3(min);
+          this.max = new Vector3(max);
+          this.bestpos = undefined;
+          this.bestaxis = undefined;
+          this.bestfit = undefined;
+          
+          this.nodes = [undefined, undefined];
+          
+        }
+      }
+      
+      var min = new Vector3();
+      var max = new Vector3();
+      
+      for (var i=0; i<3; i++) {
+        min[i] = this.data[this.root+i];
+        max[i] = this.data[this.root+3+i];
+      }
+      
+      var root = new Node(min, max);
+      
+      this.iterAllPoints((p, id) => {
+        for (var j=0; j<3; j++) {
+          root.push(p.co[j]);
+        }
+        
+        root.push(p.id);
+      });
+      
+      let recurse = (node, depth) => {
+        if (depth >= this.maxdepth) {
+          if (util.time_ms() - this.last_warn_time > 500) {
+            console.warn("Malformed data: failed to insert point during balancing, depth:", depth);
+            this.last_warn_time = util.time_ms();
+          }
+          
+          return;
+        }
+        
+        if (node.length/4 < MAXPOINTS) {
+          return;
+        }
+        
+        let bestfit = undefined, bestpos = undefined, bestaxis = undefined;
+        let size = 0;
+        
+        for (let axis=0; axis<3; axis++) {
+          size = Math.max(size, node.max[axis] - node.min[axis]);
+        }
+        
+        for (let axis=0; axis<3; axis++) {
+          let centroid = 0;
+          let amin = 1e17, amax = -1e17;
+          
+          for (let i=0; i<node.length; i += 4) {
+            centroid += node[i+axis];
+            
+            amin = Math.min(amin, node[i+axis]);
+            amax = Math.max(amax, node[i+axis]);
+          }
+          
+          //points lie in axis's plane?
+          if (amax-amin < 0.00001) {
+            continue;
+          }
+          
+          centroid /= node.length/4;
+          
+          let fit = 0;
+          
+          for (let i=0; i<node.length; i += 4) {
+            fit += node[i+axis] < centroid ? -1 : 1;
+          }
+          fit = Math.abs(fit);
+          
+          let aspect = (node.max[axis] - node.min[axis]) / size;
+          
+          if (aspect > 0 && aspect < 1)
+            aspect = 1 / aspect;
+          
+          if (fit != node.length/4 && aspect > 0.001) {
+            fit += aspect*7.0;
+          }
+
+          if (bestfit === undefined || fit < bestfit) {
+            bestfit = fit;
+            bestpos = centroid;
+            bestaxis = axis;
+          }
+        }
+        
+        if (bestfit === undefined) {
+          console.warn("data integrity error in balance(), node was fill with duplicate points");
+          return;
+        }
+        
+        node.bestpos = bestpos;
+        node.bestaxis = bestaxis;
+        node.bestfit = bestfit;
+        
+        //console.log(bestaxis, bestpos, bestfit);
+        
+        min.load(node.min);
+        max.load(node.max);
+        
+        max[bestaxis] = bestpos;
+        let n1 = new Node(min, max);
+        
+        max.load(node.max);
+        min[bestaxis] = bestpos;
+        let n2 = new Node(min, max);
+        
+        for (let i=0; i<node.length; i += 4) {
+          let child = node[i+bestaxis] < bestpos ? n1 : n2;
+          
+          for (let j=0; j<4; j++) {
+            child.push(node[i+j]);
+          }
+        }
+        
+        node.nodes[0] = n1;
+        node.nodes[1] = n2;
+        
+        node.length = 0;
+        
+        recurse(n1, depth+1);
+        recurse(n2, depth+1);
+      }
+      
+      recurse(root, 0);
+      
+      this.data.fill(0, 0, this.data.length);
+      this.usednodes = 0;
+      this.root = this.newNode(root.min, root.max);
+      
+      let recurse2 = (node, ni) => {
+        if (node.nodes[0] !== undefined) {
+          this.data[ni+NSPLITPLANE] = node.bestaxis;
+          this.data[ni+NSPLITPOS] = node.bestpos;
+          
+          let n1 = this.newNode(node.nodes[0].min, node.nodes[0].max);
+          let n2 = this.newNode(node.nodes[1].min, node.nodes[1].max);
+          
+          this.data[ni+NCHILDA] = n1;
+          this.data[ni+NCHILDB] = n2;
+          
+          recurse2(node.nodes[0], n1);
+          recurse2(node.nodes[1], n2);
+        } else {
+          //console.log("yay, found points", ni, node.length/4);
+          let data = this.data;
+          
+          data[ni+NTOTPOINT] = node.length/4;
+          
+          let j = ni + NTOTPOINT + 1;
+          
+          for (let i=0; i<node.length; i += 4) {
+            if (i/4 >= MAXPOINTS) {
+              console.warn("ran over MAXPOINTS in balance!", node.length/4);
+              break;
+            }
+            
+            for (let k=0; k<4; k++) {
+              data[j++] = node[i+k];
+            }
+          }
+        }
+      };
+      
+      recurse2(root, this.root);
+    }
+  }
   
   return exports;
 });

@@ -28,6 +28,10 @@ define([
       this.cur = 0;
     },
     
+    function done() {
+      return this.hlvl == this.hsteps;
+    },
+    
     function max_level() {
       return this.maxgen;
     },
@@ -51,7 +55,7 @@ define([
       
       function update_cell_callback(pi) {
         var ps = this.points;
-        var x = ps[pi*PTOT], y = ps[pi*PTOT+1];//, r = ps[pi*PTOT+2];
+        var x = ps[pi], y = ps[pi+1];//, r = ps[pi+2];
         
         var ix2 = x*csize, iy2 = y*csize;
         var mask = 0, dis;
@@ -204,11 +208,11 @@ define([
           
           //
           kdtree.forEachPoint(x1, y1, r*rmul, function(pi) {
-            var x2 = ps[pi*PTOT]-(x+ox), y2 = ps[pi*PTOT+1]-(y+oy);
+            var x2 = ps[pi]-(x+ox), y2 = ps[pi+1]-(y+oy);
             var dis = x2*x2 + y2*y2;
-            var gen2 = ps[pi*PTOT+PGEN];
+            var gen2 = ps[pi+PGEN];
            
-            var color2 = ps[pi*PTOT+PCLR];
+            var color2 = ps[pi+PCLR];
             
             if (dis < rsqr2) {
               var w = dis != 0.0 ? Math.sqrt(dis) / rcolor: 0.0;
@@ -260,18 +264,17 @@ define([
           ps.push(0);
         }
         
-        var pi2 = ~~(pi/PTOT);
-        
         //store original level gen here
         ps[pi+PD] = this.hlvl;
         
         ps[pi+PR2] = r;
         ps[pi+PCLR] = color;
         ps[pi] = x, ps[pi+1] = y, ps[pi+PR]=final_r, ps[pi+PGEN]=hlvl;
-        kdtree.insert(x, y, pi2);
         
-        this.find_mask_pixel(pi2);
-        this.raster_point(pi2);
+        kdtree.insert(x, y, pi);
+        
+        this.find_mask_pixel(pi);
+        this.raster_point(pi);
         
         if (FFT_TARGETING && this.totfft % 25 == 0) {
           this.do_fft(25);
@@ -285,10 +288,11 @@ define([
       
       /*
       for (var i=0; i<ps.length; i += PTOT) {
-        this.color_point(i/PTOT);
+        this.color_point(i);
       }
       //*/
       
+      this.regen_spatial();
       this.update_cells();
       this.raster();
       
@@ -372,7 +376,7 @@ define([
       var ps = this.points, kdtree = this.kdtree, r = this.r;
       var final_r = this.final_r;
       var hlvl = this.hlvl;
-      var r = ps[pi*PTOT+PR2];
+      var r = ps[pi+PR2];
       
       if (Math.random() < 0.98) {
         //return;
@@ -380,7 +384,7 @@ define([
       
       var cells = this.cells, cellsize = this.cellsize;
       var icellsize = 1.0 / cellsize;
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
+      var x = ps[pi], y = ps[pi+1], gen=ps[pi+PGEN];
       
       var clrtots = this._colortots;
       clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
@@ -403,9 +407,9 @@ define([
         
         //
         kdtree.forEachPoint(x1, y1, r*rmul, function(pi) {
-          var x2 = ps[pi*PTOT]-(x+ox), y2 = ps[pi*PTOT+1]-(y+oy);
-          var r2 = ps[pi*PTOT+PR], color2 = ps[pi*PTOT+PCLR];
-          var gen2 = ps[pi*PTOT+PGEN];
+          var x2 = ps[pi]-(x+ox), y2 = ps[pi+1]-(y+oy);
+          var r2 = ps[pi+PR], color2 = ps[pi+PCLR];
+          var gen2 = ps[pi+PGEN];
 
           if (gen2 > gen) {
             return;
@@ -441,7 +445,7 @@ define([
       //if (i % 4 != color) return;
       
       //if (color != 3) return;
-      ps[pi*PTOT+PCLR] = color;
+      ps[pi+PCLR] = color;
     },
     
     function make_cells() {
@@ -560,13 +564,13 @@ define([
       var mask = this.mask, ps = this.points, msize = this.mask_img.width
       var cf = this.config;
       
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
-      var color = ps[pi*PTOT+PCLR];
+      var x = ps[pi], y = ps[pi+1], gen=ps[pi+PGEN];
+      var color = ps[pi+PCLR];
       
       var d = 1.0 - gen/this.hsteps;
 
       //XXX
-      d = 1.0 - (pi*PTOT) / this.points.length;
+      d = 1.0 - (pi) / this.points.length;
       
       if (cf.TONE_CURVE != undefined) {
         d = 1.0 - cf.TONE_CURVE.evaluate(1.0-d);
@@ -580,7 +584,7 @@ define([
         throw new Error("eek! " + d);
       }
       
-      var ix = ps[pi*PTOT+PIX], iy = ps[pi*PTOT+PIY];
+      var ix = ps[pi+PIX], iy = ps[pi+PIY];
       if (ix < 0) return; //dropped point
       
       ix = Math.min(Math.max(ix, 0), msize-1);
@@ -658,6 +662,7 @@ define([
       for (var i=0; i<ps.length; i += PTOT) {
         ps[i+PGEN] = i/PTOT;
       }
+      
       this.maxgen = ps.length/PTOT;
       //*/
       

@@ -12,12 +12,16 @@ window.MODES = {
   JITTER   : 3,
   AA       : 4,
   VOID_CLUSTER : 5,
-  BAYER : 6
+  BAYER    : 6,
+  DART2    : 7,
+  MITCHELL : 8,
+  MASKOPT  : 9
 };
 
 window.MODE = MODES.DART;
 window.VOIDCLUSTER_MID_R = 0.5;
 window.VOID_HEX_MODE = false;
+window.TEST_CLUSTER = false;
 
 window.CMYK = [
   [0, 1, 1],
@@ -29,6 +33,7 @@ window.CMYK = [
 window.ALIGN_GRID = false;
 window.VOID_BAYER_MODE = false;
 
+window.AA_USE_OFFSETS = true;
 window.AA_ADD_JITTER = 0;
 
 //only used if EXPLORE_AA_SEED is false
@@ -84,10 +89,15 @@ var MAX_BIN = 128;
   
 
 //points, if PR is < 0 then point is dead
-var PX=0, PY=1, PR=2, PGEN=3, PDX=4, PDY=5, PR2=6, PD=7, PIX=8, PIY=9, PCLR=10, PFLAG=11, PTOT=12;
+var PX=0, PY=1, PR=2, PGEN=3, PDX=4, PDY=5, PR2=6, PD=7, 
+    PIX=8, PIY=9, PCLR=10, PFLAG=11, POLDX=12, POLDY=13,
+    POFFX=14, POFFY=15, POX=16, POY=17, PTOT=18;
 
+window.DRAW_OFFS = false;
+window.DRAW_HISTOGRAM = true;
 window.SPH_CURVE = undefined;
 window.TONE_CURVE = undefined;
+window.USE_TONE_CURVE = true;
 window.RADIUS_CURVE = undefined;
 window.VOIDCLUSTER_CURVE = undefined;
 window.FFT_CURVE = undefined;
@@ -103,6 +113,10 @@ window.ALLOW_OVERDRAW = false;
 
 window.AA_SPEED = 0.5;
 window.SPH_SPEED = 1.0;
+window.SPH_EXP = 2.2;
+window.SPH_MUL = 1.0;
+window.SPH_FILTERWID = 7.5;
+
 window.DIMEN = 50;
 
 window.DRAW_RMUL = 0.5;
@@ -138,6 +152,7 @@ window.DRAW_RESTRICT_LEVEL = 1;
 window.DRAW_TILED = false;
 
 window.SMALL_MASK = false;
+window.XLARGE_MASK = false;
 
 window.STEPS = 760;
 window.QUALITY_STEPS = 8;

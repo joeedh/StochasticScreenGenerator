@@ -97,27 +97,80 @@ define([
   function stepnoise(ix, iy, size) {
     return noise2((~~(ix/size))*size, (~~(iy/size))*size);
   }
+  
+  function cubic(a, b, c, d, t) {
+    var r1 = a*(1.0-t) + b*t;
+    var r2 = b*(1.0-t) * c*t;
+    var r3 = c*(1.0-t) + d*t;
+    
+    var a1 = r1*(1.0-t) + r2*t;
+    var a2 = r2*(1.0-t) + r3*t;
+    
+    return a1*(1.0-t) + a2*t;
+  }
 
   if (window.TT == undefined)
     window.TT = 4.0
   
+  //SLIDERS=[4.474403462499999,3.0383999999999998];
+
   var SimpleGen = exports.SimpleGen = util.Class([
     function dxdy(ix, iy, size, seed) {
       var ret = dxdy_rets.next();
       
       //ret[2] = Math.fract(Math.fract(Math.fract(ix*2.1324 + iy*3.345)*TT)*4.245);
       //ret[2] = Math.fract((ix*ix + iy*iy)*(5.0 + 1.0/31));
-      var th1 = Math.sqrt(13.0);
+      /*
+      var th = 566/99;
+      //th = 131/23;
       
-      //th1 = (~~(th1*d))/d;
-      th1 = 57 / 16;
+      var f  = Math.fract(ix*th + iy/th);
       
-      var dx = Math.fract(ix*th1 - iy/th1);
-      var dy = Math.fract(iy*th1 + ix/th1);
-      var f = Math.max(dx, dy);
+      var f2 = Math.fract(ix/Math.PI)*Math.fract(iy/Math.PI); //Math.sqrt(2));
+      var d = 4;
+      f2 = (~~(f2*d))/d;
+      
+      f = 1.0-0.985*Math.log(1.0+(1.0-f)*19.95) / Math.log(20.0);
+      f = f2*0.1 + f*0.9;
+      
+      f = cubic(0.0, 0.95, 0.9, 1.0, f);
+    
+      ret[2] = f;
+      return ret;
+      //*/
+      
+      if (1) { //integer version
+        var p = 9;
+        var q = 95;//105;
+        var w = 254;
+        
+        var dx = (ix*p - iy*q);
+        var dy = (iy*p + ix*q);
+        
+        dx = (dx % w) / w;
+        dy = (dy % w) / w;
+        
+        dx = dx < 0 ? 1.0 + dx : dx;
+        dy = dy < 0 ? 1.0 + dy : dy;
+        
+        var f = Math.min(dx, dy);
+        var fsteps = 255;
+        
+        f = (~~(f*fsteps))/fsteps;
+      } else { //floating point version
+        //var th1 = (~~(th1*d))/d;
+        var th1 = 150/32; //299/64; //4.675448462499999// 4.474403462499999; //57 / 16;
+        var th1 = 72/83;
+        //th1 = 4.687508837500001;
+        
+        var dx = Math.fract(ix*th1 - iy/th1);
+        var dy = Math.fract(iy*th1 + ix/th1);
+        
+        var f = Math.min(dx, dy);
+      }
       
       //f = Math.fract(ix*2.430365924999999 + iy*3.242500000000001);
-      ret[2] = f*f;
+      ret[2] = f;
       
       return ret;
       

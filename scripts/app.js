@@ -7,10 +7,10 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster', 'fft',
-  'interface', 'bayer'
+  'interface', 'bayer', 'darts2', 'histogram', "mitchell", "mask_optimize"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
            sph_presets, spectral, jitter, aa_noise, presets, void_cluster,
-           fftmod, iface, bayer) 
+           fftmod, iface, bayer, darts2, histogram, mitchell, mask_optimize) 
 {
   'use strict';
   
@@ -24,7 +24,10 @@ define([
     jitter.JitterGenerator,
     aa_noise.AANoiseGenerator,
     void_cluster.VoidClusterGenerator,
-    bayer.BayerGenerator
+    bayer.BayerGenerator,
+    darts2.Darts2Generator,
+    mitchell.MitchellGenerator,
+    mask_optimize.MaskOptGenerator
   ];
   
   var sin_table = (function() {
@@ -78,6 +81,8 @@ define([
       this.generator = undefined
       this.build_ui();
       
+      this.hist = new histogram.Histogram(64);
+      
       this.report_queue = [];
       this.report_lines = [];
       this._lastsize = [0, 0];
@@ -99,15 +104,11 @@ define([
       }
       
       var size = DIMEN;
-      var msize = SMALL_MASK ? size : size*4;
+      var msize = SMALL_MASK ? size : (XLARGE_MASK ? size*8 : size*4);
       
       this.mask_img = new ImageData(msize, msize);
       this.mask = this.mask_img.data;
       this.mask.fill(0, 0, this.mask.length);
-      
-      this.mask.fill(0, this.mask.length);
-      //this.mask[1] = 255;
-      this.mask[3] = 255;
       
       var iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
@@ -420,16 +421,49 @@ define([
       this.generator.raster();
     },
     
+    function save_dataurl() {
+      this.raster();
+      redraw_all();
+      
+      var data = this.mask_img.data;
+      for (var i=0; i<data.length; i += 4) {
+        if (data[i+3] == 0) {
+          data[i] = data[i+1] = data[i+2] = 0;
+          data[i+3] = 255;  
+        }
+      }
+
+      var g = this.mask_g;
+      g.putImageData(this.mask_img, 0, 0);
+      
+      return this.mask_canvas.toDataURL();
+    },
+    
     function save() {
       this.raster();
       redraw_all();
       
       var g = this.mask_g;
+      
+      var data = this.mask_img.data;
+      for (var i=0; i<data.length; i += 4) {
+        if (data[i+3] == 0) {
+          data[i] = data[i+1] = data[i+2] = 0;
+          data[i+3] = 255;  
+        }
+      }
+      
       g.putImageData(this.mask_img, 0, 0);
       
-      var url = this.mask_canvas.toDataURL();
+      let promise = new Promise((accept, reject) => {
+        this.mask_canvas.toBlob((blob) => {
+          let url = URL.createObjectURL(blob);
+          
+          accept(url);
+        });
+      });
       
-      return url;
+      return promise;
     },
     
     function next_level(steps) {
@@ -612,9 +646,15 @@ define([
             break;
             
           g.beginPath();
+          
           for (var i=0; i<ps2.length; i += PTOT) {
             var x = ps2[i], y = ps2[i+1], r = ps2[i+PR], gen = ps2[i+PGEN];
             var color = ps2[i+PCLR];
+            
+            if (DRAW_OFFS) {
+              x += ps2[i+POFFX];
+              y += ps2[i+POFFY];
+            }
             
             x += _poffs[si][0], y += _poffs[si][1];
             r = this.generator.r;
@@ -630,8 +670,32 @@ define([
       }
       
       this.generator.draw(g);
-      
+
       g.restore();
+      
+      if (DRAW_HISTOGRAM) {
+        let ps = this.generator.points;
+        let mdata = this.mask;
+        
+        g.save();
+        g.translate(0, 575);
+        
+        this.hist.reset();
+        for (let i=0; i<mdata.length; i += 4) {
+          let val = (mdata[i] + mdata[i+1] + mdata[i+2]) / 255.0 / 3.0;
+          
+          if ((val == 0 && !SMALL_MASK) || mdata[i+3] == 0.0) {
+            continue; //ignore pure black (in large mask mode) or transparent pixels
+          }
+          
+          this.hist.add(val);
+        }
+        
+        this.hist.finish(0.0);
+        
+        this.hist.draw(this.canvas, g);
+        g.restore();
+      }
     },
     
     function on_tick() {
@@ -659,9 +723,9 @@ define([
       console.log(e.keyCode);
       
       switch (e.keyCode) {
-        case 76: //lkey
+        case 80: //pkey
           if (this.rtimer != undefined) {
-            this.report("stoping timer");
+            this.report("stopping timer");
             window.clearInterval(this.rtimer)
             this.rtimer = undefined;
             
@@ -675,6 +739,11 @@ define([
             _appstate.generator.relax();
             redraw_all();
           }, 50);
+          break;
+        case 76: //lkey
+          _appstate.generator.config.update();
+          this.generator.offs_relax();
+          redraw_all();
           break;
         case 75: //kkey
           _appstate.generator.config.update();
@@ -700,7 +769,7 @@ define([
           }
           break;
         case 83: //skey
-          var dataurl = this.save();
+          var dataurl = this.save_dataurl();
           
           localStorage.startup_mask_bn4 = dataurl;
           window.open(dataurl);
@@ -708,11 +777,13 @@ define([
           redraw_all();
           break;
         case 82: //rkey
+          //*
           if (!e.ctrlKey) {
             this.reset();
             _appstate.generator.config.update();
             redraw_all();
           }
+          //*/
           break;
         case 78: //nkey
           console.log("\ngoing to next level. . .\n\n");
@@ -738,6 +809,7 @@ define([
           
           redraw_all();
           break;
+        case 84: //tkey
         case 69: //ekey
           this.generator.toggle_timer_loop(this, e.shiftKey);
           break;
@@ -804,6 +876,10 @@ define([
       
       panel2.slider('sph_speed', 'SPH Speed', 0.001, 5.0, 0.0001, false, false);
       panel2.curve('sph_curve', 'SPH Curve');
+      panel2.slider('sph_exp', 'Exponent', -3, 40.0, 0.0001, false, false);
+      panel2.slider('sph_mul', 'Mul', -30, 30.0, 0.0001, false, false);
+      panel2.slider('sph_filterwid', 'Filter Width', 0.001, 20.0, 0.0001, false, false);
+      
       panel2.close()
       
       var list = {
@@ -828,6 +904,7 @@ define([
       
       var panel2 = panel.panel("Tone Curve");
       panel2.curve('tone_curve', 'Tone Curve', presets.TONE_CURVE);
+      panel2.check('use_tone_curve', 'Enable Tone Curve');
       panel2.close();
       
       var panel2 = panel.panel("Radius Curve");
@@ -835,8 +912,9 @@ define([
       panel2.close();
 
       var panel2 = panel.panel("AA");
+      panel2.close();
       
-      panel2.slider('aa_speed', 'Speed', 0.001, 2.0, 0.0001, false, false);
+      panel2.slider('aa_speed', 'Speed', 0.001, 4.15, 0.0001, false, false);
       panel2.button('clear_aa_cache', "Clear Cache", function() {
         
         if (_appstate.generator instanceof aa_noise.AANoiseGenerator) {
@@ -845,16 +923,48 @@ define([
           _appstate.report("Error: not in AA mode");
         }
       }, this);
+      panel2.check("aa_use_offsets", "Use Offsets");
+      
+      panel2.button("load_offsets", "Load Offsets", function() {
+        var file = document.createElement("input");
+        file.type = "file";
+        
+        file.addEventListener("change", function(e) {
+          var files = this.files;
+          
+          if (files.length == 0) return;
+          
+          var reader = new FileReader();
+          var this2 = this;
+          
+          reader.onload = function(e) {
+            var buf = e.target.result;
+            console.log("result length:", buf.length);
+            console.log(buf.slice(0, 1000));
+            var obj = JSON.parse(buf);
+            
+            _appstate.generator.load_offsets(obj.offs);
+          };
+          
+          reader.readAsText(files[0]);
+        });
+        
+        file.click();
+      }, this);
+      
+      panel2.button("save_offsets", "Save Offsets", function() {
+        _appstate.generator.export_offsets();
+      }, this);
       
       var panel3 = panel2.panel("Pan");
       panel2.slider('aa_pan_x', "X%", 0.0, 27.0, 0.0001, false, false);
       panel2.slider('aa_pan_y', "Y%", 0.0, 27.0, 0.0001, false, false);
-      panel2.close();
+      //panel2.close();
       
       var panel2 = panel.panel("Dart");
-      panel2.close();
+      //panel2.close();
       panel2.check('limit_distance', 'Pack Densely');
-      panel2.slider('distance_limit', 'Pack Threshold', 0.01, 1.2, 0.001, false, false);
+      panel2.slider('distance_limit', 'Pack Threshold', 0.001, 1.2, 0.001, false, false);
       panel2.check('align_grid', 'Align To Grid');
       panel2.check('scan_mode', 'Scan Mode');
       
@@ -866,13 +976,14 @@ define([
         this2.report("\nSaving blue noise mask to local storage");
         //this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
         
-        localStorage.startup_mask_bn4 = _appstate.save();
+        localStorage.startup_mask_bn4 = _appstate.save_dataurl();
       });
       
       var panel2 = panel.panel("Void-Cluster Filter Curve");
       
       panel2.curve('voidcluster_curve', 'VC Filter Curve',  presets.VOIDCLUSTER_CURVE);
       panel2.slider('voidcluster_mid_r', 'Middle Radius', 0, 1, 0.001, false, false);
+      panel2.check('test_cluster', 'Test Cluster');
       panel2.check('void_hex_mode', 'Hexagon Mode');
       panel2.check("void_bayer_mode", "Bayer Mode");
       panel2.close();
@@ -934,7 +1045,9 @@ define([
       });
       
       panel.button('save_mask', "Save Mask", function() {
-        window.open(_appstate.save());
+        _appstate.save().then((url) => {
+          window.open(url);
+        });
       });
       
       var this2 = this;
@@ -959,6 +1072,8 @@ define([
       panel.check('draw_kdtree', 'Show kd-tree');
       panel.check('draw_mask', 'Show Mask');
       panel.check('small_mask', 'Small Mask');
+      panel.check('draw_offs', 'Apply Offsets');
+      panel.check('xlarge_mask', 'Extra Large Mask');
       panel.check('draw_tiled', 'Draw Tiled');
       panel.check('fft_targeting', 'Target FFT');
       
@@ -974,7 +1089,7 @@ define([
   window.redraw_all = function() {
     if (animreq == undefined) {
       animreq = requestAnimationFrame(function() {
-        console.log("draw");
+        //console.log("draw");
         
         animreq = undefined;
         _appstate.draw();

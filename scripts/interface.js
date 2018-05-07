@@ -16,6 +16,7 @@ define([
     },
     
     function update() {
+      this.AA_USE_OFFSETS = AA_USE_OFFSETS;
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
@@ -47,12 +48,13 @@ define([
       this.appstate = appstate;
       this.colors = CMYK;
       this.config = new MaskConfig();
+      this.encode_new_offsets = true; //encode special lower-level offsets
       
       this.ff_rand = new util.MersenneRandom();
       this.draw_rmul = 1.0;
       
       this.points = [];
-      this.kdtree = new kdtree.KDTree();
+      this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
     },
     
     function get_visible_points(restrict, for_fft, invert) {
@@ -94,11 +96,6 @@ define([
       var fnorm = 2.0 / Math.sqrt(totpoint);
       var frange  = 10; // Frequency range relative to Nyq. freq. of hexagonal lattice
       var fsize = Math.floor(frange/fnorm);
-      
-      //but, really use another size
-      var fsize2 = this.fft.size;
-      
-      this.fscale = fsize2/fsize;
       
       return this.fscale;
     },
@@ -147,7 +144,7 @@ define([
     
     //console.log-style function, but without text coloring or anything like that
     function report() {
-      console.log.apply(console, arguments);
+      //console.log.apply(console, arguments);
       reportfunc.apply(window, arguments);
     },
     
@@ -169,11 +166,11 @@ define([
         var searchrad = r*searchfac;
         
         this.kdtree.forEachPoint(x, y, searchrad, function(pi) {
-          var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], r2=ps[pi*PTOT+PR];
-          var gen2 = ps[pi*PTOT+PGEN];
+          var x2 = ps[pi], y2 = ps[pi+1], r2=ps[pi+PR];
+          var gen2 = ps[pi+PGEN];
           r2 = Math.max(r, hr);
           
-          if (pi == i/PTOT) {
+          if (pi == i) {
             return;
           }
           
@@ -193,7 +190,43 @@ define([
       return avgdis;
     },
     
-    function relax(use_avg_dis, max_lvl_perc) {
+    function offs_relax() {
+      let ps2 = this.points.slice(0, this.points.length);
+      let ps = this.points;
+      
+      let speed = this.config.SPH_SPEED;
+      
+      this.config.SPH_SPEED = 3.0;
+      
+      for (let i=0; i<8; i++) {
+        this.off_relax_intern();
+      }
+      
+      this.config.SPH_SPEED = speed;
+      var msize = this.mask_img.width;
+      
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let x = ~~(ps2[pi+PIX]/msize), y = ~~(ps2[pi+PIY]/msize);
+        
+        x = ps2[pi], y = ps2[pi+1];
+        x = Math.floor(x*msize)/msize;
+        y = Math.floor(y*msize)/msize;
+        
+        ps[pi+POFFX] = (ps[pi] - x);
+        ps[pi+POFFY] = (ps[pi+1] - y);
+        
+        ps[pi] = ps2[pi];
+        ps[pi+1] = ps2[pi+1];
+        
+        ps[pi+PIX] = ps2[pi+PIX];
+        ps[pi+PIY] = ps2[pi+PIY];
+      }
+      
+      this.regen_spatial();
+      this.raster();
+    },
+    
+    function off_relax_intern(use_avg_dis, max_lvl_perc) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -205,7 +238,7 @@ define([
       
       var plen = this.points.length;
       var ps = this.points;
-      var searchfac = 5.0;
+      var searchfac = 2.5;
       var msize = this.mask_img.width;
       
       var r = this.r;
@@ -213,10 +246,88 @@ define([
       curgen = this.hlvl;
       
       var maxgen = this.max_level();
+      var hist = new Float64Array(255);
+      hist.fill(0, 0, hist.length);
+      
+      for (var i=0; i<plen; i += PTOT) {
+        var gen = ps[i+PGEN] / maxgen;
+        var ri = ~~(gen*255*0.999999);
+        hist[ri]++
+      }
+      
+      var sum = 0;
+      for (var i=0; i<hist.length; i++) {
+        sum += hist[i];
+        hist[i] = sum;
+      }
+      for (var i=0; i<hist.length; i++) {
+        hist[i] /= sum;
+      }      
+      
+      window.hist = hist;
       
       if (use_avg_dis) {
         r = this.calc_avg_dis();
       }
+      
+      function callback(pi) {
+        var x2 = ps[pi], y2 = ps[pi+1], r2=ps[pi+PR];
+        var gen2 = ps[pi+PGEN];
+        
+        x2 -= _poffs[j][0];
+        y2 -= _poffs[j][1];
+        
+        if (use_avg_dis)
+          r2 = r;
+        
+        if (cf.GEN_MASK) {
+          var f2 = ~~((gen2/maxgen)*255*0.99999);
+          f2 = hist[f2];
+          r2 = Math.sqrt(1.0 / (2*Math.sqrt(3)*totpoint*f2));
+        } else {
+          r2 = r;
+        }
+        
+        //if ((cf.GEN_MASK) && gen1 < gen2) {
+        //  return;
+        //}
+        
+        var filterwid = searchrad;
+        
+        //var f1 = gen1/maxgen, f2 = gen2/maxgen;
+        //var ratio = cf.GEN_MASK ? f2/(0.00001+f1) : 1.0;
+        //filterwid /= f1/f2;
+        
+        if (pi == i) {
+          return;
+        }
+        
+        var dx = x2-x, dy = y2-y;
+        var dis = dx*dx + dy*dy;
+        
+        if (dis == 0 || dis > filterwid*filterwid) {
+          return;
+        }
+        
+        dis = Math.sqrt(dis);
+        var r3 = Math.min(r2, r1);
+        
+        var w = 1.0 - dis/filterwid;
+        
+        w = cf.SPH_CURVE.evaluate(w);
+        
+        dx /= dis;
+        dy /= dis;
+        
+        var fx = x - dx*r3;
+        var fy = y - dy*r3;
+        
+        sumx += w*fx;
+        sumy += w*fy;
+        sumtot += w;
+      }
+      
+      var totpoint = plen / PTOT;
       
       for (var i=0; i<plen; i += PTOT) {
         var x = ps[i], y = ps[i+1], r1 = ps[i+PR];
@@ -234,67 +345,189 @@ define([
         else //r1 is often final radius, not current hiearchial one
           r1 = Math.max(r1, r);
         
+        if (cf.GEN_MASK) {
+          var f1 = ~~((gen1/maxgen)*255*0.99999);
+          f1 = hist[f1];
+          r1 = Math.sqrt(1.0 / (2*Math.sqrt(3)*totpoint*f1));
+        } else {
+          f1 = gen1/maxgen;
+          r1 = r;
+        }
+        
         var searchrad = r1*searchfac;
         var sumtot=1, sumx=x, sumy=y;
         
         for (var j=0; j<_poffs.length; j++) {
           var x1 = x + _poffs[j][0], y1 = y + _poffs[j][1];
           
-          this.kdtree.forEachPoint(x1, y1, searchrad, function(pi) {
-            var x2 = ps[pi*PTOT], y2 = ps[pi*PTOT+1], r2=ps[pi*PTOT+PR];
-            var gen2 = ps[pi*PTOT+PGEN];
-            
-            x2 -= _poffs[j][0];
-            y2 -= _poffs[j][1];
-            
-            if (use_avg_dis)
-              r2 = r;
-            
-            if ((cf.GEN_MASK) && gen1 < gen2) {
-              return;
-            }
-            
-            var filterwid = searchrad;
-            
-            //var f1 = gen1/maxgen, f2 = gen2/maxgen;
-            //var ratio = cf.GEN_MASK ? f2/(0.00001+f1) : 1.0;
-            //filterwid /= f1/f2;
-            
-            if (pi == i/PTOT) {
-              return;
-            }
-            
-            var dx = x2-x, dy = y2-y;
-            var dis = dx*dx + dy*dy;
-            
-            if (dis == 0 || dis > filterwid*filterwid) {
-              return;
-            }
-            
-            dis = Math.sqrt(dis);
-            var r3 = Math.max(r2, r1);
-            
-            var w = 1.0 - dis/filterwid;
-            
-            w = cf.SPH_CURVE.evaluate(w);
-            
-            dx /= dis;
-            dy /= dis;
-            
-            var fx = x - dx*r3;
-            var fy = y - dy*r3;
-            
-            sumx += w*fx;
-            sumy += w*fy;
-            sumtot += w;
-          }, this);
+          this.kdtree.forEachPoint(x1, y1, searchrad, callback, this);
         }
         
         sumx /= sumtot;
         sumy /= sumtot;
         
-        ps[i] += (sumx - ps[i])*cf.SPH_SPEED;
-        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED;
+        var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
+        
+        ps[i] += (sumx - ps[i])*cf.SPH_SPEED*fac;
+        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED*fac;
+          
+        ps[i] = Math.fract(ps[i]);
+        ps[i+1] = Math.fract(ps[i+1]);
+        //ps[i] = Math.min(Math.max(ps[i], 0), 1);
+        //ps[i+1] = Math.min(Math.max(ps[i+1], 0), 1);
+        
+        ps[i+PIX] = ~~(ps[i]*msize+0.0001);
+        ps[i+PIY] = ~~(ps[i+1]*msize+0.0001);
+      }
+        
+      this.regen_spatial();
+      this.raster();
+    },
+    
+    function relax(use_avg_dis, max_lvl_perc) {
+      use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
+      
+      max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
+      //max_lvl_perc = DRAW_RESTRICT_LEVEL;
+      
+      //console.log("warning, default implementation");
+      
+      var cf = this.config;
+      
+      var plen = this.points.length;
+      var ps = this.points;
+      var searchfac = 2.5;
+      var msize = this.mask_img.width;
+      
+      var r = this.r;
+      var curgen = this.current_level();
+      curgen = this.hlvl;
+      
+      var maxgen = this.max_level();
+      var hist = new Float64Array(255);
+      hist.fill(0, 0, hist.length);
+      
+      for (var i=0; i<plen; i += PTOT) {
+        var gen = ps[i+PGEN] / maxgen;
+        var ri = ~~(gen*255*0.999999);
+        hist[ri]++
+      }
+      
+      var sum = 0;
+      for (var i=0; i<hist.length; i++) {
+        sum += hist[i];
+        hist[i] = sum;
+      }
+      for (var i=0; i<hist.length; i++) {
+        hist[i] /= sum;
+      }      
+      
+      window.hist = hist;
+      
+      if (use_avg_dis) {
+        r = this.calc_avg_dis();
+      }
+      
+      function callback(pi) {
+        var x2 = ps[pi], y2 = ps[pi+1], r2=ps[pi+PR];
+        var gen2 = ps[pi+PGEN];
+        
+        x2 -= _poffs[j][0];
+        y2 -= _poffs[j][1];
+        
+        if (use_avg_dis)
+          r2 = r;
+        
+        if (cf.GEN_MASK) {
+          var f2 = ~~((gen2/maxgen)*255*0.99999);
+          f2 = hist[f2];
+          r2 = Math.sqrt(1.0 / (2*Math.sqrt(3)*totpoint*f2));
+        } else {
+          r2 = r;
+        }
+        
+        if ((cf.GEN_MASK) && gen1 < gen2) {
+        //  return;
+        }
+        
+        var filterwid = searchrad;
+        
+        //var f1 = gen1/maxgen, f2 = gen2/maxgen;
+        //var ratio = cf.GEN_MASK ? f2/(0.00001+f1) : 1.0;
+        //filterwid /= f1/f2;
+        
+        if (pi == i) {
+          return;
+        }
+        
+        var dx = x2-x, dy = y2-y;
+        var dis = dx*dx + dy*dy;
+        
+        if (dis == 0 || dis > filterwid*filterwid) {
+          return;
+        }
+        
+        dis = Math.sqrt(dis);
+        var r3 = Math.min(r2, r1);
+        
+        var w = 1.0 - dis/filterwid;
+        
+        w = cf.SPH_CURVE.evaluate(w);
+        
+        dx /= dis;
+        dy /= dis;
+        
+        var fx = x - dx*r3;
+        var fy = y - dy*r3;
+        
+        sumx += w*fx;
+        sumy += w*fy;
+        sumtot += w;
+      }
+      
+      var totpoint = plen / PTOT;
+      
+      for (var i=0; i<plen; i += PTOT) {
+        var x = ps[i], y = ps[i+1], r1 = ps[i+PR];
+        var gen1 = ps[i+PGEN];
+        var hgen1 = ps[i+PD];
+        
+        if (hgen1 != curgen && cf.RELAX_CURRENT_LEVEL) {
+          continue;
+        } else if (gen1/maxgen > max_lvl_perc) {
+          continue;
+        }
+        
+        if (use_avg_dis)
+          r1 = r;
+        else //r1 is often final radius, not current hiearchial one
+          r1 = Math.max(r1, r);
+        
+        if (cf.GEN_MASK) {
+          var f1 = ~~((gen1/maxgen)*255*0.99999);
+          f1 = hist[f1];
+          r1 = Math.sqrt(1.0 / (2*Math.sqrt(3)*totpoint*f1));
+        } else {
+          f1 = gen1/maxgen;
+          r1 = r;
+        }
+        
+        var searchrad = r1*searchfac;
+        var sumtot=1, sumx=x, sumy=y;
+        
+        for (var j=0; j<_poffs.length; j++) {
+          var x1 = x + _poffs[j][0], y1 = y + _poffs[j][1];
+          
+          this.kdtree.forEachPoint(x1, y1, searchrad, callback, this);
+        }
+        
+        sumx /= sumtot;
+        sumy /= sumtot;
+        
+        var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
+        
+        ps[i] += (sumx - ps[i])*cf.SPH_SPEED*fac;
+        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED*fac;
           
         ps[i] = Math.fract(ps[i]);
         ps[i+1] = Math.fract(ps[i+1]);
@@ -352,18 +585,7 @@ define([
     },    
         
     function regen_kdtree() {
-      console.log("regenerating kdtree...");
-      this.kdtree = new kdtree.KDTree();
-      
-      var start = util.time_ms();
-      
-      for (var i=0; i<this.points.length/PTOT; i++) {
-        this.kdtree.insert(this.points[i*PTOT], this.points[i*PTOT+1], i);
-      }
-      
-      var time = util.time_ms() - start;
-      
-      console.log("done", time.toFixed(2) + "ms");
+      this.regen_spatial();
     },
 
     function reset(size, appstate, mask_image) {
@@ -385,7 +607,7 @@ define([
       iview.fill(iview[0], 0, iview.length);
       
       this.points = [];
-      this.kdtree = new kdtree.KDTree();
+      this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
     },
     
     Class.static(function destroy_all_settings() {
@@ -398,20 +620,21 @@ define([
     function next_level() {
     },
     
-    function raster_point(pi) {
-      var mask = this.mask, ps = this.points, msize = this.mask_img.width
+    function raster_point(pi, ps) {
+      var mask = this.mask, msize = this.mask_img.width
+      ps = ps === undefined ? this.points : ps;
       
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1], gen=ps[pi*PTOT+PGEN];
-      var color = ps[pi*PTOT+PCLR];
+      var x = ps[pi], y = ps[pi+1], gen=ps[pi+PGEN];
+      var color = ps[pi+PCLR];
       
       if (gen < 0) return; //skip point
       
       var d = 1.0 - gen/this.max_level();
 
       //XXX
-      //d = 1.0 - (pi*PTOT) / this.points.length;
+      //d = 1.0 - (pi) / ps.length;
       
-      if (TONE_CURVE != undefined) {
+      if (TONE_CURVE != undefined && USE_TONE_CURVE) {
         d = 1.0 - this.config.TONE_CURVE.evaluate(1.0-d);
       }
       
@@ -419,7 +642,7 @@ define([
         throw new Error("eek! " + d);
       }
       
-      var ix = ps[pi*PTOT+PIX], iy = ps[pi*PTOT+PIY];
+      var ix = ps[pi+PIX], iy = ps[pi+PIY];
       if (ix < 0) return; //dropped point
       
       if (ix < 0 || iy < 0 || ix >= msize || iy >= msize)
@@ -431,7 +654,7 @@ define([
       var idx = (iy*msize+ix)*4;
       if (!ALLOW_OVERDRAW && mask[idx] != 0) return;
       
-      var color = ps[pi*PTOT+PCLR];
+      var color = ps[pi+PCLR];
       if (GEN_CMYK_MASK) {
         var r = ~~(d*CMYK[color&3][0]*255);
         var g = ~~(d*CMYK[color&3][1]*255);
@@ -441,7 +664,25 @@ define([
         mask[idx+1] = g;
         mask[idx+2] = b;
       } else {
-        mask[idx] = mask[idx+1] = mask[idx+2] = ~~(d*255);
+        if (this.encode_new_offsets) {
+          mask[idx] = ~~(d*255);
+          
+          let dx = ps[pi+POFFX], dy = ps[pi+POFFY];
+          
+          dx *= msize;
+          dy *= msize;
+          
+          dx = (dx + 1.0)*0.5;
+          dy = (dy + 1.0)*0.5;
+          
+          dx = ~~(dx*255);
+          dy = ~~(dy*255);
+          
+          mask[idx+1] = dx;
+          mask[idx+2] = dy;
+        } else {
+          mask[idx] = mask[idx+1] = mask[idx+2] = ~~(d*255);
+        }
       }
       
       mask[idx+3] = 255;
@@ -464,9 +705,9 @@ define([
     
     function assign_mask_pixels() {
       this.maskgrid.fill(-1, 0, this.maskgrid.length);
-      var ps = this.points, plen = ps.length/PTOT;
+      var ps = this.points;
       
-      for (var i=0; i<plen; i++) {
+      for (var i=0; i<ps.length; i += PTOT) {
         this.find_mask_pixel(i);
       }
       
@@ -475,10 +716,10 @@ define([
       var grid = this.maskgrid;
       var cf = this.config;
       
-      if (cf.SMALL_MASK && this.dilute_small_mask) {
+      if (cf.SMALL_MASK && this.dilute_small_mask && size < 256) {
         var off = cconst.get_searchoff(4);
-        console.log(this.dilute_small_mask, this, this.__proto__, this.constructor.name);
-        console.trace("glen", grid.length, size, grid[0], off.length);
+        //console.log(this.dilute_small_mask, this, this.__proto__, this.constructor.name);
+        //console.trace("glen", grid.length, size, grid[0], off.length);
         
         var refgrid = new Float64Array(this.maskgrid);
         
@@ -528,13 +769,13 @@ define([
         var ix = i % size, iy = ~~(i / size);
         var idx = (iy*msize+ix)*4;
 
-        if (grid[i] < 0 || ps[grid[i]*PTOT+PGEN] < 0) continue;
+        if (grid[i] < 0 || ps[grid[i]+PGEN] < 0) continue;
         
-        var gen = 1.0 - ps[grid[i]*PTOT+PGEN] / maxgen;
+        var gen = 1.0 - ps[grid[i]+PGEN] / maxgen;
         
         var f = 1.0-cf.TONE_CURVE.evaluate(1.0-gen);
         
-        var color = ps[grid[i]*PTOT+PCLR];
+        var color = ps[grid[i]+PCLR];
         if (GEN_CMYK_MASK) {
           var r = ~~(f*CMYK[color&3][0]*255);
           var g = ~~(f*CMYK[color&3][1]*255);
@@ -562,16 +803,14 @@ define([
       if (this.config.SMALL_MASK) {
         this.assign_mask_pixels();
       } else {
-        this.mask[0] = this.mask[1] = this.mask[2] = 0;
-        this.mask[1] = 255;
-        this.mask[3] = SMALL_MASK ? 255 : 0;
+        //this.mask[0] = this.mask[1] = this.mask[2] = 0;
+        //this.mask[1] = 255;
+        //this.mask[3] = SMALL_MASK ? 255 : 0;
         
         var iview = new Int32Array(this.mask.buffer);
         iview.fill(iview[0], 0, iview.length);
-        
-        var plen = ~~(this.points.length/PTOT);
-        
-        for (var i=0; i<plen; i++) {
+        //console.log("raster!");
+        for (var i=0; i<this.points.length; i += PTOT) {
           this.raster_point(i);
         }
       }
@@ -580,7 +819,7 @@ define([
     function find_mask_pixel(pi) {
       var ps = this.points, grid = this.maskgrid;
       var size = this.masksize;
-      var x = ps[pi*PTOT], y = ps[pi*PTOT+1];
+      var x = ps[pi], y = ps[pi+1];
       var ix = ~~(x*size+0.0001), iy = ~~(y*size+0.0001);
       var idx = iy*size + ix;
 
@@ -590,8 +829,8 @@ define([
       //}
       
       if (grid[idx] == -1 || ALIGN_GRID) {
-        ps[pi*PTOT+PIX] = ix;
-        ps[pi*PTOT+PIY] = iy;
+        ps[pi+PIX] = ix;
+        ps[pi+PIY] = iy;
         grid[idx] = pi;
         return;
       }
@@ -616,7 +855,7 @@ define([
       }
       
       if (min == undefined || grid[min] != -1) {
-        console.log("eek!");
+        //console.log("eek!");
         return;
         
         for (var ix2=0; ix2<size; ix2++) {
@@ -635,18 +874,22 @@ define([
       }
 
       if (min != undefined) { //grid[min] == -1) {
-        ps[pi*PTOT+PIX] = ix;
-        ps[pi*PTOT+PIY] = iy;
+        ps[pi+PIX] = ix;
+        ps[pi+PIY] = iy;
         grid[min] = pi;
         return;
       }
       
       //this.report("WARNING: dropping a point");
       
-      ps[pi*PTOT+PIX] = -1;
-      ps[pi*PTOT+PIY] = -1;
+      ps[pi+PIX] = -1;
+      ps[pi+PIY] = -1;
     },
 
+    function done() {
+      return this.current_level() >= this.max_level();
+    },
+    
     function toggle_timer_loop(appstate, simple_mode) {
         if (appstate.timer != undefined) {
           window.clearInterval(appstate.timer);
@@ -660,7 +903,7 @@ define([
         var totsame = 0;
         
         appstate.timer = window.setInterval(function() {
-          if (util.time_ms() - start < 80) {
+          if (util.time_ms() - start < 45) {
             return;
           }
           
@@ -676,7 +919,7 @@ define([
           }
           
           if (simple_mode||totsame == QUALITY_STEPS) {
-            if (appstate.generator.current_level() >= appstate.generator.max_level()) {
+            if (appstate.generator.done()) {
               this2.report("  Finished job");
               
               window.clearInterval(appstate.timer);
@@ -706,17 +949,23 @@ define([
           redraw_all();
           
           start = util.time_ms();
-        }, 100);
+        }, 25);
     },
     
     function regen_spatial() {
-      this.kdtree = new kdtree.KDTree();
+      this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
       var ps = this.points;
+      
+      //console.log("regenerating kdtree...");
+      var start = util.time_ms();
       
       for (var i=0; i<ps.length; i += PTOT) {
         var x = ps[i], y = ps[i+1];
-        this.kdtree.insert(x, y, i/PTOT);
+        this.kdtree.insert(x, y, i);
       }
+      
+      var time = util.time_ms() - start;
+      //console.log("done", time.toFixed(2) + "ms");
     }
   ]);
   
