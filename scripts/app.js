@@ -6,11 +6,11 @@ var _app = undefined;
 
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
-  'spectral', 'jitter', 'aa_noise', 'presets', 'void_cluster', 'fft',
-  'interface', 'bayer', 'darts2', 'histogram', "mitchell", "mask_optimize"
+  'presets', 'void_cluster', 'fft', 'interface', 'darts2', 'histogram', "mitchell", 
+  "mask_optimize"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
-           sph_presets, spectral, jitter, aa_noise, presets, void_cluster,
-           fftmod, iface, bayer, darts2, histogram, mitchell, mask_optimize) 
+           sph_presets, presets, void_cluster,
+           fftmod, iface, darts2, histogram, mitchell, mask_optimize) 
 {
   'use strict';
   
@@ -20,11 +20,9 @@ define([
   var generators = [
     sph.SPHGenerator,
     darts.DartsGenerator,
-    spectral.SpectralGenerator,
-    jitter.JitterGenerator,
-    aa_noise.AANoiseGenerator,
+    iface.NullGenerator,
     void_cluster.VoidClusterGenerator,
-    bayer.BayerGenerator,
+    iface.NullGenerator,
     darts2.Darts2Generator,
     mitchell.MitchellGenerator,
     mask_optimize.MaskOptGenerator
@@ -751,17 +749,7 @@ define([
           redraw_all();
           break;
         case 68: //dkey
-          if (e.ctrlKey) {
-            if (this.generator instanceof aa_noise.AANoiseGenerator) {
-              this.report("Deleted optimized point offsets");
-              
-              this.generator.delete_offsets();
-              this.generator.apply_offsets();
-              redraw_all();
-              
-              e.preventDefault();
-            }
-          } else {
+          if (!e.ctrlKey) {
             _appstate.generator.config.update();
             
             this.step();
@@ -910,56 +898,6 @@ define([
       var panel2 = panel.panel("Radius Curve");
       panel2.curve('radius_curve', 'Radius Curve', presets.RADIUS_CURVE);
       panel2.close();
-
-      var panel2 = panel.panel("AA");
-      panel2.close();
-      
-      panel2.slider('aa_speed', 'Speed', 0.001, 4.15, 0.0001, false, false);
-      panel2.button('clear_aa_cache', "Clear Cache", function() {
-        
-        if (_appstate.generator instanceof aa_noise.AANoiseGenerator) {
-          _appstate.generator.delete_offsets();
-        } else {
-          _appstate.report("Error: not in AA mode");
-        }
-      }, this);
-      panel2.check("aa_use_offsets", "Use Offsets");
-      
-      panel2.button("load_offsets", "Load Offsets", function() {
-        var file = document.createElement("input");
-        file.type = "file";
-        
-        file.addEventListener("change", function(e) {
-          var files = this.files;
-          
-          if (files.length == 0) return;
-          
-          var reader = new FileReader();
-          var this2 = this;
-          
-          reader.onload = function(e) {
-            var buf = e.target.result;
-            console.log("result length:", buf.length);
-            console.log(buf.slice(0, 1000));
-            var obj = JSON.parse(buf);
-            
-            _appstate.generator.load_offsets(obj.offs);
-          };
-          
-          reader.readAsText(files[0]);
-        });
-        
-        file.click();
-      }, this);
-      
-      panel2.button("save_offsets", "Save Offsets", function() {
-        _appstate.generator.export_offsets();
-      }, this);
-      
-      var panel3 = panel2.panel("Pan");
-      panel2.slider('aa_pan_x', "X%", 0.0, 27.0, 0.0001, false, false);
-      panel2.slider('aa_pan_y', "Y%", 0.0, 27.0, 0.0001, false, false);
-      //panel2.close();
       
       var panel2 = panel.panel("Dart");
       //panel2.close();

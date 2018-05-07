@@ -8,11 +8,7 @@ window.MAX_REPORT_LINES = 12;
 window.MODES = {
   SPH      : 0,
   DART     : 1,
-//  SPECTRAL : 2,
-  JITTER   : 3,
-  AA       : 4,
   VOID_CLUSTER : 5,
-  BAYER    : 6,
   DART2    : 7,
   MITCHELL : 8,
   MASKOPT  : 9
@@ -32,58 +28,6 @@ window.CMYK = [
 
 window.ALIGN_GRID = false;
 window.VOID_BAYER_MODE = false;
-
-window.AA_USE_OFFSETS = true;
-window.AA_ADD_JITTER = 0;
-
-//only used if EXPLORE_AA_SEED is false
-//var AA_SEED = Math.sqrt(3.0)*0.1443375
-//var AA_SEED = 0.001327338899593235; //0.617411; //2.3683055473992147;
-
-
-//0.617411
-//0.40656
-//0.39075
-//0.22686
-//0.57733
-//0.58663
-
-//only used if EXPLORE_AA_LIMIT is false
-//hard to describe, picture in paper is clear
-//though.
-
-/*limit: 0.3227518406, seed: 2.3683055473992147 */
-
-/*parameters for first convergent progressive sph:
-  aa_seed : 0.07350273436363906
-  limit   : 0.45325
-  base    : 22383453
-*/
-
-//offset aa domain.  is multipled by DIMEN and then floored
-var AA_PAN_X = 0.0;
-var AA_PAN_Y = 0.0;
-
-//2.6254769999997
-
-var AA_SEED = 2.6254769999997; //-0.41652300000028097; //-0.40652300000028097; //2.5214769999997158; //0.46347699999971903;//-0.413476999999719; //1.624937913//0.5758898//0.07350273436363906; //0.07037613901662089
-
-//AA_SEED=0.38324;
-//0.6248679265099781
-//0.5941456868986279
-//0.6949176827929477
-//0.6250683314465277
-//0.6246505611816247
-
-//be very careful with changing this one
-//affects quality and periocity of patterns
-var AA_BASE = 22383453;
-//previously: 23355
-
-var AA_LIMIT = 1.1; //0.45325; //0.5837
-  
-var EXPLORE_AA_SEED = 0;
-var EXPLORE_AA_LIMIT = 0;
 
 var MAX_BIN = 128;
   
@@ -111,7 +55,6 @@ window.DISPLAY_TILED = true;
 window.NO_COLOR = false;
 window.ALLOW_OVERDRAW = false;
 
-window.AA_SPEED = 0.5;
 window.SPH_SPEED = 1.0;
 window.SPH_EXP = 2.2;
 window.SPH_MUL = 1.0;

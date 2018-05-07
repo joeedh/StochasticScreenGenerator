@@ -16,7 +16,6 @@ define([
     },
     
     function update() {
-      this.AA_USE_OFFSETS = AA_USE_OFFSETS;
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
@@ -968,6 +967,9 @@ define([
       //console.log("done", time.toFixed(2) + "ms");
     }
   ]);
+  
+  var NullGenerator = exports.NullGenerator = class NullGenerator extends MaskGenerator {
+  };
   
   return exports;
 });
