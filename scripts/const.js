@@ -8,10 +8,10 @@ window.MAX_REPORT_LINES = 12;
 window.MODES = {
   SPH      : 0,
   DART     : 1,
-  VOID_CLUSTER : 5,
-  DART2    : 7,
-  MITCHELL : 8,
-  MASKOPT  : 9
+  VOID_CLUSTER : 2,
+  DART2    : 3,
+  MITCHELL : 4,
+  MASKOPT  : 5
 };
 
 window.MODE = MODES.DART;

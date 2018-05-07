@@ -13,17 +13,17 @@ define([
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   exports._seed = 0;
   
-  var MaskOptGenerator = exports.MaskOptGenerator = Class(MaskGenerator, [
-    function constructor(appstate) {
-      MaskGenerator.apply(this, arguments);
+  var MaskOptGenerator = exports.MaskOptGenerator = class MaskOptGenerator extends MaskGenerator{
+    constructor(appstate, dilute_small_mask) {
+      super(appstate, dilute_small_mask);
       
       this.encode_new_offsets = true;
       this.level_r_decay = 1;
       this.draw_rmul = 1;
       this.level = 0;
-    },
+    }
     
-    function sample(x, y) {
+    sample(x, y) {
       let d = x*x + y*y;
       
       d = d != 0.0 ? Math.sqrt(d) : 0.0;
@@ -34,21 +34,21 @@ define([
       d = Math.tent(band + this._step*0.05); //Math.floor(y*5)/5);
 
       return d*0.999 + 0.001;
-    },
+    }
     
-    function current_level() {
+    current_level() {
       return 0;
-    },
+    }
     
-    function done() {
+    done() {
       return this._done;
-    },
+    }
     
-    function max_level() {
+    max_level() {
       return this.maxgen;
-    },
+    }
 
-    function reset(size, appstate, mask_image) {
+    reset(size, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       
       this.mask_image = mask_image;
@@ -89,9 +89,9 @@ define([
       }
       
       this.retile();
-    },
+    }
     
-    function retile() {
+    retile() {
       this.points = [];
       let mps = this.mpoints, ps = this.points, mask_image = this.mask_image;
       
@@ -144,9 +144,9 @@ define([
       
       this.regen_spatial();
       this.raster();
-    },
+    }
     
-    function step() {
+    step() {
       for (let i=0; i<7; i++) {
         this.relax();
       }
@@ -155,9 +155,9 @@ define([
       
       this.retile();
       this._step++;
-    },
+    }
 
-    function calc_offsets() {
+    calc_offsets() {
       let ps = this.points, mps = this.mpoints;
       
       //zero summation fields
@@ -255,9 +255,9 @@ define([
         mps[mi + POFFX] = dx;
         mps[mi + POFFY] = dy;
       }
-    },
+    }
     
-    function relax() {
+    relax() {
       //console.log("warning, default implementation");
       
       var cf = this.config;
@@ -411,9 +411,9 @@ define([
       
       this.regen_spatial();
       this.raster();
-    },
+    }
 
-    function raster() {
+    raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
       this.mask[1] = 0;
       this.mask[3] = SMALL_MASK ? 255 : 0;
@@ -436,8 +436,8 @@ define([
           this.raster_point(pi, this.mpoints);
         }
       //}
-    },
-  ]);
+    }
+  };
   
   return exports;
 });

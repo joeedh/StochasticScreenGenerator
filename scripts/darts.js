@@ -13,9 +13,9 @@ define([
   
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   
-  var DartsGenerator = exports.DartsGenerator = Class(MaskGenerator, [
-    function constructor(appstate) {
-      MaskGenerator.call(this, appstate);
+  var DartsGenerator = exports.DartsGenerator = class DartsGenerator extends MaskGenerator {
+    constructor(appstate, dilute_small_mask) {
+      super(appstate, dilute_small_mask);
       
       this.cells = this.cellsize = undefined;
       this._colortots = [0, 0, 0, 0]; //temporary variable
@@ -26,22 +26,22 @@ define([
       this.hlvl = this.hmul = this.hsteps = undefined;
       this.maxgen = undefined;
       this.cur = 0;
-    },
+    }
     
-    function done() {
+    done() {
       return this.hlvl == this.hsteps;
-    },
+    }
     
-    function max_level() {
+    max_level() {
       return this.maxgen;
-    },
+    }
     
-    function relax() {
+    relax() {
       //this.config.RELAX_CURRENT_LEVEL = true;
-      MaskGenerator.prototype.relax.apply(this, arguments);
-    },
+      super.relax();
+    }
     
-    function update_cell(ci) {
+    update_cell(ci) {
       //return; //XXX
       
       var cells = this.cells, csize = this.cellsize;
@@ -87,9 +87,9 @@ define([
         
         cells.length -= CTOT;
       }
-    },
+    }
     
-    function update_cells() {
+    update_cells() {
       return; //XXX
       
       var cells = this.cells, csize = this.cellsize;
@@ -109,9 +109,9 @@ define([
           i -= CTOT;
         }
       }
-    },
+    }
     
-    function step(custom_steps, noreport) {
+    step(custom_steps, noreport) {
       var steps = custom_steps != undefined ? custom_steps : STEPS;
       var ps = this.points, kdtree = this.kdtree, r = this.r;
       var final_r = this.final_r;
@@ -301,9 +301,9 @@ define([
         this.report("hiearchial level: ", this.hlvl, "of", this.hsteps);
         this.report("cells:", this.cells.length/CTOT);
       }
-    },
+    }
     
-    function do_fft(steps) {
+    do_fft(steps) {
       steps = steps == undefined ? 5 : steps;
       
       var ps = this.points;
@@ -370,9 +370,9 @@ define([
 
       this.fft.add_points(ps, this.fscale, pi, pi+1);
       this.regen_spatial();
-    },
+    }
     
-    function color_point(pi) {
+    color_point(pi) {
       var ps = this.points, kdtree = this.kdtree, r = this.r;
       var final_r = this.final_r;
       var hlvl = this.hlvl;
@@ -446,9 +446,9 @@ define([
       
       //if (color != 3) return;
       ps[pi+PCLR] = color;
-    },
+    }
     
-    function make_cells() {
+    make_cells() {
       var r = this.r;
       var dimen = this.dimen; //~~(Math.sqrt(2) / r);
       //dimen *= 2;
@@ -469,10 +469,10 @@ define([
       }
       
       //console.log("cells:", this.cells.length/CTOT);
-    },
+    }
     
-    function reset(size, appstate, mask_image) {
-      MaskGenerator.prototype.reset.apply(this, arguments);
+    reset(size, appstate, mask_image) {
+      super.reset(size, appstate, mask_image);
       
       this.cur = 0;
       var cf = this.config;
@@ -527,10 +527,10 @@ define([
       this.maxgen = this.hsteps;
       
       this.make_cells();
-    },
+    }
     
-    function draw(g) {
-      MaskGenerator.prototype.draw.call(this, g);
+    draw(g) {
+      super.draw(g);
             
       if (FFT_TARGETING && this.fft_image != undefined) {
         this.fft.raster(this.fft_image);
@@ -556,7 +556,7 @@ define([
         g.lineTo(1, i*dx);
       }
       g.stroke();
-    },
+    }
     
     /*
     //optional
@@ -609,7 +609,7 @@ define([
       }
       
       mask[idx+3] = 255;
-    },
+    }
     
     function raster() {
       var cf = this.config;
@@ -625,13 +625,13 @@ define([
       for (var i=0; i<plen; i++) {
         this.raster_point(i);
       }
-    },
+    }
     */
-    function current_level() {
+    current_level() {
       return this.hlvl;
-    },
+    }
     
-    function next_level(steps) {
+    next_level(steps) {
       this.cur = 0;
       
       var cf = this.config;
@@ -676,12 +676,8 @@ define([
       }
       
       //this.make_cells();
-    },
-    
-    function regen_spatial() {
-      MaskGenerator.prototype.regen_spatial.call(this);
     }
-  ]);
+  };
   
   return exports;
 });

@@ -21,9 +21,9 @@ define([
   //Float64Array's
   var GFILLED=0, GIDX = 1, GTOT=2;
   
-  var SPHGenerator = exports.SPHGenerator = Class(MaskGenerator, [
-    function constructor(appstate) {
-      MaskGenerator.call(this, appstate);
+  var SPHGenerator = exports.SPHGenerator = class SPHGenerator extends MaskGenerator {
+    constructor(appstate, dilute_small_mask) {
+      super(dilute_small_mask);
       
       this.draw_rmul = 0.4;
       this.encode_new_offsets = true;
@@ -41,13 +41,13 @@ define([
       this.pass = 0;
       
       this.points = [];
-    },
+    }
     
-    function max_level() {
+    max_level() {
       return this.max_ni;
-    },
+    }
     
-    function pthrow(steps) {
+    pthrow(steps) {
         //steps = steps == undefined ? 0.4*DIMEN*DIMEN : steps;
         steps = steps == undefined ? 110 : steps;
         var size=this.gridsize, grid=this.grid;
@@ -144,9 +144,9 @@ define([
             this.max_ni = Math.max(this.max_ni, gen+1);
         }
         
-    },
+    }
     
-    function toggle_timer_loop(appstate, simple_mode) {
+    toggle_timer_loop(appstate, simple_mode) {
         if (appstate.timer != undefined) {
           window.clearInterval(appstate.timer);
           appstate.timer = undefined;
@@ -181,10 +181,10 @@ define([
           report("time elapsed: ", t + "s");
           start = util.time_ms();
         }, 100);
-    },
+    }
     
       
-    function step(custom_steps, noreport) {
+    step(custom_steps, noreport) {
       let x1, y1, r1, searchfac, searchrad;
       let gen1;
       let plen = this.points.length, ps = this.points;
@@ -359,10 +359,10 @@ define([
       this.raster();
       
       this.first = false;
-    },
+    }
     
-    function reset(basesize, appstate, mask_image) {
-      MaskGenerator.prototype.reset.apply(this, arguments);
+    reset(basesize, appstate, mask_image) {
+      super.reset(basesize, appstate, mask_image);
       var cf = this.config;
       
       this.pass = 0;
@@ -438,32 +438,24 @@ define([
       this.report("points", this.points.length/PTOT);
       this.regen_spatial();
       this.raster();
-    },
+    }
     
     /*
-    function relax(use_avg_dis) {
+    relax(use_avg_dis) {
       use_avg_dis = use_avg_dis==undefined ? true : use_avg_dis;
       use_avg_dis=1
-      MaskGenerator.prototype.relax.call(this, use_avg_dis);
-    },
+      super.relax(use_avg_dis);
+    }
     */
     
-    function current_level() {
+    current_level() {
       return this.max_level();
-    },
-    
-    function draw(g) {
-      MaskGenerator.prototype.draw.call(this, g);
-    },
+    }
     
     //optional
-    function next_level() {
-    },
-    
-    function regen_spatial() {
-      MaskGenerator.prototype.regen_spatial.call(this);
+    next_level() {
     }
-  ]);
+  };
   
   return exports;
 });

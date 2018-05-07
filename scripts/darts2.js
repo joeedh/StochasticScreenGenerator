@@ -12,16 +12,16 @@ define([
   
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   
-  var Darts2Generator = exports.Darts2Generator = Class(MaskGenerator, [
-    function constructor(appstate) {
-      MaskGenerator.apply(this, arguments);
+  var Darts2Generator = exports.Darts2Generator = class Darts2Generator extends MaskGenerator {
+    constructor(appstate, dilute_small_mask) {
+      super(appstate, dilute_small_mask);
       
       this.level_r_decay = 1;
       this.draw_rmul = 1;
       this.level = 0;
-    },
+    }
     
-    function next_level() {
+    next_level() {
       if (this.level < this.levels.length) {
         for (let i=0; i<1; i++) {
           //this.relax();
@@ -30,22 +30,22 @@ define([
         this.level_r_decay = 1;
         this.level++;
       }
-    },
+    }
     
-    function current_level() {
+    current_level() {
       return this.level;
-    },
+    }
     
-    function done() {
+    done() {
       return this.level >= this.levels.length;
-    },
+    }
     
-    function max_level() {
+    max_level() {
       return this.levels.length;
-    },
+    }
     
-    function draw(g) {
-      MaskGenerator.prototype.draw.call(this, g);
+    draw(g) {
+      super.draw(g);
       
       /*
       if (FFT_TARGETING && this.fft_image != undefined) {
@@ -73,10 +73,10 @@ define([
         g.lineTo(1, i*dx);
       }
       g.stroke();
-    },
+    }
 
-    function reset(size, appstate, mask_image) {
-      MaskGenerator.prototype.reset.apply(this, arguments);
+    reset(size, appstate, mask_image) {
+      super.reset(size, appstate, mask_image);
       
       this.level = 0;
       this.level_r_decay = 1;
@@ -116,10 +116,10 @@ define([
         
         this.sumlevels[i] = sum;
       }
-    },
+    }
     
-    function step() {
-      let steps = STEPS;
+    step(custom_steps, noreport) {
+      let steps = custom_steps === undefined ? STEPS : custom_steps;
       let ps = this.points;
       let size = this.dimen;
       
@@ -149,9 +149,13 @@ define([
       for (let si=0; si<steps; si++) {
         if (ps.length/PTOT > this.sumlevels[this.level]) {
           console.log("Automatic next level!");
+
+          if (!noreport) {
+            this.report("Automatic next level!");
+          }
           
-        //  this.next_level();
-          break;
+          this.next_level();
+        //  break;
         }
         
         let x1 = Math.random(), y1 = Math.random();
@@ -233,8 +237,13 @@ define([
       
       this.regen_spatial();
       this.raster();
+      
+      if (!noreport) {
+        this.report("number of points:", this.points.length/PTOT);
+        this.report("current level:", this.level, "of", this.levels.length);
+      }
     }
-  ]);
+  }
   
   return exports;
 });

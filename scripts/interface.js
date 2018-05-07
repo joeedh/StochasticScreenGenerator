@@ -8,14 +8,14 @@ define([
   var exports = _interface = {};
   var Class = util.Class;
   
-  var MaskConfig = exports.MaskConfig = Class([
-    function constructor() {
+  var MaskConfig = exports.MaskConfig = class MaskConfig {
+    constructor() {
       this.update();
       
       this.RELAX_CURRENT_LEVEL = false;
-    },
+    }
     
-    function update() {
+    update() {
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
@@ -38,10 +38,10 @@ define([
       this.ALLOW_OVERDRAW = ALLOW_OVERDRAW;
       this.SMALL_MASK = SMALL_MASK;
     }
-  ]);
+  };
   
-  var MaskGenerator = exports.MaskGenerator = Class([
-    function constructor(appstate, dilute_small_mask) {
+  var MaskGenerator = exports.MaskGenerator = class MaskGenerator {
+    constructor(appstate, dilute_small_mask) {
       this.dilute_small_mask = dilute_small_mask == undefined ? true : dilute_small_mask;
       
       this.appstate = appstate;
@@ -54,9 +54,9 @@ define([
       
       this.points = [];
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
-    },
+    }
     
-    function get_visible_points(restrict, for_fft, invert) {
+    get_visible_points(restrict, for_fft, invert) {
       var ps2 = [];
       var ps = this.points;
       var maxlvl = this.max_level();
@@ -78,13 +78,13 @@ define([
       }
       
       return ps2;
-    },
+    }
     
-    function set_config(config) {
+    set_config(config) {
       this.config = config;
-    },
+    }
     
-    function update_fscale(adaptive) {
+    update_fscale(adaptive) {
       var totpoint = this.points.length/PTOT;
       
       if (!adaptive) {
@@ -97,9 +97,9 @@ define([
       var fsize = Math.floor(frange/fnorm);
       
       return this.fscale;
-    },
+    }
 
-    function ff_weight(seed) {
+    ff_weight(seed) {
       //randomly sample in fft;
       var steps = 32;
       
@@ -139,15 +139,15 @@ define([
       err = err != 0.0 ? Math.sqrt(err) : 0.0;
       
       return err;
-    },
+    }
     
     //console.log-style function, but without text coloring or anything like that
-    function report() {
+    report() {
       //console.log.apply(console, arguments);
       reportfunc.apply(window, arguments);
-    },
+    }
     
-    function calc_avg_dis() {
+    calc_avg_dis() {
       var plen = this.points.length;
       var ps = this.points;
       var searchfac = 5.0;
@@ -187,9 +187,9 @@ define([
         avgdis /= tot;
       
       return avgdis;
-    },
+    }
     
-    function offs_relax() {
+    offs_relax() {
       let ps2 = this.points.slice(0, this.points.length);
       let ps = this.points;
       
@@ -223,9 +223,9 @@ define([
       
       this.regen_spatial();
       this.raster();
-    },
+    }
     
-    function off_relax_intern(use_avg_dis, max_lvl_perc) {
+    off_relax_intern(use_avg_dis, max_lvl_perc) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -381,9 +381,9 @@ define([
         
       this.regen_spatial();
       this.raster();
-    },
+    }
     
-    function relax(use_avg_dis, max_lvl_perc) {
+    relax(use_avg_dis, max_lvl_perc) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -539,9 +539,9 @@ define([
         
       this.regen_spatial();
       this.raster();
-    },
+    }
     
-    function sort() {
+    sort() {
       console.trace("sort was called!");
       return;
       
@@ -566,28 +566,28 @@ define([
       
       this.points = ps2;
       this.regen_spatial();
-    },
+    }
     
-    function is_done() {
+    is_done() {
       return false;
-    },
+    }
     
-    function step(custom_steps) {
-    },
+    step(custom_steps) {
+    }
     
-    function current_level() {
+    current_level() {
       throw new Error("current_level(): implement me!");
-    },
+    }
     
-    function max_level() {
+    max_level() {
       throw new Error("max_level(): implement me!");
-    },    
+    }    
         
-    function regen_kdtree() {
+    regen_kdtree() {
       this.regen_spatial();
-    },
+    }
 
-    function reset(size, appstate, mask_image) {
+    reset(size, appstate, mask_image) {
       this.appstate = appstate;
       
       this.dimen = size;
@@ -607,19 +607,19 @@ define([
       
       this.points = [];
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
-    },
+    }
     
-    Class.static(function destroy_all_settings() {
-    }),
+    static destroy_all_settings() {
+    }
     
-    function draw(g) {
-    },
+    draw(g) {
+    }
     
     //optional
-    function next_level() {
-    },
+    next_level() {
+    }
     
-    function raster_point(pi, ps) {
+    raster_point(pi, ps) {
       var mask = this.mask, msize = this.mask_img.width
       ps = ps === undefined ? this.points : ps;
       
@@ -685,9 +685,9 @@ define([
       }
       
       mask[idx+3] = 255;
-    },
+    }
     /*
-    function raster() {
+    raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
       this.mask[1] = 255;
       this.mask[3] = SMALL_MASK ? 255 : 0;
@@ -700,9 +700,9 @@ define([
       for (var i=0; i<plen; i++) {
         this.raster_point(i);
       }
-    },*/
+    }*/
     
-    function assign_mask_pixels() {
+    assign_mask_pixels() {
       this.maskgrid.fill(-1, 0, this.maskgrid.length);
       var ps = this.points;
       
@@ -789,9 +789,9 @@ define([
         
         mask[idx+3] = 255;
       }
-    },
+    }
     
-    function raster() {
+    raster() {
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
       this.mask[1] = 255;
       this.mask[3] = SMALL_MASK ? 255 : 0;
@@ -813,9 +813,9 @@ define([
           this.raster_point(i);
         }
       }
-    },
+    }
     
-    function find_mask_pixel(pi) {
+    find_mask_pixel(pi) {
       var ps = this.points, grid = this.maskgrid;
       var size = this.masksize;
       var x = ps[pi], y = ps[pi+1];
@@ -883,13 +883,13 @@ define([
       
       ps[pi+PIX] = -1;
       ps[pi+PIY] = -1;
-    },
+    }
 
-    function done() {
+    done() {
       return this.current_level() >= this.max_level();
-    },
+    }
     
-    function toggle_timer_loop(appstate, simple_mode) {
+    toggle_timer_loop(appstate, simple_mode) {
         if (appstate.timer != undefined) {
           window.clearInterval(appstate.timer);
           appstate.timer = undefined;
@@ -949,9 +949,9 @@ define([
           
           start = util.time_ms();
         }, 25);
-    },
+    }
     
-    function regen_spatial() {
+    regen_spatial() {
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
       var ps = this.points;
       
@@ -966,7 +966,7 @@ define([
       var time = util.time_ms() - start;
       //console.log("done", time.toFixed(2) + "ms");
     }
-  ]);
+  };
   
   var NullGenerator = exports.NullGenerator = class NullGenerator extends MaskGenerator {
   };

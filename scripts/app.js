@@ -20,9 +20,7 @@ define([
   var generators = [
     sph.SPHGenerator,
     darts.DartsGenerator,
-    iface.NullGenerator,
     void_cluster.VoidClusterGenerator,
-    iface.NullGenerator,
     darts2.Darts2Generator,
     mitchell.MitchellGenerator,
     mask_optimize.MaskOptGenerator

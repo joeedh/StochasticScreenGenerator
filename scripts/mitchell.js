@@ -79,8 +79,10 @@ define([
       this.final_r = this.r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint));
     },
     
-    function step() {
-      let steps = STEPS;
+    function step(custom_steps) {
+      let steps = custom_steps ? custom_steps : STEPS;
+      steps = Math.min(steps, 128);
+      
       let ps = this.points;
       let size = this.dimen;
       
