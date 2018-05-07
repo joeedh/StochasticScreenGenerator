@@ -2,8 +2,8 @@
 var _darts = undefined;
 
 define([
-  "util", "const", "interface", "fft"
-], function(util, cconst, sinterface, fft) {
+  "util", "const", "interface", "fft", "presets"
+], function(util, cconst, sinterface, fft, presets) {
   'use strict';
   
   var exports = _darts = {};
@@ -26,6 +26,20 @@ define([
       this.hlvl = this.hmul = this.hsteps = undefined;
       this.maxgen = undefined;
       this.cur = 0;
+    }
+    
+    static build_ui(gui) {
+      var panel2 = gui.panel("Dart");
+      
+      var panel3 = panel2.panel("Radius Curve");
+      window.RADIUS_CURVE = panel3.curve('RADIUS_CURVE', 'Radius Curve', presets.RADIUS_CURVE).curve;
+      panel3.close();
+      
+      //panel2.close();
+      panel2.check('LIMIT_DISTANCE', 'Pack Densely');
+      panel2.slider('DISTANCE_LIMIT', 'Pack Threshold', 0.1, 0.001, 1.2, 0.001, false, false);
+      panel2.check('ALIGN_GRID', 'Align To Grid');
+      panel2.check('SCAN_MODE', 'Scan Mode');
     }
     
     done() {

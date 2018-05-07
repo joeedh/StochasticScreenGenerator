@@ -75,7 +75,6 @@ define([
   var AppState = Class([
     function constructor() {
       this.generator = undefined
-      this.build_ui();
       
       this.hist = new histogram.Histogram(64);
       
@@ -435,8 +434,40 @@ define([
       return this.mask_canvas.toDataURL();
     },
     
+    function toJSON() {
+      let json = {
+        APP_VERSION : APP_VERSION,
+        settings : cconst.save()
+      };
+      
+      return json;
+    },
+    
+    function loadJSON(obj) {
+      cconst.load(obj.settings);
+    },
+    
     function save() {
+      localStorage.startup_file_bn9 = JSON.stringify(this);
+    },
+    
+    function load() {
+      if (localStorage.startup_file_bn9 === undefined) {
+        return;
+      }
+      
+      let obj = localStorage.startup_file_bn9;
+      try {
+        obj = JSON.parse(obj);
+        this.loadJSON(obj);
+      } catch (err) {
+        util.print_stack(err);
+      }
+    },
+    
+    function save_mask() {
       this.raster();
+      
       redraw_all();
       
       var g = this.mask_g;
@@ -622,7 +653,7 @@ define([
       var colors = this.generator.colors;
       var drmul = DRAW_RMUL*this.generator.draw_rmul;
       
-      for (var _j=0; _j<colors.length; _j++) {
+      for (var _j=0; !this.generator.skip_point_draw && _j<colors.length; _j++) {
         var j = _j % colors.length;
         
         var c = colors[j];
@@ -807,8 +838,11 @@ define([
       this.report("  (except for any cached masks)");
       
       ui.destroy_all_settings();
+      
       for (var i=0; i<generators.length; i++) {
-        generators[i].destroy_all_settings();
+        if (generators[i].destroy_all_settings !== undefined) {
+          generators[i].destroy_all_settings();
+        }
       }
       
       if (window.SPH_CURVE != undefined) {
@@ -836,13 +870,23 @@ define([
         window.FFT_CURVE = undefined;
       }
       
+      for (let k in cconst.DefaultCurves) {
+        let v = window[k];
+        
+        if (v !== undefined) {
+          v.destroy_all_settings();
+        }
+        
+        window[k] = undefined;
+      }
+      
       this.gui.destroy();
       this.gui2.destroy();
       this.gui = undefined;
       this.gui2 = undefined;
       
+      /*
       var this2 = this;
-      
       require.undef("const");
       require(["const"], function(module) {
         cconst = module;
@@ -851,62 +895,25 @@ define([
         this2.reset();
         this2.build_ui();
         redraw_all();
-      });
+      });//*/
     },
     
     function build_ui() {
-      var panel = this.gui2 = new ui.UI();
-      panel.check('gen_mask', 'Generate Mask');
-
-      var panel2 = panel.panel("SPH Curve");
-      
-      panel2.slider('sph_speed', 'SPH Speed', 0.001, 5.0, 0.0001, false, false);
-      panel2.curve('sph_curve', 'SPH Curve');
-      panel2.slider('sph_exp', 'Exponent', -3, 40.0, 0.0001, false, false);
-      panel2.slider('sph_mul', 'Mul', -30, 30.0, 0.0001, false, false);
-      panel2.slider('sph_filterwid', 'Filter Width', 0.001, 20.0, 0.0001, false, false);
-      
-      panel2.close()
-      
-      var list = {
-      }
-      
-      for (var k in sph_presets.presets) {
-        list[k] = k;
-      }
-      
-      //sph_presets
-      var sph_val = "Simple";
-      panel2.listenum('preset', list, sph_val, function(val) {
-        sph_val = val;
-      });        
-        
-      panel2.button('load_preset', 'Load SPH Preset', function() {
-        SPH_CURVE.loadJSON(sph_presets.presets[sph_val]);
-        SPH_CURVE.update();
-        SPH_CURVE.widget.draw();
-        SPH_CURVE.widget.save();
-      });
+      var panel = this.gui2 = new ui.UI("bn9_gui2", window); //XXX don't use window!
+      panel.check('GEN_MASK', 'Generate Mask');
       
       var panel2 = panel.panel("Tone Curve");
-      panel2.curve('tone_curve', 'Tone Curve', presets.TONE_CURVE);
-      panel2.check('use_tone_curve', 'Enable Tone Curve');
+      window.TONE_CURVE = panel2.curve('TONE_CURVE', 'Tone Curve', presets.TONE_CURVE).curve;
+      panel2.check('USE_TONE_CURVE', 'Enable Tone Curve');
       panel2.close();
       
-      var panel2 = panel.panel("Radius Curve");
-      panel2.curve('radius_curve', 'Radius Curve', presets.RADIUS_CURVE);
-      panel2.close();
+      for (let gen of generators) {
+        gen.build_ui(panel);
+      }
       
-      var panel2 = panel.panel("Dart");
-      //panel2.close();
-      panel2.check('limit_distance', 'Pack Densely');
-      panel2.slider('distance_limit', 'Pack Threshold', 0.001, 1.2, 0.001, false, false);
-      panel2.check('align_grid', 'Align To Grid');
-      panel2.check('scan_mode', 'Scan Mode');
-      
-      panel.slider('draw_restrict_level', 'Display Level', 0, 1, 0.0001, false, true);
-      panel.check("draw_color", "Show Colors");
-      panel.check("gen_cmyk_mask", "Make Color Mask");
+      panel.slider('DRAW_RESTRICT_LEVEL', 'Display Level', 1.0, 0, 1, 0.0001, false, true);
+      panel.check("DRAW_COLOR", "Show Colors");
+      panel.check("GEN_CMYK_MASK", "Make Color Mask");
       
       panel.button('save_mask', "Save To Cache", function() {
         this2.report("\nSaving blue noise mask to local storage");
@@ -915,20 +922,11 @@ define([
         localStorage.startup_mask_bn4 = _appstate.save_dataurl();
       });
       
-      var panel2 = panel.panel("Void-Cluster Filter Curve");
-      
-      panel2.curve('voidcluster_curve', 'VC Filter Curve',  presets.VOIDCLUSTER_CURVE);
-      panel2.slider('voidcluster_mid_r', 'Middle Radius', 0, 1, 0.001, false, false);
-      panel2.check('test_cluster', 'Test Cluster');
-      panel2.check('void_hex_mode', 'Hexagon Mode');
-      panel2.check("void_bayer_mode", "Bayer Mode");
-      panel2.close();
-      
       var panel2 = panel.panel("FFT");
-      panel2.curve('fft_curve', 'Radial Spectrum', presets.FFT_CURVE);
+      window.FFT_CURVE = panel2.curve('FFT_CURVE', 'Radial Spectrum', presets.FFT_CURVE).curve;
       panel2.close();
       
-      var panel = this.gui = new ui.UI();
+      var panel = this.gui = new ui.UI("bn9_gui1", window);
         
       panel.button('fft', "FFT", function() {
         if (window._fft_timer != undefined) {
@@ -954,7 +952,7 @@ define([
       if (!isNaN(mode))
         window.MODE = mode;
       
-      panel.listenum('mode', uinames, MODE, function(value) {
+      panel.listenum(undefined, 'MODE', uinames, MODE, function(value) {
         console.log("m", value);
         window.MODE = parseInt(value);
         ui.save_setting('MODE', value);
@@ -981,7 +979,7 @@ define([
       });
       
       panel.button('save_mask', "Save Mask", function() {
-        _appstate.save().then((url) => {
+        _appstate.save_mask().then((url) => {
           window.open(url);
         });
       });
@@ -996,28 +994,31 @@ define([
         _appstate.save_ps_matrix_cmyk();
       });
       
-      panel.slider('dimen', 'Dimensions', 1, 1500, 1, true, false);
-      panel.slider('steps', 'Steps Per Run', 1, 10000, 1, true, false);
-      panel.slider('quality_steps', 'Quality', 1, 100, 1, true, false);
-      panel.slider('draw_rmul', 'Point Size', 0.001, 4.0, 0.01, false, true);
+      panel.slider('DIMEN', 'Dimensions', 32, 1, 512, 1, true, false);
+      panel.slider('STEPS', 'Steps Per Run', 32, 1, 10000, 1, true, false);
+      panel.slider('QUALITY_STEPS', 'Quality', 4, 1, 100, 1, true, false);
+      panel.slider('DRAW_RMUL', 'Point Size', 1.0, 0.001, 4.0, 0.01, false, true);
       
-      panel.slider('hiearchial_levels', 'Levels', 1, 255, 1, true, false);
-      panel.slider('hiearchial_scale', 'Max Scale', 1, 40, 0.001, false, false);
-      panel.slider('scale', 'Zoom', 0.01, 5, 0.001, false, true);
+      panel.slider('HIEARCHIAL_LEVELS', 'Levels', 255, 1, 255, 1, true, false);
+      panel.slider('HIEARCHIAL_SCALE', 'Max Scale', 5.0, 1, 40, 0.001, false, false);
+      panel.slider('SCALE', 'Zoom', 1.0, 0.01, 5, 0.001, false, true);
       
-      panel.check('draw_kdtree', 'Show kd-tree');
-      panel.check('draw_mask', 'Show Mask');
-      panel.check('small_mask', 'Small Mask');
-      panel.check('draw_offs', 'Apply Offsets');
-      panel.check('xlarge_mask', 'Extra Large Mask');
-      panel.check('draw_tiled', 'Draw Tiled');
-      panel.check('fft_targeting', 'Target FFT');
+      panel.check('DRAW_KDTREE', 'Show kd-tree');
+      panel.check('DRAW_MASK', 'Show Mask');
+      panel.check('SMALL_MASK', 'Small Mask');
+      panel.check('DRAW_OFFS', 'Apply Offsets');
+      panel.check('XLARGE_MASK', 'Extra Large Mask');
+      panel.check('DRAW_TILED', 'Draw Tiled');
+      panel.check('FFT_TARGETING', 'Target FFT');
       
-      panel.check('tilable', 'Make Tilable');
+      panel.check('TILABLE', 'Make Tilable');
       
       if (DEV_MODE) {
-        panel.check("allow_overdraw", "Allow Overdraw");
+        panel.check("ALLOW_OVERDRAW", "Allow Overdraw");
       }
+      
+      this.gui.load();
+      this.gui2.load();
     }
   ]);
   
@@ -1036,7 +1037,14 @@ define([
   console.log("loaded");
   
   window._appstate = new AppState();
+  _appstate.load();
+  _appstate.build_ui();
   _appstate.reset();
+  
+  //start on_tick timer
+  window.setInterval(() => {
+    _appstate.on_tick();
+  }, 150);
   
   _appstate.canvas = document.getElementById("canvas");
   _appstate.g = _appstate.canvas.getContext("2d");

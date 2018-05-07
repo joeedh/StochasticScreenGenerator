@@ -6,13 +6,14 @@
 var _ui = undefined;
 
 define([
-  'util', 'dat.gui', 'const', 'vectormath', 'linear_algebra'
-], function(util, dat1, cconst, vectormath, linear_algebra) {
+  'util', 'dat.gui', 'vectormath'
+], function(util, dat1, vectormath) {
   'use strict';
   
   var exports = _ui = {};
   var Class = util.Class;
-  var Vector2 = vectormath.Vector2;
+  
+    var Vector2 = vectormath.Vector2;
   
   var bin_cache = {};
   window._bin_cache = bin_cache;
@@ -69,9 +70,9 @@ define([
     SELECT : 1
   };
   
-  var CurvePoint = exports.CurvePoint = Class(Vector2, [
-    function constructor(co) {
-      Vector2.call(this, co);
+  var CurvePoint = exports.CurvePoint = class CurvePoint extends Vector2 {
+    constructor(co) {
+      super(co);
       
       this.deg = 3;
       this.rco = new Vector2(co);
@@ -83,18 +84,18 @@ define([
       this.flag = 0;
       
       this.tangent = TangentModes.SMOOTH;
-    },
+    }
     
-    function copy() {
+    copy() {
       var ret = new CurvePoint(this);
       
       ret.tangent = this.tangent;
       ret.rco.load(ret);
       
       return ret;
-    },
+    }
     
-    function toJSON() {
+    toJSON() {
       return {
         0       : this[0],
         1       : this[1],
@@ -103,9 +104,9 @@ define([
         deg     : this.deg,
         tangent : this.tangent
       };
-    },
+    }
     
-    Class.static(function fromJSON(obj) {
+    static fromJSON(obj) {
       var ret = new CurvePoint(obj);
       
       ret.eid = obj.eid;
@@ -114,9 +115,9 @@ define([
       ret.tangent = obj.tangent;
       
       return ret;
-    }),
+    }
     
-    function basis(t, kprev, knext, is_end, totp, pi) {
+    basis(t, kprev, knext, is_end, totp, pi) {
       var wid = (knext-kprev)*0.5;
       var k = this.rco[0];
       
@@ -160,7 +161,7 @@ define([
       
       return w;
     }
-  ]);
+  };
   
   var Curve = exports.Curve = Class(Array, [
     function constructor(widget) {
@@ -170,8 +171,9 @@ define([
       this.widget = widget;
       this._ps = [];
       this.hermite = [];
+      this.fastmode = false;
       
-      this.deg = 3;
+      this.deg = 6;
       this.recalc = 1;
       this.basis_tables = [];
       this.eidgen = new util.IDGen();
@@ -210,22 +212,6 @@ define([
       if (this.length < 2) return;
       var a = this[0][0], b = this[this.length-1][0];
       
-      /*
-      var steps=this.length*2
-      for (var i=0; i<steps; i++) {
-        var f = i/(steps-1);
-        
-        var p = new CurvePoint();
-        p[0] = f;
-        p[1] = 0.5;
-        p.rco.load(p);
-        
-        this._ps.push(p);
-      }
-      this.optimize();
-      return;
-      //*/
-      
       for (var i=0; i<this.length-1; i++) {
         this._ps.push(this[i]);
       }
@@ -258,10 +244,8 @@ define([
       this._ps.push(l1);
       
       for (var i=0; i<this._ps.length; i++) {
-        //this._ps[i].rco.load(this._ps[i]);
+        this._ps[i].rco.load(this._ps[i]);
       }
-      
-      this.optimize();
       
       for (var i=0; i<this.length; i++) {
         var p = this[i];
@@ -300,169 +284,6 @@ define([
       }
     },
     
-    function optimize() {
-      return;
-      var steps = 75;
-      var ps = this._ps;
-      
-      this._nocache = true;
-      
-      function err(p) {
-        var val = this.evaluate(p[0]);
-        
-        return Math.abs(val-p[1]);
-      }
-            
-      function err2(p) {
-        var dv = this.derivative(p[0]);
-        var i = ps.indexOf(p);
-        
-        var prev = i > 0 ? ps[i-1] : p;
-        var next = i < ps.length-1 ? ps[i+1] : p;
-        
-        var div = next[0] - prev[0];
-        
-        var df = div==0.0 ? 0.0 : (next[1] - prev[1]) / div;
-        
-        return Math.abs(dv-df);
-      }
-      err = err.bind(this);
-      err2 = err2.bind(this);
-      
-      function meaderror(p, mp) {
-        var dv2 = this.derivative2(p[0]);
-      
-        var e1 = err(p);
-        var e2;
-        
-        var i = this._ps.indexOf(mp);
-        if (i < 0) throw new Error("out of bounds");
-        
-        var mp_prev = i > 0 ? this._ps[i-1] : mp;
-        var mp_next = i < this._ps.length-1 ? this._ps[i+1] : mp;
-        
-        e2 = mp_prev.vectorDistance(mp) + mp_next.vectorDistance(mp);
-        //e2 *= 0.1;
-        
-        e2 = Math.abs(this.derivative2(p[0]));
-        //if (si > 55) return e2;
-        
-        var d = e1*e1 + e2*e2;
-        
-        if (Math.random()>0.999) {
-          console.log("e1", e1, "e2", e2);
-        }
-        
-        d = d != 0.0 ? Math.sqrt(d) : 0.0;
-        return e1+e2;
-      }
-      meaderror = meaderror.bind(this);
-      
-      var cs = [err];
-      
-      var error = 0;
-      var gs = [0, 0];
-      
-      var mat = new linear_algebra.Matrix(ps.length*cs.length, ps.length*cs.length);
-      
-      for (var si=0; si<steps; si++) {
-        error = 0;
-        
-        for (var i2=0; i2<ps.length; i2++) {
-          var i = i2;
-          
-          for (var j=0; j<this.length; j++) {
-            //var i = ~~(Math.random()*ps.length*0.99999999);
-            var tstp = this[j];
-            var p = ps[i];
-            
-            var df = 0.01;
-            
-            var x = p.rco[0], y = p.rco[1];
-            var e1 = meaderror(tstp, p);
-            
-            p.rco[1] += df;
-            
-            var e2 = meaderror(tstp, p);
-            
-            p.rco[0] += df;
-            var e3 = meaderror(tstp, p);
-            
-            p.rco[0] = x, p.rco[1] = y;
-            
-            /*
-             e2
-             |  \
-             |    \
-             e1-----e3
-            */
-            
-            //nelder-mead simplex optimization method
-            if (e1 >= e2 && e1 > e3) {
-              p.rco[0] = x+df;
-              p.rco[1] = y+df;
-            } else if (e2 > e1 && e2 >= e3) {
-              p.rco[0] = x+df*0.5;
-              p.rco[1] = y-df*0.75;
-            } else if (e3 > e1 && e3 > e2) {
-              p.rco[0] = x-df*0.75;
-              p.rco[1] = y+df*0.5;
-            }
-          }
-          
-          error += e1;
-          continue;
-          
-          for (var ci=0; ci<cs.length; ci++) {
-            var r1 = cs[ci](p);
-            
-            if (r1 < 0.00002) continue;
-            error += r1;
-            
-            var df = 0.0001;
-            var totg = 0;
-            
-            for (var j=0; j<2; j++) {
-              var orig = p.rco[j];
-              
-              p.rco[j] -= df;
-              var r0 = cs[ci](p);
-              
-              p.rco[j] = orig + df;
-              var r3 = cs[ci](p);
-              
-              gs[j] = (r3-r0) / (2*df);
-              totg += gs[j]*gs[j];
-              
-              var x = i*2+j;
-              var y = i*2+ci;
-              
-              mat[x*mat.m+y] = gs[j];
-              
-              p.rco[j] = orig;
-            }
-            
-            if (totg == 0) continue;
-            
-            r1 /= totg;
-            var fac = 1.0;
-            
-            for (var j=0; j<2; j++) {
-              //if (j == 1) fac *= 0.5;
-              
-              p.rco[j] += -r1*gs[j]*fac;
-            }
-          }
-        }
-        
-        //console.log(""+mat.toString());
-        //console.log("DET", mat.determinant());
-      }
-      console.log("error:", error);
-      
-      this._nocache = false;
-    },
-    
     function toJSON() {
       var ps = [];
       for (var i=0; i<this.length; i++) {
@@ -471,7 +292,7 @@ define([
       
       var ret = {
         points : ps,
-        deg    : this.deg,
+        //deg    : this.deg,
         eidgen : this.eidgen.toJSON()
       };
       
@@ -484,8 +305,8 @@ define([
       this.eidgen = util.IDGen.fromJSON(obj.eidgen);
       this.recalc = 1;
       
-      if (obj.deg != undefined) 
-        this.deg = obj.deg;
+      //if (obj.deg != undefined) 
+      //  this.deg = obj.deg;
       
       for (var i=0; i<obj.points.length; i++) {
         this.push(CurvePoint.fromJSON(obj.points[i]));
@@ -563,7 +384,7 @@ define([
       console.log("building basis functions");
       this.recalc = 0;
       
-      var steps = 70;
+      var steps = this.fastmode ? 64 : 512;
       
       this.basis_tables = new Array(this._ps.length);
       
@@ -626,14 +447,16 @@ define([
           
           var ret = a*bas(s, i, n-1) + b*bas(s, i+1, n-1);
           
+          /*
           if (isNaN(ret)) {
             console.log(a, b, s, i, n, len);
             throw new Error();
           }
+          //*/
           
-          if (Math.random() > 0.99) {
+          //if (Math.random() > 0.99) {
             //console.log(ret, a, b, n, i);
-          }
+          //}
           return ret;
         }
       }
@@ -675,51 +498,41 @@ define([
       
       return table[i];// + (table[i+3] - table[i])*s; 
     },
-/*
-      var start_t = t;
+
+    function inverse(y) {
+      let steps = 42;
+      let ds = 1.0 / steps, s = 0.0;
+      let best = undefined;
+      let ret = undefined;
       
-      var swid = 0.05;
-      var start = t - swid;
-      
-      for (var i=0; i<435; i++) {
-        var t2 = Math.min(Math.max(t-swid, 0.0000001), 0.999999999);
-        if (this._evaluate2(t2)[0] < t) {
-          break;
-        }
-        swid *= 1.5;
-      }
-      
-      var ewid=0.05;
-      for (var i=0; i<435; i++) {
-        var t2 = Math.min(Math.max(t+ewid, 0.0000001), 0.999999999);
-        if (this._evaluate2(t2)[0] > t) {
-          break;
-        }
-        ewid *= 1.5;
-      }
-      
-      var t1 = Math.min(Math.max(t-swid, 0.0000001), 0.99999999);
-      var t2 = Math.min(Math.max(t+ewid, 0.0000001), 0.99999999);
-      
-      var mid = (t1+t2)*0.5;
-      for (var i=0; i<15; i++) {
-        var x1 = this._evaluate2(t1), x2 = this._evaluate2(t2);
-        var x = this._evaluate2(mid);
-        var d1 = Math.abs(x1-t), d2 = Math.abs(x-t), d3=Math.abs(x2-t);
+      for (let i=0; i<steps; i++, s += ds) {
+        let s1 = s, s2 = s+ds;
         
-        if (d1 < t) {
-          t2 = mid;
-        } else {
-          t1 = mid;
+        let mid;
+        
+        for (let j=0; j<11; j++) {
+          let y1 = this.evaluate(s1);
+          let y2 = this.evaluate(s2);
+          mid = (s1+s2)*0.5;
+          
+          if (Math.abs(y1-y) < Math.abs(y2-y)) {
+            s2 = mid;
+          } else {
+            s1 = mid;
+          }
         }
         
-        var mid = (t1+t2)*0.5;
+        let ymid = this.evaluate(mid);
+        
+        if (best === undefined || Math.abs(y - ymid) < best) {
+          best = Math.abs(y - ymid);
+          ret = mid;
+        }
       }
       
-      t = (t1+t2)*0.5;
-      
-      return this._evaluate2(mid)[0];
-*/    
+      return ret === undefined ? 0.0 : ret;
+    },
+    
     function _evaluate(t) {
       var start_t = t;
       
@@ -765,40 +578,6 @@ define([
       var ret = eval2_rets.next();
       
       t *= 0.9999999;
-      //catmull-rom.  eek!
-      
-      /*
-      for (var i=0; i<this.length-1; i++) {
-        var p1 = this[i], p2 = this[i+1];
-        var prev = i == 0 ? p1 : this[i-1];
-        var next = i >= this.length-2 ? p2 : this[i+2];
-        
-        if (t >= p1[0] && t < p2[0]) {
-            var t2 = (t - p1[0]) / (p2[0] - p1[0]);
-            var df1, df2;
-            
-            if (p2 === prev) {
-              df1 = 0.0;
-            } else {
-              df1 = (p2[1] - prev[1]) / (p2[0] - prev[0]+0.00001);
-            }
-            
-            if (next === p1) {
-              df2 = 0.0;
-            } else {
-              df2 = (next[1] - p1[1]) / (next[0] - p1[0]+0.00001);
-            }
-            
-            df1 /= 3.0*this.length;
-            df2 /= 3.0*this.length;
-            
-            return bez4(p1[1], p1[1]+df1, p2[1]-df2, p2[1], t2);
-            return p1[1] + (p2[1] - p1[1])*t2;
-        }
-      }
-      
-      return t < p1[0] ? p1[1] : p2[1];
-      //*/
       
       var totbasis = 0;
       var sumx = 0;
@@ -833,6 +612,7 @@ define([
       
       this.curve.add(0, 0);
       this.curve.add(1, 1);
+      this.curve.add(1, 1);
       this._closed = false;
       
       this.start_mpos = new Vector2();
@@ -841,6 +621,8 @@ define([
       this.domparent = undefined;
       this.canvas = undefined;
       this.g = undefined;
+      
+      this.overlay_curvefunc = undefined;
     },
     
     function save() {
@@ -852,11 +634,12 @@ define([
     function load(default_preset) {
       if (this.setting_id in localStorage) {
         this.curve.loadJSON(JSON.parse(localStorage[this.setting_id]));
-      } else if (default_preset != undefined) {
+      } else if (default_preset !== undefined) {
         this.curve.loadJSON(default_preset);
       }
       
       this.curve.update();
+      this.draw();
       window[this.setting_id.toUpperCase()] = this.curve;
     },
     
@@ -864,6 +647,7 @@ define([
       console.log("canvas mdown");
       
       this.start_mpos.load(this.transform_mpos(e.x, e.y));
+      this.curve.fastmode = true;
       
       if (this.curve.highlight != undefined) {
         for (var i=0; i<this.curve.length; i++) {
@@ -959,6 +743,10 @@ define([
     
     function on_mouseup(e) {
       this.transforming = false;
+      this.curve.fastmode = false;
+      this.curve.update();
+      
+      window.redraw_all();
     },
     
     function on_keydown(e) {
@@ -988,6 +776,8 @@ define([
       this.canvas.height = 200;
       this.g = this.canvas.getContext("2d");
       
+      this.canvas.style["height"] = this.canvas.height + "px";
+      
       this.domparent = dom;
       
       this.canvas.addEventListener("mousedown", this.on_mousedown.bind(this));
@@ -995,13 +785,9 @@ define([
       this.canvas.addEventListener("mouseup", this.on_mouseup.bind(this));
       this.canvas.addEventListener("keydown", this.on_keydown.bind(this));
       
-      this.canvas["class"] = "closed";
-      this.canvas.style["class"] = "closed";
-      
       dom.appendChild(this.canvas);
       
       var button = document.createElement("button")
-      
       button.innerHTML = "x";
       
       dom.appendChild(button);
@@ -1059,6 +845,10 @@ define([
     }),
     
     function draw() {
+      if (this.canvas === undefined) {
+        return;
+      }
+      
       var g = this.g;
       var w=this.canvas.width, h=this.canvas.height;
       
@@ -1088,9 +878,23 @@ define([
       g.stroke();
       //g.lineWidth /= 3.0;
       
+      if (this.overlay_curvefunc !== undefined) {
+        g.beginPath();
+        f = 0.0;
+        
+        for (var i=0; i<steps; i++, f += df) {
+          var val = this.overlay_curvefunc(f);
+          
+          (i==0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
+        }
+        
+        g.strokeStyle = "green";
+        g.stroke();
+      }
+      
       g.lineWidth *= 3.0;
       for (var ssi=0; ssi<2; ssi++) {
-        break;
+        break; //uncomment to draw basis functions
         for (var si=0; si<this.curve.length; si++) {
           g.beginPath();
           
@@ -1110,7 +914,7 @@ define([
             (i==0 ? g.moveTo : g.lineTo).call(g, f, ssi ? val : val*0.5, w, w);
           }
           
-          var color, alpha = this.curve[si] === this.curve.highlight ? 1.0 : 0.3;
+          var color, alpha = this.curve[si] === this.curve.highlight ? 1.0 : 0.7;
           
           if (ssi) {
             color = "rgba(105, 25, 5,"+alpha+")";
@@ -1146,13 +950,9 @@ define([
     }
     
   ]);
-    
-  var destroy_all_settings = exports.destroy_all_settings = function destroy_all_settings() {
-    delete localStorage.startup_file_bn9;
-  }
-  
+
   var save_setting = exports.save_setting = function save_setting(key, val) {
-    var settings = localStorage.startup_file_bn9;
+    var settings = localStorage.startup_file_bn6;
     
     if (settings == undefined) {
         settings = {};
@@ -1166,11 +966,11 @@ define([
     }
     
     settings[key] = val;
-    localStorage.startup_file_bn9 = JSON.stringify(settings);
+    localStorage.startup_file_bn6 = JSON.stringify(settings);
   }
   
   var load_setting = exports.load_setting = function load_setting(key) {
-    var settings = localStorage.startup_file_bn9;
+    var settings = localStorage.startup_file_bn6;
     
     if (settings == undefined) {
         settings = {};
@@ -1186,34 +986,344 @@ define([
     return settings[key];
   }
   
-  var last_update = util.time_ms();
-  exports.ui_update_timer = window.setInterval(function() {
-    if (util.time_ms() - last_update < 700) {
-      return;
+  class ObjectPath extends Array {
+      constructor(path) {
+          super();
+          
+          path = path.split(".");
+          
+          for (var key of path) {
+              this.push(key);
+          }
+      }
+  }
+  
+  var UI = exports.UI = class UI {
+    constructor(storagePrefix, stateobj, _name, _parent, _datobj) {
+        this.state = stateobj;
+        this.parent = _parent;
+        this.name = _name !== undefined ? _name : "undefined";
+        this.storagePrefix = storagePrefix;
+        
+        this.dat = _datobj ? _datobj : new dat.GUI();
+        this.controls = [];
+        this.curve_widgets = [];
+        
+        this.panelmap = {};
+        this._last_closed = true;
     }
     
-    if (window._appstate == undefined) return;
-    window._appstate.on_tick();
+    save() {
+      this.saveVisibility();
+      this.saveCurves();
+    }
     
-    last_update = util.time_ms();
-  }, 200);
-  
-  var UI = exports.UI = Class([
-    function constructor(dat_obj) {
-      this.dat = dat_obj == undefined ? new dat.GUI() : dat_obj;
+    load() {
+      this.loadVisibility();
+      this.loadCurves();
+    }
+    
+    loadCurves() {
+      for (let p of this.controls) {
+        if (p instanceof UI)
+          p.loadCurves();
+      }
       
-      this.folders = [];
-      this.curve_widgets = [];
-    },
+      for (let cw of this.curve_widgets) {
+        cw.load();
+      }
+      
+      return this;
+    }
     
-    function on_tick() {
+    saveCurves() {
+      for (let p of this.controls) {
+        if (p instanceof UI)
+          p.loadCurves();
+      }
+      
+      for (let cw of this.curve_widgets) {
+        cw.save();
+      }
+      
+      return this;
+    }
+    
+    saveVisibility() {
+      let key = this.storagePrefix + "_settings";
+      console.log("saving visibility", key);
+      
+      localStorage[key] = JSON.stringify(this);
+      return this;
+    }
+    
+    loadVisibility() {
+      let key = this.storagePrefix + "_settings";
+      let ok = true;
+      
+      console.log("loading gui visibility", key);
+      
+      if (key in localStorage) {
+        console.log("loading UI visibility state. . .");
+        
+        try {
+          this.loadJSON(JSON.parse(localStorage[key]));
+        } catch (error) {
+          util.print_stack(error);
+          ok = false;
+        }
+      }
+      
+      return ok;
+    }
+    
+    toJSON() {
+      let ret = {
+        panels : {},
+        opened : !this.dat.closed
+      };
+      
+      for (let c of this.controls) {
+        if (!(c instanceof UI))
+          continue;
+        
+        ret.panels[c.name] = c.toJSON();
+      }
+      
+      return ret;
+    }
+    
+    loadJSON(obj) {
+      console.log(obj);
+      
+      if (obj.opened)
+        this.open();
+      else
+        this.close();
+      
+      for (let k in obj.panels) {
+        let p = obj.panels[k];
+        
+        if (!(k in this.panelmap)) {
+          console.warn("Warning, panel", k, "not in panelmap!");
+          continue;
+        }
+        
+        this.panelmap[k].loadJSON(p);
+      }
+      
+      return this;
+    }
+    
+    redrawCurves() {
+      if (this.dat.closed)
+        return;
+      
+      for (let cw of this.curve_widgets) {
+        cw.draw();
+      }
+      
+      for (let control of this.controls) {
+        if (control instanceof UI) {
+          control.redrawCurves();
+        }
+      }
+    }
+    
+    update() {
+      for (let control of this.controls) {
+        if (control instanceof UI) {
+          control.update();
+        } else {
+          control.updateDisplay();
+        }
+      }
+    }
+    
+    destroy() {
+      this.dat.destroy();
+    }
+    
+    panel(name) {
+      var f = this.dat.addFolder(name);
+      f.open();
+      
+      f = new UI(this.storagePrefix + "_" + name, this.state, name, this, f);
+      this.controls.push(f);
+      
+      this.panelmap[name] = f;
+      
+      return f;
+    }
+    
+    close() {
+      this.dat.close();
+    }
+    
+    open() {
+      this.dat.open();
+    }
+    
+    button(id, label, cb, thisvar) {
+      let b = this.dat.add({cb : function() {
+        if (thisvar != undefined)
+          cb.call(thisvar);
+        else
+          cb();
+      }}, 'cb').name(label);
+      
+      this.controls.push(b);
+      return b;
+    }
+    
+    _path_get(path) {
+      if (typeof path == "string" || path instanceof String) {
+        path = new ObjectPath(path);
+      }
+      
+      var obj = this.state;
+      var parentobj = undefined;
+      
+      for (var key of path) {
+        parentobj = obj;
+        
+        obj = obj[key];
+      }
+      
+      return [obj, parentobj];
+    }
+    
+    _path_set(path, val) {
+      var obj = this.state;
+      
+      for (var i=0; i<path.length-1; i++) {
+        obj = obj[path[i]];
+      }
+      
+      obj[path[path.length-1]] = val;
+      
+      _appstate.save();
+    }
+    
+    check(path, name, doredraw=true) {
+        path = new ObjectPath(path);
+        var id = name.replace(/ /g, "_");
+        
+        var iface = {};
+        var this2 = this;
+        
+        Object.defineProperty(iface, id, {
+          get : function() {
+            return this2._path_get(path)[0];
+          },
+          
+          set : function(val) {
+            this2._path_set(path, val);
+            
+            if (doredraw) {
+              window.redraw_all();
+            }
+          }
+        });
+        
+        let c = this.dat.add(iface, id).name(name);
+        this.controls.push(c);
+    }
+  
+    /*
+      enummap is an object that maps
+      ui names to keys, e.g.:
+      
+      ui.listenum("color", "Color", {
+        RED   : 0,
+        GREEN : 1,
+        BLUE  : 2
+      });
+    */
+    listenum(path, name, enummap, defaultval, callback) {
+        if (path != undefined) { //we allow path to be undefined, e.g. a more generalized menu
+          path = new ObjectPath(path);
+        }
+        
+        var id = name.replace(/ /g, "_");
+        
+        var iface = {};
+        var this2 = this;
+        var is_num = false;
+        
+        for (var k in enummap) {
+          if (typeof enummap[k] == "number") {
+            is_num = true;
+          }
+        }
+        
+        if (defaultval === undefined) {
+          throw new Error("missing parameter: defaultval can't be undefined");
+        }
+        
+        if (path !== undefined) {
+          if (this2._path_get(path)[0] === undefined) {
+            this2._path_set(path, defaultval);
+          }
+          
+          Object.defineProperty(iface, id, {
+            get : () => { 
+              return this._path_get(path)[0];
+            },
+            
+            set : (val) => {
+              if (is_num) {
+                val = parseInt(val);
+              }
+              
+              this._path_set(path, val);
+            }
+          });
+        } else {
+          iface[id] = defaultval;
+        }
+        
+        var list = enummap;
+        
+        var option = this.dat.add(iface, id, list).name(name);
+        option.listen();
+        this.controls.push(option);
+        
+        if (callback !== undefined) {
+          option.onChange(callback);
+        }
+        
+        return option;
+    }
+    
+    getroot() {
+      let p = this;
+      
+      while (p.parent !== undefined) {
+        p = p.parent;
+      }
+      
+      return p;
+    }
+    
+    on_tick() {
       if (this.dat == undefined) {
         console.log("warning, dead ui panel");
         return;
       }
       
-      for (var i=0; i<this.folders.length; i++) {
-        this.folders[i].on_tick();
+      if (this.dat.closed != this._last_closed) {
+        this._last_closed = this.dat.closed;
+        
+        this.getroot().saveVisibility();
+      }
+      
+      for (var i=0; i<this.controls.length; i++) {
+        if (!(this.controls[i] instanceof UI)) {
+          continue;
+        }
+        
+        this.controls[i].on_tick();
       }
       
       //update visibility of curve widgets
@@ -1223,19 +1333,24 @@ define([
         
         cvw.closed = closed;
       }
-    },
+    }
     
-    function curve(id, name, default_preset) {
-      var cw = new CurveWidget(id);
-      cw.load(default_preset);
+    curve(id, name, default_preset) {
+      var cw = new CurveWidget(this.storagePrefix + id);
+      
+      if (default_preset !== undefined)
+        cw.load(default_preset);
       
       var l = this.dat.add({bleh : "name"}, "bleh");
       
       var parent = l.domElement.parentElement.parentElement.parentElement;
       
-      parent["class"] = parent.style["class"] = "closed";
+      let li = document.createElement("li");
+      li.className = "folder";
       
-      cw.bind(parent);
+      parent.appendChild(li);
+      
+      cw.bind(li);
       cw.draw();
       
       l.remove();
@@ -1243,16 +1358,70 @@ define([
       this.curve_widgets.push(cw);
       
       return cw;
+    }
+
+    slider(path, name, defaultval, min, max, step, is_int, do_redraw) {
+        path = new ObjectPath(path);
+        var id = name.replace(/ /g, "_");
+        
+        var iface = {};
+        var this2 = this;
+        
+        if (defaultval === undefined) {
+          throw new Error("missing parameter: defaultval can't be undefined");
+        }
+        
+        if (this2._path_get(path)[0] === undefined) {
+          this2._path_set(path, defaultval);
+        }
+        
+        Object.defineProperty(iface, id, {
+          get : function() {
+            return this2._path_get(path)[0];
+          },
+          
+          set : function(val) {
+            this2._path_set(path, val);
+            
+            if (do_redraw) {
+              window.redraw_all();
+            }
+          }
+        });
+      
+      let ret = this.dat.add(iface, id).name(name).min(min).max(max).step(step).name(name);
+      this.controls.push(ret);
+      return ret;
+    }
+  };
+
+  /*
+  function listenum(id, list, defaultval, callback, thisvar) {
+      var ret = {};
+      ret[id] = defaultval;
+      
+      var option = this.dat.add(ret, id, list);
+      
+      option.onChange(function(value) {
+        if (thisvar !== undefined) {
+          callback.call(thisvar, value);
+        } else {
+          callback(value);
+        }
+      });
+  }*/
+      
+  /*
+  var UI = exports.UI = Class([
+    function constructor(dat_obj) {
+      this.dat = dat_obj == undefined ? new dat.GUI() : dat_obj;
     },
     
     function panel(name) {
       var f = this.dat.addFolder(name);
       f.open();
       
-      var ui = new UI(f);
-      this.folders.push(ui);
-      
-      return ui;
+      return new UI(f.storagePrefix, f);
     },
     
     function close() {
@@ -1272,11 +1441,6 @@ define([
       }}, 'cb').name(label);
     },
     
-    function destroy() {
-      this.dat.destroy();
-      this.dat = undefined;
-    },
-    
     function listenum(id, list, defaultval, callback, thisvar) {
       var ret = {};
       ret[id] = defaultval;
@@ -1292,7 +1456,8 @@ define([
       });
     },
     
-    function check(id, name, is_param) {
+    //creates global variable window.[uppercase id]
+    function check(id, name) {
       var ret = {};
       
       var upperid = id.toUpperCase();
@@ -1347,6 +1512,6 @@ define([
       return this.dat.add(ret, id).name(name).min(min).max(max).step(step).name(name);
     }
   ]);
-  
+  */
   return exports;
 });

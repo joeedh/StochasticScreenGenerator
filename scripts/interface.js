@@ -8,6 +8,8 @@ define([
   var exports = _interface = {};
   var Class = util.Class;
   
+  exports._configs = [];
+  
   var MaskConfig = exports.MaskConfig = class MaskConfig {
     constructor() {
       this.update();
@@ -15,7 +17,18 @@ define([
       this.RELAX_CURRENT_LEVEL = false;
     }
     
+    static registerConfig(cfg) {
+      exports._configs.push(cfg);
+      cconst.registerConfig(cfg);
+    }
+
     update() {
+      for (let cfg of exports._configs) {
+        for (let k in cfg) {
+          this[k] = window[k]; //need to update config system to not use window
+        }
+      }
+      
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
@@ -49,11 +62,17 @@ define([
       this.config = new MaskConfig();
       this.encode_new_offsets = true; //encode special lower-level offsets
       
+      this.skip_point_draw = false;
+      
       this.ff_rand = new util.MersenneRandom();
       this.draw_rmul = 1.0;
       
       this.points = [];
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+    }
+    
+    static build_ui(gui) {
+      
     }
     
     get_visible_points(restrict, for_fft, invert) {
@@ -193,15 +212,10 @@ define([
       let ps2 = this.points.slice(0, this.points.length);
       let ps = this.points;
       
-      let speed = this.config.SPH_SPEED;
-      
-      this.config.SPH_SPEED = 3.0;
-      
       for (let i=0; i<8; i++) {
         this.off_relax_intern();
       }
       
-      this.config.SPH_SPEED = speed;
       var msize = this.mask_img.width;
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
@@ -313,7 +327,8 @@ define([
         
         var w = 1.0 - dis/filterwid;
         
-        w = cf.SPH_CURVE.evaluate(w);
+        //w = cf.SPH_CURVE.evaluate(w);
+        w = w*w*w;
         
         dx /= dis;
         dy /= dis;
@@ -367,8 +382,8 @@ define([
         
         var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
         
-        ps[i] += (sumx - ps[i])*cf.SPH_SPEED*fac;
-        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED*fac;
+        ps[i] += (sumx - ps[i])*2.0*fac;
+        ps[i+1] += (sumy-ps[i+1])*2.0*fac;
           
         ps[i] = Math.fract(ps[i]);
         ps[i+1] = Math.fract(ps[i+1]);
@@ -471,7 +486,8 @@ define([
         
         var w = 1.0 - dis/filterwid;
         
-        w = cf.SPH_CURVE.evaluate(w);
+        //w = cf.SPH_CURVE.evaluate(w);
+        w = w*w*w;
         
         dx /= dis;
         dy /= dis;
@@ -525,8 +541,8 @@ define([
         
         var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
         
-        ps[i] += (sumx - ps[i])*cf.SPH_SPEED*fac;
-        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED*fac;
+        ps[i] += (sumx - ps[i])*2.0*fac;
+        ps[i+1] += (sumy-ps[i+1])*2.0*fac;
           
         ps[i] = Math.fract(ps[i]);
         ps[i+1] = Math.fract(ps[i+1]);
@@ -609,7 +625,8 @@ define([
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
     }
     
-    static destroy_all_settings() {
+    destroy_all_settings() {
+      console.log("implement me: destroy_all_settings");
     }
     
     draw(g) {
@@ -965,6 +982,8 @@ define([
       
       var time = util.time_ms() - start;
       //console.log("done", time.toFixed(2) + "ms");
+      
+      return this.kdtree;
     }
   };
   

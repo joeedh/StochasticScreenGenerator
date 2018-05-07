@@ -11,7 +11,10 @@ define(["util", "vectormath"], function(util, vectormath) {
   
   //maximum points per node before splitting
   //make sure to raise this after testing
-  var MAXPOINTS = 32
+  var MAXPOINTS = 16
+  var MAXDEPTH = 512
+  
+  var log_everything = false;
   
   /*seems like embedding the points in the nodes, while wasteful of memory,
     should be more cache efficient than referencing another typed array*/
@@ -21,9 +24,14 @@ define(["util", "vectormath"], function(util, vectormath) {
   //points are stored (x, y, z, id);
       
   var _insert_split_out = [0, 0];
-  var _split_tmps = util.cachering.fromConstructor(Vector3, 64);
+  var _split_tmps = util.cachering.fromConstructor(Vector3, 1024);
+  var _insert_tmps = util.cachering.fromConstructor(Vector3, 1024);
+  var _split_tmps_2 = util.cachering.fromConstructor(Vector3, 1024);
   var _foreach_tmp = new Vector3();
   var _tmp = new Vector3();
+  var _search2_tmp = new Vector3();
+  
+  let search_stack = new Int32Array(MAXDEPTH*8);
   
   var KDTree = exports.KDTree = class KDTree {
     constructor(min, max) {
@@ -38,11 +46,17 @@ define(["util", "vectormath"], function(util, vectormath) {
       
       this.usednodes = 0;
       this.data = new Float64Array(TOTN*32);
-      this.maxdepth = 128;
-      this.maxsplit = 128;
+      this.maxdepth = MAXDEPTH;
       this.totpoint = 0;
       
       this.root = this.newNode(min, max);
+    }
+    
+    clear() {
+      this.usednodes = this.totpoint = 0;
+      this.root = this.newNode(this.min, this.max);
+      
+      return this;
     }
     
     newNode(min, max) {
@@ -80,49 +94,44 @@ define(["util", "vectormath"], function(util, vectormath) {
       return ni;
     }
     
-    insert(x, y, id) {
-      let z = 0;
-      
-      if (arguments.length == 4) {
-        id = arguments[3];
-        z = arguments[2];
+    insert(x, y, z, id) {
+      if (id === undefined) {
+        id = z;
+        z = 0.0;
       }
       
       return this.insert_intern(x, y, z, id, 0);
     }
     
     insert_intern(x, y, z, id, depth) {
-      var p = _tmp;
-      
-      p[0] = x, p[1] = y, p[2] = z;
-      
       let recurse = (ni, depth) => {
-        var data = this.data;
+        let data = this.data;
         
         if (depth >= this.maxdepth) {
-          if (util.time_ms() - this.last_warn_time > 500) {
+          if (log_everything || util.time_ms() - this.last_warn_time > 500) {
             console.log(depth)
-            console.warn("Malformed data: 3 to insert point", depth, p[0].toFixed(4), p[1].toFixed(4), p[2].toFixed(4), "id=", id, p);
+            console.warn("Malformed data: 3 to insert point", depth, x.toFixed(4), y.toFixed(4), z.toFixed(4), "id=", id);
             this.last_warn_time = util.time_ms();
           }
-          
           return;
         }
         
         //not a leaf node?
         if (data[ni+NCHILDA] != 0) {
-          var axis = data[ni+NSPLITPLANE];
-          var split = data[ni+NSPLITPOS];
+          let axis = data[ni+NSPLITPLANE];
+          let split = data[ni+NSPLITPOS];
           
-          if (p[axis] == split) {
+          let paxis = axis == 0 ? x : (axis == 1 ? y : z);
+          
+          if (paxis == split) {
             //handle case of points exactly on boundary
             //distribute point randomly to children
             
-            var child = !!(Math.random() > 0.5);
+            let child = !!(Math.random() > 0.5);
             //console.log("exact!", child, p[axis], split, axis);
             
             recurse(data[ni+NCHILDA+child], depth+1);
-          } else if (p[axis] < split) {
+          } else if (paxis < split) {
             recurse(data[ni+NCHILDA], depth+1);
           } else {
             recurse(data[ni+NCHILDB], depth+1);
@@ -130,22 +139,22 @@ define(["util", "vectormath"], function(util, vectormath) {
           
         //a full leaf node?
         } else if (data[ni+NTOTPOINT] >= MAXPOINTS) {
-          this.split(ni, _insert_split_out, depth+1);
+          this.split(ni, _insert_split_out);
 
           this.insert_intern(x, y, z, id, depth+1);
         } else { //add point
-          var i = ni + NTOTPOINT + 1 + data[ni+NTOTPOINT]*4;
+          let i = ni + NTOTPOINT + 1 + data[ni+NTOTPOINT]*4;
           
-          data[i++] = p[0];
-          data[i++] = p[1];
-          data[i++] = p[2];
+          data[i++] = x;
+          data[i++] = y;
+          data[i++] = z;
           data[i++] = id;
           
           data[ni+NTOTPOINT]++;
         }
       }
       
-      recurse(this.root, depth);
+      recurse(this.root, depth+1);
       this.totpoint++;
     }
     
@@ -216,7 +225,7 @@ define(["util", "vectormath"], function(util, vectormath) {
           //this._point_cachering
     
     //new_nodes_out is an array 
-    split(ni, new_nodes_out, depth) {
+    split(ni, new_nodes_out) {
       //find split point
       let data = this.data;
       let startk = ni + NTOTPOINT + 1;
@@ -324,7 +333,7 @@ define(["util", "vectormath"], function(util, vectormath) {
       }
       
       for (let k=startk, j=0; j<totp; j++, k += 4) {
-        this.insert_intern(data[k], data[k+1], data[k+2], data[k+3], depth+1);
+        this.insert(data[k], data[k+1], data[k+2], data[k+3]);
       }
     }
     
@@ -338,8 +347,75 @@ define(["util", "vectormath"], function(util, vectormath) {
       return this.search(p, r, callback, thisvar);
     }
     
+    //manually stacked version
+    search_2(p, r, callback, thisvar) {
+      let si = 0;
+      let stack = search_stack;
+      let data = this.data;
+      let co = _search2_tmp;
+      
+      let rsqr = r*r;
+      
+      stack[si++] = this.root;
+      
+      while (si > 0) {
+        if (si > this.maxdepth) {
+          break;
+        }
+        
+        let ni = stack[--si];
+        
+        if (data[ni+NCHILDA] != 0.0) {
+          for (let step=0; step<2; step++) {
+            let ni2 = data[ni + NCHILDA + step];
+            let ok = 0;
+            
+            for (let i=0; i<3; i++) {
+              let a = data[ni2+i], b = data[ni2+i+3];
+              
+              //console.log(a, b, p[i], r);
+              ok += !!(p[i]+1.01*r >= a && p[i]-1.01*r <= b);
+            }
+            
+            if (ok == 3) {
+              stack[si++] = ni2;
+            }
+          }
+        } else {
+          let totp = data[ni+NTOTPOINT];
+          let k = ni+NTOTPOINT + 1;
+          
+          for (let j=0; j<totp; j++, k += 4) {
+            co[0] = data[k];
+            co[1] = data[k+1];
+            co[2] = data[k+2];
+            
+            let dx = co[0] - p[0];
+            let dy = co[1] - p[1];
+            let dz = p.length > 2 ? (co[2] - p[2]) : 0;
+              
+            if (dx*dx + dy*dy + dz*dz < rsqr) {
+              let dostop;
+              
+              if (thisvar) {
+                dostop = callback.call(thisvar, data[k+3]);
+              } else {
+                dostop = callback(data[k+3]);
+              }
+              
+              if (dostop) {
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+    
     //if callback returns true then the search will stop
     search(p, r, callback, thisvar) {
+      return this.search_2(p, r, callback, thisvar);
+      
       let stop = false;
       
       let data = this.data;
@@ -360,7 +436,7 @@ define(["util", "vectormath"], function(util, vectormath) {
               let a = data[ni2+i], b = data[ni2+i+3];
               
               //console.log(a, b, p[i], r);
-              ok += !!(p[i]+2*r > a && p[i]-2*r < b);
+              ok += !!(p[i]+2*r >= a && p[i]-2*r <= b);
             }
             
             if (ok == 3) {
@@ -414,7 +490,7 @@ define(["util", "vectormath"], function(util, vectormath) {
         if (d[ni+NCHILDA] == 0.0) { //leaf node?
           g.fill();
 
-          let r = 0.125*(this.max[0] - this.min[0]) / Math.sqrt(this.totpoint);
+          let r = 0.25*(this.max[0] - this.min[0]) / Math.sqrt(this.totpoint);
           let totpoint = d[ni+NTOTPOINT];
 
           g.beginPath();
@@ -483,10 +559,26 @@ define(["util", "vectormath"], function(util, vectormath) {
         
         root.push(p.id);
       });
+
+      for (let i=0; i<root.length; i += 4) {
+        let i2 = (~~(Math.random()*root.length/4))*4;
+        
+        for (let j=0; j<4; j++) {
+          let t = root[i+j];
+          root[i+j] = root[i2+j];
+          root[i2+j] = t;
+        }
+      }
       
+      this.clear();
+      for (let i=0; i<root.length; i += 4) {
+        this.insert(root[i], root[i+1], root[i+2], root[i+3]);
+      }
+      
+      return;
       let recurse = (node, depth) => {
         if (depth >= this.maxdepth) {
-          if (util.time_ms() - this.last_warn_time > 500) {
+          if (log_everything || util.time_ms() - this.last_warn_time > 500) {
             console.warn("Malformed data: failed to insert point during balancing, depth:", depth);
             this.last_warn_time = util.time_ms();
           }
@@ -625,6 +717,8 @@ define(["util", "vectormath"], function(util, vectormath) {
       };
       
       recurse2(root, this.root);
+      
+      return this;
     }
   }
   

@@ -3,10 +3,10 @@
 var _void_cluster = undefined;
 
 define([
-  "util", "const", "interface", "vectormath", "kdtree", "darts", "sph",
-  "fft", "report"
+  "util", "const", "interface", "vectormath", "kdtree", "darts", "sph_old",
+  "fft", "report", "presets"
 ], function(util, cconst, sinterface, vectormath, kdtree, darts, 
-            sph, fft, report) 
+            sph, fft, report, presets) 
 {
   'use strict';
   
@@ -103,6 +103,20 @@ define([
       
       this._color = undefined;
       this.points = undefined;
+    }
+    
+    static build_ui(gui) {
+      var panel2 = gui.panel("Void-Cluster");
+      
+      let panel3 = panel2.panel("Filter Curve");
+      window.VOIDCLUSTER_CURVE = panel3.curve('VOIDCLUSTER_CURVE', 'VC Filter Curve',  presets.VOIDCLUSTER_CURVE).curve;
+      panel3.close();
+      
+      panel2.slider('VOIDCLUSTER_MID_R', 'Middle Radius', 0.5, 0, 1, 0.001, false, false);
+      panel2.check('TEST_CLUSTER', 'Test Cluster');
+      panel2.check('VOID_HEX_MODE', 'Hexagon Mode');
+      panel2.check("VOID_BAYER_MODE", "Bayer Mode");
+      panel2.close();
     }
     
     max_level() {

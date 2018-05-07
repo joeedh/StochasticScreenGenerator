@@ -1,7 +1,11 @@
+
 //argh! I hate doing this! but necassary!
 //core data 'structures' are actually embedded in typed arrays. . . ger
 
+let _legacy_config_keys = ["MODE","VOIDCLUSTER_MID_R","SPH_SPEED","SPH_EXP","SPH_MUL","SPH_FILTERWID","DIMEN","DRAW_RMUL","SCALE","PANX","PANY","DISTANCE_LIMIT","HIEARCHIAL_SCALE","HIEARCHIAL_LEVELS","DRAW_RESTRICT_LEVEL","STEPS","QUALITY_STEPS"];
+
 window.DEV_MODE = false;
+window.APP_VERSION = 0.5;
 
 window.MAX_REPORT_LINES = 12;
 
@@ -35,7 +39,7 @@ var MAX_BIN = 128;
 //points, if PR is < 0 then point is dead
 var PX=0, PY=1, PR=2, PGEN=3, PDX=4, PDY=5, PR2=6, PD=7, 
     PIX=8, PIY=9, PCLR=10, PFLAG=11, POLDX=12, POLDY=13,
-    POFFX=14, POFFY=15, POX=16, POY=17, PTOT=18;
+    POFFX=14, POFFY=15, POX=16, POY=17, POGEN=18, PTOT=19;
 
 window.DRAW_OFFS = false;
 window.DRAW_HISTOGRAM = true;
@@ -127,6 +131,66 @@ define([
   
   var exports = _const = {};
   
+  exports.save = function() {
+    let ret = {};
+    
+    for (let cfg of exports._configs) {
+      for (let k in cfg) {
+        ret[k] = window[k];
+      }
+    }
+    
+    for (let k of _legacy_config_keys) {
+      ret[k] = window[k];
+    }
+    
+    return ret;
+  }
+  
+  exports.load = function(obj) {
+    console.log("loading", obj);
+    
+     for (let k in obj) {
+       let v = obj[k];
+       
+       window[k] = obj[k];
+     }
+  }
+  
+  exports._configs = [];
+  exports.DefaultCurves = {};
+  
+  exports.EditableCurve = class EditableCurve {
+    constructor(uiname, default_json) {
+      this.uiname = uiname;
+      this.default_json = default_json;
+    }
+  }
+  
+  //note: don't call this directly, call interface.MaskConfig.registerConfig!
+  exports.registerConfig = function(cfg) {
+    exports._configs.push(cfg);
+    
+    //need to refactor config system
+    for (let k in cfg) {
+      let v = cfg[k];
+      
+      if (v instanceof exports.EditableCurve) {
+        if (v.default_json !== undefined) {
+          console.log("Registering curve", k);
+          
+          exports.DefaultCurves[k] = v.default_json;
+        }
+        
+        v = undefined; //XXX should spawn a curve here, but need to split curve base code out of ui.js first
+      }
+      
+      if (!(k in window)) {
+        window[k] = v;
+      }
+    }
+  }
+  
   function gen_soff_variants(soff) {
     var steps = 16;
     var hash = {};
@@ -206,8 +270,9 @@ define([
       return variants[ri];
     }
 
-    if (!noreport)
-      console.trace("generate search a off of radius", n, "...");
+    if (!noreport) {
+    //  console.trace("generate search a off of radius", n, "...");
+    }
     
     var lst = [];
     for (var x=-i; x<=i; x++) {

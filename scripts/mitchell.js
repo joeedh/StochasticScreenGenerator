@@ -12,29 +12,29 @@ define([
   
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   
-  var MitchellGenerator = exports.MitchellGenerator = Class(MaskGenerator, [
-    function constructor(appstate) {
-      MaskGenerator.apply(this, arguments);
+  var MitchellGenerator = exports.MitchellGenerator = class MitchellGenerator extends MaskGenerator {
+    constructor(appstate, dilute_small_mask) {
+      super(appstate, dilute_small_mask);
       
       this.level_r_decay = 1;
       this.draw_rmul = 1;
       this.level = 0;
-    },
+    }
     
-    function current_level() {
+    current_level() {
       return 0;
-    },
+    }
     
-    function done() {
+    done() {
       return this._done;
-    },
+    }
     
-    function max_level() {
+    max_level() {
       return this.maxgen;
-    },
+    }
     
-    function draw(g) {
-      MaskGenerator.prototype.draw.call(this, g);
+    draw(g) {
+      super.draw(g);
       
       /*
       if (FFT_TARGETING && this.fft_image != undefined) {
@@ -62,10 +62,10 @@ define([
         g.lineTo(1, i*dx);
       }
       g.stroke();
-    },
+    }
 
-    function reset(size, appstate, mask_image) {
-      MaskGenerator.prototype.reset.apply(this, arguments);
+    reset(size, appstate, mask_image) {
+      super.reset(size, appstate, mask_image);
       
       util.seed(0);
       
@@ -77,9 +77,9 @@ define([
       let totpoint = this.totpoint = ~~(size*size*0.8);
       this.maxpoints = totpoint;
       this.final_r = this.r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint));
-    },
+    }
     
-    function step(custom_steps) {
+    step(custom_steps) {
       let steps = custom_steps ? custom_steps : STEPS;
       steps = Math.min(steps, 128);
       
@@ -231,7 +231,7 @@ define([
       this.regen_spatial();
       this.raster();
     }
-  ]);
+  };
   
   return exports;
 });
