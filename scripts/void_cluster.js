@@ -87,6 +87,18 @@ define([
   
   var GIDX=0, GW=1, GSUM=2, GTAG=3, GTOT=4;
   
+  let config = {
+    VOIDCLUSTER_MID_R : 0.8,
+    VC_FILTERWID : 0.55,
+    VC_HIEARCHIAL_SCALE : 7.6,
+    TEST_CLUSTER : false,
+    VOID_HEX_MODE : false,
+    VOID_BAYER_MODE : false,
+    VOIDCLUSTER_CURVE : new cconst.EditableCurve("VC Filter Curve", {"points":[{"0":0,"1":0,"eid":40,"flag":0,"deg":3,"tangent":1},{"0":0.5499999999999999,"1":0.02499999999999991,"eid":85,"flag":0,"deg":3,"tangent":1},{"0":0.6125,"1":0,"eid":84,"flag":0,"deg":3,"tangent":1},{"0":0.9187500000000001,"1":0.8312499999999999,"eid":83,"flag":1,"deg":3,"tangent":1},{"0":1,"1":0.9999999999999998,"eid":12,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":86}})
+  };
+  
+  sinterface.MaskConfig.registerConfig(config);
+  
   var VoidClusterGenerator = exports.VoidClusterGenerator = class VoidClusterGenerator extends MaskGenerator {
     constructor(appstate, dilute_small_mask) {
       super(appstate, dilute_small_mask);
@@ -94,7 +106,7 @@ define([
       this.ignore_initial_points = false;
       this.cur_cmyk = 0;
       
-      this.hsteps = this.hscale = 0;
+      this.hscale = 0;
       this.hlvl = 0;
       this.gen = 0;
       
@@ -109,10 +121,13 @@ define([
       var panel2 = gui.panel("Void-Cluster");
       
       let panel3 = panel2.panel("Filter Curve");
-      window.VOIDCLUSTER_CURVE = panel3.curve('VOIDCLUSTER_CURVE', 'VC Filter Curve',  presets.VOIDCLUSTER_CURVE).curve;
+      window.VOIDCLUSTER_CURVE = panel3.curve('VOIDCLUSTER_CURVE', 'VC Filter Curve',  cconst.DefaultCurves.VOIDCLUSTER_CURVE).curve;
       panel3.close();
       
       panel2.slider('VOIDCLUSTER_MID_R', 'Middle Radius', 0.5, 0, 1, 0.001, false, false);
+      panel2.slider('VC_FILTERWID', 'Filter Width', 0.5, 0, 3, 0.001, false, false);
+      panel2.slider('VC_HIEARCHIAL_SCALE', 'Density Range', 1.0, 0, 40, 0.001, false, false);
+      
       panel2.check('TEST_CLUSTER', 'Test Cluster');
       panel2.check('VOID_HEX_MODE', 'Hexagon Mode');
       panel2.check("VOID_BAYER_MODE", "Bayer Mode");
@@ -125,10 +140,6 @@ define([
     
      
     next_level() {
-      if (this.gen >= this.hsteps-1) {
-        this.gen = this.hsteps;
-        return;
-      }
     }
     
     get_visible_points(restrict, for_fft) {
@@ -277,7 +288,7 @@ define([
       super.reset(dimen, appstate, mask_image);
 
       this.dimen = dimen;
-      this.hsteps = this.hscale = this.hlvl = this.gen = this.maxgen = this.totfilled = 0;
+      this.hscale = this.hlvl = this.gen = this.maxgen = this.totfilled = 0;
       
       var cf = this.config;
       
@@ -294,8 +305,7 @@ define([
         this.grid[gi+GW] = this.grid[gi+GSUM] = 0;
       }
       
-      var hsteps = this.hsteps = HIEARCHIAL_LEVELS;
-      var hscale = this.hscale = HIEARCHIAL_SCALE;
+      var hscale = this.hscale = VC_HIEARCHIAL_SCALE;
       
       var r = 1.0 / dimen;
       var midr = r*0.5 + this.hscale*r*0.5;
@@ -534,7 +544,7 @@ define([
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
       var r = Math.sqrt(2.0) / Math.sqrt(1+this.points.length/PTOT);
-      r *= 1.5;
+      r *= VC_FILTERWID;
       
       return r;
     }
@@ -687,7 +697,8 @@ define([
             break;
           }
         } else if (this.totfilled > 0) {
-          this.cluster_step();
+          //okay, let's not do the cluster step thing
+          //this.cluster_step();
         } else {
           break;
         }
@@ -739,7 +750,8 @@ define([
         
         var ix = i % size, iy = ~~(i / size);
         //var f = this.filter2(ix, iy);
-
+        console.log("yay");
+        
         var f = grid[i*GTOT+GW];
         
         if (f > maxf) {

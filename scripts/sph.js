@@ -268,7 +268,7 @@ define([
     }
 
     throw(ctx) {
-      let totpoint = this.dimen*this.dimen*0.95;
+      let totpoint = this.dimen*this.dimen*0.87;
       let ps = this.points;
       
       let genstart = totpoint*ctx.GENSTART;
@@ -762,6 +762,11 @@ define([
         for (let pi=0; pi<ps.length; pi += PTOT) {
           let x = ps[pi]+off[0], y = ps[pi+1]+off[1], gen = ps[pi+POGEN];
           
+          if (DRAW_OFFS) {
+            x += ps[pi+POFFX];
+            y += ps[pi+POFFY];
+          }
+
           if (gen > DRAW_RESTRICT_LEVEL) {
             continue;
           }

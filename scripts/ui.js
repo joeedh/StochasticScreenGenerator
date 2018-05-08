@@ -346,7 +346,7 @@ define([
     function regen_hermite(steps) {
       console.log("building spline approx");
       
-      steps = steps == undefined ? 370 : steps;
+      steps = steps == undefined ? 256 : steps;
       
       this.hermite = new Array(steps);
       var table =this.hermite;
@@ -357,25 +357,25 @@ define([
       var lastdv1, lastf3;
       
       for (var j=0; j<steps; j++, t += dt) {
-        var f1 = this._evaluate(t-eps*2);
-        var f2 = this._evaluate(t-eps);
+        //var f1 = this._evaluate(t-eps*2);
+        //var f2 = this._evaluate(t-eps);
         var f3 = this._evaluate(t);
-        var f4 = this._evaluate(t+eps);
-        var f5 = this._evaluate(t+eps*2);
+        //var f4 = this._evaluate(t+eps);
+        //var f5 = this._evaluate(t+eps*2);
         
-        var dv1 = (f4-f2) / (eps*2);
-        dv1 /= steps;
+        //var dv1 = (f4-f2) / (eps*2);
+        //dv1 /= steps;
         
         if (j > 0) {
           var j2 = j-1;
           
           table[j2*4]   = lastf3;
-          table[j2*4+1] = lastf3 + lastdv1/3.0;
-          table[j2*4+2] = f3 - dv1/3.0;
+          //table[j2*4+1] = lastf3 + lastdv1/3.0;
+          //table[j2*4+2] = f3 - dv1/3.0;
           table[j2*4+3] = f3;
         }
         
-        lastdv1 = dv1;
+        //lastdv1 = dv1;
         lastf3 = f3;
       }
     },
@@ -384,7 +384,7 @@ define([
       console.log("building basis functions");
       this.recalc = 0;
       
-      var steps = this.fastmode ? 64 : 512;
+      var steps = this.fastmode ? 256 : 512;
       
       this.basis_tables = new Array(this._ps.length);
       
@@ -396,26 +396,28 @@ define([
         var t=eps*4;
         var lastdv1, lastf3;
         
+        //okay, perhaps the cubic hermite interpolation idea wasn't so good after all.
+        //reaaaallly slow to calculate
         for (var j=0; j<steps; j++, t += dt) {
-          var f1 = this._basis(t-eps*2, i);
-          var f2 = this._basis(t-eps, i);
+          //var f1 = this._basis(t-eps*2, i);
+          //var f2 = this._basis(t-eps, i);
           var f3 = this._basis(t, i);
-          var f4 = this._basis(t+eps, i);
-          var f5 = this._basis(t+eps*2, i);
+          //var f4 = this._basis(t+eps, i);
+          //var f5 = this._basis(t+eps*2, i);
           
-          var dv1 = (f4-f2) / (eps*2);
-          dv1 /= steps;
+          //var dv1 = (f4-f2) / (eps*2);
+          //dv1 /= steps;
           
           if (j > 0) {
             var j2 = j-1;
             
             table[j2*4]   = lastf3;
-            table[j2*4+1] = lastf3 + lastdv1/3.0;
-            table[j2*4+2] = f3 - dv1/3.0;
+            //table[j2*4+1] = lastf3 + lastdv1/3.0;
+            //table[j2*4+2] = f3 - dv1/3.0;
             table[j2*4+3] = f3;
           }
           
-          lastdv1 = dv1;
+          //lastdv1 = dv1;
           lastf3 = f3;
         }
       }
@@ -474,8 +476,8 @@ define([
         return this._evaluate(t);
       
       var a = this[0].rco, b = this[this.length-1].rco;
-      if (t < a[0]) return a[1];
-      if (t > b[0]) return b[1];
+      if (t <= a[0]) return a[1];
+      if (t >= b[0]) return b[1];
 
       if (this.length == 2) {
         t = (t - a[0]) / (b[0] - a[0]);
@@ -491,12 +493,12 @@ define([
       var table = this.hermite;
       var s = t*(table.length/4);
 
-      var i = ~~s;
+      var i = Math.floor(s);
       s -= i;
 
       i *= 4;
       
-      return table[i];// + (table[i+3] - table[i])*s; 
+      return table[i] + (table[i+3] - table[i])*s; 
     },
 
     function inverse(y) {

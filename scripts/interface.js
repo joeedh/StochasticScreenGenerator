@@ -29,6 +29,7 @@ define([
         }
       }
       
+      this.USE_TONE_CURVE = USE_TONE_CURVE;
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
@@ -84,7 +85,7 @@ define([
         var gen = ps[i+PGEN]/maxlvl;
         
         if (TONE_CURVE != undefined) {
-          gen = TONE_CURVE.evaluate(gen);
+          gen = 1.0 - TONE_CURVE.evaluate(1.0 - gen);
         }
         
         if (gen != -1 && (invert ? gen < restrict : gen > restrict)) {
@@ -212,16 +213,17 @@ define([
       let ps2 = this.points.slice(0, this.points.length);
       let ps = this.points;
       
-      for (let i=0; i<8; i++) {
+      for (let i=0; i<12; i++) {
         this.off_relax_intern();
       }
       
       var msize = this.mask_img.width;
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
-        let x = ~~(ps2[pi+PIX]/msize), y = ~~(ps2[pi+PIY]/msize);
-        
+        let x, y;
+
         x = ps2[pi], y = ps2[pi+1];
+        
         x = Math.floor(x*msize)/msize;
         y = Math.floor(y*msize)/msize;
         
@@ -380,13 +382,13 @@ define([
         sumx /= sumtot;
         sumy /= sumtot;
         
-        var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
+        var fac = 1.0; //cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
         
         ps[i] += (sumx - ps[i])*2.0*fac;
         ps[i+1] += (sumy-ps[i+1])*2.0*fac;
           
-        ps[i] = Math.fract(ps[i]);
-        ps[i+1] = Math.fract(ps[i+1]);
+        //ps[i] = Math.fract(ps[i]);
+        //ps[i+1] = Math.fract(ps[i+1]);
         //ps[i] = Math.min(Math.max(ps[i], 0), 1);
         //ps[i+1] = Math.min(Math.max(ps[i+1], 0), 1);
         
@@ -637,6 +639,8 @@ define([
     }
     
     raster_point(pi, ps) {
+      var mscale = SMALL_MASK ? 1 : (XLARGE_MASK ? 8 : 4);
+      
       var mask = this.mask, msize = this.mask_img.width
       ps = ps === undefined ? this.points : ps;
       
@@ -670,6 +674,12 @@ define([
       var idx = (iy*msize+ix)*4;
       if (!ALLOW_OVERDRAW && mask[idx] != 0) return;
       
+      //small offset to signal that a pixel isn't blank in expanded/large masks.
+      //didn't want to use alpha for it.
+      let off = LARGE_MASK_NONZERO_OFFSET;
+      
+      d = ~~(d*(255-off)) + off;
+      
       var color = ps[pi+PCLR];
       if (GEN_CMYK_MASK) {
         var r = ~~(d*CMYK[color&3][0]*255);
@@ -681,12 +691,12 @@ define([
         mask[idx+2] = b;
       } else {
         if (this.encode_new_offsets) {
-          mask[idx] = ~~(d*255);
+          mask[idx] = d;
           
           let dx = ps[pi+POFFX], dy = ps[pi+POFFY];
           
-          dx *= msize;
-          dy *= msize;
+          dx *= msize/mscale;
+          dy *= msize/mscale;
           
           dx = (dx + 1.0)*0.5;
           dy = (dy + 1.0)*0.5;
@@ -697,7 +707,7 @@ define([
           mask[idx+1] = dx;
           mask[idx+2] = dy;
         } else {
-          mask[idx] = mask[idx+1] = mask[idx+2] = ~~(d*255);
+          mask[idx] = mask[idx+1] = mask[idx+2] = d;
         }
       }
       
@@ -788,8 +798,13 @@ define([
         if (grid[i] < 0 || ps[grid[i]+PGEN] < 0) continue;
         
         var gen = 1.0 - ps[grid[i]+PGEN] / maxgen;
+        var f;
         
-        var f = 1.0-cf.TONE_CURVE.evaluate(1.0-gen);
+        if (cf.USE_TONE_CURVE) {
+          f = 1.0-cf.TONE_CURVE.evaluate(1.0-gen);
+        } else {
+          f = gen;
+        }
         
         var color = ps[grid[i]+PCLR];
         if (GEN_CMYK_MASK) {
@@ -927,9 +942,9 @@ define([
             var start2 = util.time_ms();
             var report = 0;
             
+            this2.config.update();
+            
             while (util.time_ms() - start2 < 700) {
-              appstate.step(undefined, report++);
-              appstate.step(undefined, report++);
               appstate.step(undefined, report++);
             }
           }
@@ -949,9 +964,9 @@ define([
           var start2 = util.time_ms();
           var report = 0;
           
-          //while (util.time_ms() - start2 < 700) {
+          while (util.time_ms() - start2 < 150) {
             appstate.step(undefined, report++);
-          //}
+          }
           
           if (appstate.generator.points.length == lasttot) {
             totsame++;

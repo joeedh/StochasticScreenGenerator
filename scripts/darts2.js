@@ -84,7 +84,7 @@ define([
       this.points = [];
       this.dimen = size;
       
-      let totpoint = this.totpoint = ~~(size*size*0.8);
+      let totpoint = this.totpoint = ~~(size*size*0.85);
       this.final_r = this.r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint));
       
       //this.final_r = 1.0 / (Math.sqrt(1.5)*size);

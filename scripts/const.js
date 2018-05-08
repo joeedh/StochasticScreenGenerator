@@ -2,7 +2,10 @@
 //argh! I hate doing this! but necassary!
 //core data 'structures' are actually embedded in typed arrays. . . ger
 
-let _legacy_config_keys = ["MODE","VOIDCLUSTER_MID_R","SPH_SPEED","SPH_EXP","SPH_MUL","SPH_FILTERWID","DIMEN","DRAW_RMUL","SCALE","PANX","PANY","DISTANCE_LIMIT","HIEARCHIAL_SCALE","HIEARCHIAL_LEVELS","DRAW_RESTRICT_LEVEL","STEPS","QUALITY_STEPS"];
+let _legacy_config_keys = ["MODE","SPH_SPEED","SPH_EXP","SPH_MUL","SPH_FILTERWID","DIMEN","DRAW_RMUL","SCALE","PANX","PANY","DISTANCE_LIMIT","HIEARCHIAL_SCALE","HIEARCHIAL_LEVELS","DRAW_RESTRICT_LEVEL","STEPS","QUALITY_STEPS", "SMALL_MASK",
+"XLARGE_MASK", "QUALITY_STEPS", "ALLOW_OVERDRAW", "GEN_CMYK_MASK", "DRAW_HISTOGRAM", "DRAW_OFFS", "FFT_TARGETING",
+"DRAW_KDTREE", "DRAW_MASK", "SCAN_MODE", "HIEARCHIAL_SCALE", "HIEARCHIAL_LEVELS", "TILABLE", "LIMIT_DISTANCE", "USE_MERSENNE",
+"DRAW_TILED", "DISPLAY_TILED", "NO_COLOR", "USE_TONE_CURVE"];
 
 window.DEV_MODE = false;
 window.APP_VERSION = 0.5;
@@ -19,10 +22,13 @@ window.MODES = {
 };
 
 window.MODE = MODES.DART;
-window.VOIDCLUSTER_MID_R = 0.5;
 window.VOID_HEX_MODE = false;
 window.TEST_CLUSTER = false;
 
+//small offset to signal that a pixel isn't blank in expanded/large masks.
+//didn't want to use alpha for it.
+window.LARGE_MASK_NONZERO_OFFSET = 5;
+ 
 window.CMYK = [
   [0, 1, 1],
   [1, 0, 1],
