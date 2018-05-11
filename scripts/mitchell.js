@@ -13,12 +13,14 @@ define([
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   
   let config = exports.config = {
+    MITCHELL_TOTPOINT_MUL : 0.85,
     MITCHELL_POISSON_TEST : true,
-    MITCHELL_FILTERWID : 2.0,
+    MITCHELL_FILTERWID : 4.0,
     MITCHELL_STEPSMUL   : 2.0,
     MITCHELL_BRIGHTNESS : 1.0,
-    MITCHELL_CURVE     : new cconst.EditableCurve("Mitchell Filter Curve", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6749999999999999,"1":0,"eid":25,"flag":0,"deg":3,"tangent":1},{"0":0.8374999999999999,"1":0,"eid":21,"flag":0,"deg":3,"tangent":1},{"0":0.9250000000000002,"1":0.7875,"eid":24,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":26}}),
-    MITCHELL_GEN_CURVE : new cconst.EditableCurve("Mitchell Tone Curve", {"points":[{"0":0.012500000000000039,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.05625000000000008,"1":0.09375,"eid":20,"flag":0,"deg":3,"tangent":1},{"0":0.21249999999999988,"1":0.36875000000000013,"eid":21,"flag":1,"deg":3,"tangent":1},{"0":0.6062500000000001,"1":0.675,"eid":19,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":22}})
+    MITCHELL_RAD_CURVE : new cconst.EditableCurve("Mitchell Radius Curve", {"points":[{"0":0,"1":0,"eid":12,"flag":0,"deg":3,"tangent":1},{"0":0.15,"1":0.4125000000000001,"eid":17,"flag":1,"deg":3,"tangent":1},{"0":0.35624999999999973,"1":0.8125000000000002,"eid":16,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":18}}), 
+    MITCHELL_CURVE     : new cconst.EditableCurve("Mitchell Filter Curve", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.4187500000000002,"1":0.012499999999999956,"eid":42,"flag":0,"deg":3,"tangent":1},{"0":0.6125000000000002,"1":0.08750000000000013,"eid":43,"flag":1,"deg":3,"tangent":1},{"0":0.8124999999999999,"1":0.13749999999999996,"eid":37,"flag":0,"deg":3,"tangent":1},{"0":0.95,"1":0.9000000000000001,"eid":45,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":46}}),
+    MITCHELL_GEN_CURVE : new cconst.EditableCurve("Mitchell Tone Curve", {"points":[{"0":0.025000000000000022,"1":0,"eid":1,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":28}})
   };
   
   sinterface.MaskConfig.registerConfig(config);
@@ -35,20 +37,27 @@ define([
     static build_ui(gui) {
       let panel2 = gui.panel("Mitchell");
       
-      panel2.slider('MITCHELL_FILTERWID', 'Filter Width', 2.0, 0.0001, 5.0, 0.001, false, false);
+      panel2.slider('MITCHELL_FILTERWID', 'Filter Width', 2.0, 0.0001, 15.0, 0.001, false, false);
       panel2.slider('MITCHELL_BRIGHTNESS', 'Brightness', 2.0, 0.0001, 5.0, 0.001, false, false);
       panel2.slider('MITCHELL_STEPSMUL', 'Extra Steps', 1.0, 0.0001, 35.0, 0.001, false, false);
+      panel2.slider('MITCHELL_TOTPOINT_MUL', 'TotalPointMul', 1.0, 0.0001, 1.0, 0.00001, false, false);
+      
       panel2.check('MITCHELL_POISSON_TEST', "Poisson Mode");
       
       let panel3 = panel2.panel("Filter Curve");
       
       //need to finish config refactor so I'm not putting things in window in such a hackish way as this
       window.MITCHELL_CURVE = panel3.curve("MITCHELL_CURVE", "Filter Curve", cconst.DefaultCurves.MITCHELL_CURVE).curve;
-
+      panel3.close();
+      
       panel3 = panel2.panel("Pre-tone Curve");
       window.MITCHELL_GEN_CURVE = panel3.curve("MITCHELL_GEN_CURVE", "Tone Curve", cconst.DefaultCurves.MITCHELL_GEN_CURVE).curve;
-      
       panel3.close();
+      
+      panel3 = panel2.panel("Radius Curve");
+      window.MITCHELL_RAD_CURVE = panel3.curve("MITCHELL_RAD_CURVE", "Mitchell Radius Curve", cconst.DefaultCurves.MITCHELL_RAD_CURVE).curve;
+      panel3.close();
+      
       panel2.close();
     }
     
@@ -105,7 +114,7 @@ define([
       this.dimen = size;
       this._done = false;
       
-      let totpoint = this.totpoint = ~~(size*size*0.95);
+      let totpoint = this.totpoint = ~~(size*size*this.config.MITCHELL_TOTPOINT_MUL);
       this.maxpoints = totpoint;
       
       //XXX am I using this particular radius calculation? or overriding it somewhere?
@@ -185,16 +194,25 @@ define([
           throw new Error("Gen was: " + gen);
         }
         
-        gen *= this.maxpoints;
+        //gen *= this.maxpoints;
         
         this.maxgen = this.maxpoints; //Math.max(this.maxgen, gen);
         
         //r = Math.sqrt(0.5 / (Math.sqrt(3)*2*(totpoint+1)));
-        r = 0.75 / Math.sqrt(gen+1);
+        let rgen = gen;
+        rgen = MITCHELL_RAD_CURVE.evaluate(rgen);
+        
+        rgen *= this.maxpoints;
+        
+        r = 0.75 / Math.sqrt(rgen+1);
+        let maxr = 0.75 / Math.sqrt(this.maxpoints+1);
+        
+        //r = MITCHELL_RAD_CURVE.evaluate(r/maxr)*maxr;
+        
         //r = 0.72 / Math.sqrt(this.maxpoints+1);
         
         let maxdis = -1e17, x=undefined, y=undefined;
-        let tries = ~~(totpoint*cf.MITCHELL_STEPSMUL)+30;
+        let tries = ~~(totpoint*cf.MITCHELL_STEPSMUL)+1;//30;
         searchr = r*searchfac;
         minw = undefined;
         
@@ -225,9 +243,10 @@ define([
           }
           
           //if (sumtot == 0.0) continue;
-          //sumw /= sumtot;
+          /*
           if (sumtot != 0.0)
             sumw /= sumtot;
+          //*/
           
           if (isNaN(sumw)) {
             throw new Error("NaN");

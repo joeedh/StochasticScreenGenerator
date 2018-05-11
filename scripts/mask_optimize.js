@@ -1,8 +1,8 @@
 var _mask_optimize = undefined;
 
 define([
-  "util", "const", "interface", "fft"
-], function(util, cconst, sinterface, fft) {
+  "util", "const", "interface", "fft", "void_cluster", "sph"
+], function(util, cconst, sinterface, fft, voidcluster, sph) {
   'use strict';
   
   var exports = _mask_optimize = {};
@@ -12,6 +12,24 @@ define([
   
   var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
   exports._seed = 0;
+  
+  let config = {
+    MASKOPT_REPEAT        : 2,
+    MASKOPT_SPEED         : 1.0,
+    MASKOPT_RELAX_STEPS   : 7,
+    MASKOPT_FILTERWID     : 2.5,
+    MASKOPT_GENSTART      : 0.1,
+    MASKOPT_ROTATION      : true,
+    MASKOPT_LEVEL_OFFSETS : true,
+    MASKOPT_PATT_SIZE     : 1.0,
+    MASKOPT_OFFSET_POWER  : 1.0,
+    MASKOPT_DO_OFFSET_POWER : true,
+    MASKOPT_ROT_SPEED     : 1.0,
+    MASKOPT_TONECURVE     : new cconst.EditableCurve("MO Tone Curve"),
+    MASKOPT_TOTPOINT_MUL  : 0.8
+  };
+  
+  sinterface.MaskConfig.registerConfig(config);
   
   var MaskOptGenerator = exports.MaskOptGenerator = class MaskOptGenerator extends MaskGenerator{
     constructor(appstate, dilute_small_mask) {
@@ -23,16 +41,56 @@ define([
       this.level = 0;
     }
     
-    sample(x, y) {
+    static build_ui(gui) {
+      var panel2 = gui.panel("Mask Optimize");
+
+      
+      panel2.slider("MASKOPT_TOTPOINT_MUL", "PointsMul", 0.8, 0.001, 1.0, 0.001, false, false);
+      
+      panel2.slider("MASKOPT_REPEAT", "Repeat", 2, 1, 24, 1, true, false);
+      panel2.slider("MASKOPT_RELAX_STEPS", "Relax Steps", 7, 0, 48, 1, true, false);
+      panel2.slider("MASKOPT_SPEED", "Speed", 1, 0, 7, 0.001, false, false);
+      panel2.slider("MASKOPT_FILTERWID", "Filter Wid", 2.5, 0, 12, 0.001, false, false);
+      panel2.slider("MASKOPT_GENSTART", "genstart", 0.1, 0, 1.0, 0.001, false, false);
+      
+      panel2.slider("MASKOPT_PATT_SIZE", "Pattern Size", 1.0, 0, 10.0, 0.001, false, false);
+      
+      panel2.check("MASKOPT_ROTATION", "Enable Rotation");
+      panel2.slider("MASKOPT_ROT_SPEED", "Rotation Speed", 1.0, 0, 10.0, 0.001, false, false);
+      
+      panel2.check("MASKOPT_LEVEL_OFFSETS", "Toning Offsets");
+      panel2.slider("MASKOPT_OFFSET_POWER", "Off Power", 1.0, -3.0, 9.0, 0.001, false, false);
+      panel2.check("MASKOPT_DO_OFFSET_POWER", "OffsLvlPower");
+      
+      let panel3 = panel2.panel("Tone Curve");
+      window.MASKOPT_TONECURVE = panel3.curve("MASKOPT_TONECURVE", "Tone Curve").curve;
+      panel3.close();
+      
+      panel2.close();
+    }
+    
+    sample(cf, x, y) {
+      //return 0.01;
+      x *= MASKOPT_PATT_SIZE;
+      y *= MASKOPT_PATT_SIZE;
+      
       let d = x*x + y*y;
       
       d = d != 0.0 ? Math.sqrt(d) : 0.0;
       d = Math.cos(d*26.5)*0.5 + 0.5;
-      let th = this._step*0.05;
-      let band = Math.cos(th)*x + Math.sin(th)*y;
       
-      d = Math.tent(band + this._step*0.05); //Math.floor(y*5)/5);
+      let th = this._step*0.05*cf.MASKOPT_ROT_SPEED;
+      
+      let band = Math.cos(th)*x + Math.sin(th)*y;
+      let band2 = Math.cos(th+Math.PI*0.5)*x + Math.sin(th+Math.PI*0.5)*y;
+      
+      d = Math.tent(band + this._step*0.05*cf.MASKOPT_ROT_SPEED); //Math.floor(y*5)/5);
+      let d2 = Math.tent(band2 + this._step*0.05*cf.MASKOPT_ROT_SPEED); //Math.floor(y*5)/5);
 
+      //d = Math.max(d, d2);
+      //d = Math.sqrt(d*d2);
+      d = Math.sqrt(d*d + d2*d2) / Math.sqrt(2.0);
+      
       return d*0.999 + 0.001;
     }
     
@@ -48,6 +106,65 @@ define([
       return this.maxgen;
     }
 
+    throw(config) {
+      let size2 = this.size2;
+      
+      let cf = config;
+      let ps = this.points, mps = this.mpoints;
+      let totpoint = this.totpoint;
+      let mask_image = this.mask_img;
+      
+      for (let _i=0; _i<size2*size2; _i++) {
+        if (this.points.length/PTOT >= totpoint) {
+          break;
+        }
+        
+        //let i = ~~(Math.random()*totpoint*0.9999999999);
+        let i = _i;
+        let ix = i % size2, iy = ~~(i / size2);
+        
+        let x = (ix + util.random()*0.0 + 0.5)/size2, y = (iy + util.random()*0.0 + 0.5)/size2;
+        
+        let pi = mps.length;
+        
+        for (let j=0; j<PTOT; j++) {
+          mps.push(0);
+        }
+        
+        mps[pi] = x;
+        mps[pi+1] = y;
+        
+        mps[pi+PIX] = ~~(x*mask_image.width);
+        mps[pi+PIY] = ~~(y*mask_image.height);
+        
+        mps[pi+PR] = mps[pi+PR2] = 0.9 / Math.sqrt(i + totpoint*MASKOPT_GENSTART);
+        mps[pi+PGEN] = Math.fract(ix*1.37432 + iy*0.623); ;//i/totpoint;
+      }
+      
+    }
+    
+    throw_vc(config) {
+      let cf = config.copy();
+      
+      let size2 = this.size2;
+      
+      let vc = new voidcluster.VoidClusterGenerator(this.appstate);
+      vc.config = cf;
+      vc.reset(size2, this.appstate, this.mask_img);
+      
+      for (let i=0; !vc.done() && i<2000; i++) {
+        vc.step();
+      }
+      
+      let mps = this.mpoints = vc.points;
+      for (let mpi=0; mpi<mps.length; mpi += PTOT) {
+        mps[mpi+PGEN] /= vc.maxgen;
+      }
+      
+      this.mpoints = vc.points;
+      this.regen_spatial();
+    }
+    
     reset(size, appstate, mask_image) {
       MaskGenerator.prototype.reset.apply(this, arguments);
       
@@ -60,38 +177,22 @@ define([
       this._done = false;
       this._step = 0;
       
-      this.repeat = 2;
+      this.repeat = MASKOPT_REPEAT;
       
-      let totpoint = this.totpoint = ~~(size*size);
+      let size2 = this.size2 = Math.ceil(Math.sqrt(size*size*this.config.MASKOPT_TOTPOINT_MUL));
+      
+      let totpoint = this.totpoint = ~~(size2*size2);
       this.maxpoints = totpoint;
       this.maxgen = 1.0;
       
       this.final_r = this.r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint))/this.repeat;
-      let ps = this.points, mps = this.mpoints;
       
-      for (let i=0; i<totpoint; i++) {
-        let x = util.random()/this.repeat, y = util.random()/this.repeat;
-        
-        let pi = mps.length;
-        
-        for (let j=0; j<PTOT; j++) {
-          mps.push(0);
-        }
-        
-        mps[pi] = x;
-        mps[pi+1] = y;
-        
-        mps[pi+PIX] = ~~(x*this.repeat*mask_image.width);
-        mps[pi+PIY] = ~~(y*this.repeat*mask_image.height);
-        
-        mps[pi+PR] = mps[pi+PR2] = this.r;
-        mps[pi+PGEN] = i/totpoint;
-      }
+      this.throw_vc(this.config);
       
-      this.retile();
+      this.retile(this.config);
     }
     
-    retile() {
+    retile(cf) {
       this.points = [];
       let mps = this.mpoints, ps = this.points, mask_image = this.mask_image;
       
@@ -102,9 +203,10 @@ define([
           for (let k=0; k<mps.length; k += PTOT) {
             let pi = ps.length;
             
-            let x = mps[k] + i/this.repeat, y = mps[k+1] + j / this.repeat;
+            let x = mps[k]/this.repeat + i/this.repeat, y = mps[k+1]/this.repeat + j/this.repeat;
             
-            let d = this.sample(x, y);
+            let d = this.sample(cf, x, y);
+            d *= 0.98;
             
             if (1.0-d < mps[k+PGEN]) {
               continue;
@@ -114,30 +216,47 @@ define([
               ps.push(mps[k+l])
             }
             
-            let fac = 1.0 - d;
-            fac = Math.pow(fac, 3.0);
+            let fac;
             
-            ps[pi] += mps[k+POFFX] * fac;
-            ps[pi+1] += mps[k+POFFY] * fac;
+            if (cf.MASKOPT_DO_OFFSET_POWER) {
+              fac = 1.0 - d;
+              fac = Math.pow(fac, cf.MASKOPT_OFFSET_POWER);
+            } else {
+              fac = 1.0;
+            }
             
-            ps[pi] += i / this.repeat;
-            ps[pi+1] += j / this.repeat;
+            if (cf.MASKOPT_LEVEL_OFFSETS) {
+              ps[pi] += mps[k+POFFX] * fac;
+              ps[pi+1] += mps[k+POFFY] * fac;
+            }
+            
+            ps[pi] = (ps[pi] + i) / this.repeat;
+            ps[pi+1] = (ps[pi+1] + j) / this.repeat;
             
             if (isNaN(ps[pi]) || isNaN(ps[pi+1])) {
               throw new Error("NaN5");
             }
             
+            let final_r = 0.9 / Math.sqrt(totpoint);
+            let max_r = final_r*7.0;
+            
+            d = MASKOPT_TONECURVE.evaluate(d);
+            
+            let pr = final_r + (max_r - final_r) * d;
+            
+            //pr = final_r;
             ps[pi+PD] = mps[pi+PGEN];
-            ps[pi+PR] = 0.9 / Math.sqrt(totpoint*d);
+            ps[pi+PR] = pr;
+            ps[pi+PR] = 0.8 / Math.sqrt(totpoint*(1.0-d) + totpoint*MASKOPT_GENSTART);
             
             ps[pi+POLDX] = ps[pi];
             ps[pi+POLDY] = ps[pi+1];
             
-            ps[pi+PIX] = ~~(mps[k]*this.repeat*mask_image.width);
-            ps[pi+PIY] = ~~(mps[k+1]*this.repeat*mask_image.height);
+            ps[pi+PIX] = ~~(mps[k]*mask_image.width);
+            ps[pi+PIY] = ~~(mps[k+1]*mask_image.height);
             
             //put reference to original point in pdx
-            ps[pi+PDX] = k;
+            ps[pi+PD] = k;
           }
         }
       }
@@ -147,17 +266,22 @@ define([
     }
     
     step() {
-      for (let i=0; i<7; i++) {
+      let cf = this.config;
+      
+      for (let i=0; i<cf.MASKOPT_RELAX_STEPS; i++) {
         this.relax();
       }
       
-      this.calc_offsets();
+      this.calc_offsets(this.config);
       
-      this.retile();
-      this._step++;
+      this.retile(this.config);
+      
+      if (this.config.MASKOPT_ROTATION) {
+        this._step++;
+      }
     }
 
-    calc_offsets() {
+    calc_offsets(cf) {
       let ps = this.points, mps = this.mpoints;
       
       //zero summation fields
@@ -166,7 +290,7 @@ define([
       }
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
-        let mi = ps[pi+PDX];
+        let mi = ps[pi+PD];
         
         let dx = ps[pi] - ps[pi+POLDX];
         let dy = ps[pi+1] - ps[pi+POLDY];
@@ -176,8 +300,8 @@ define([
           throw new Error("NaN4");
         }
         
-        mps[mi+PDX] += dx;
-        mps[mi+PDY] += dy;
+        mps[mi+PDX] += dx*this.repeat;
+        mps[mi+PDY] += dy*this.repeat;
         mps[mi+POLDX]++;
       }
       
@@ -195,14 +319,16 @@ define([
           throw new Error("NaN3");
         }
         
+        //dx = dy = 0;
+        
         mps[mi] += dx;
         mps[mi+1] += dy;
         
         mps[mi+POX] = dx;
         mps[mi+POY] = dy;
         
-        mps[mi+PIX] = ~~(mps[mi]*this.repeat*this.mask_image.width);
-        mps[mi+PIY] = ~~(mps[mi+1]*this.repeat*this.mask_image.height);
+        mps[mi+PIX] = ~~(mps[mi]*this.mask_image.width);
+        mps[mi+PIY] = ~~(mps[mi+1]*this.mask_image.height);
         
         mps[mi+PDX] = mps[mi+PDY] = mps[mi+POLDX] = 0.0;
       }
@@ -211,20 +337,38 @@ define([
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let x = ps[pi], y = ps[pi+1];
 
-        let mi = ps[pi+PDX];
+        let mi = ps[pi+PD];
+        
         let mdx = mps[mi+POX];
         let mdy = mps[mi+POY];
         
-        let dx = x - ps[pi+POLDX];
-        let dy = y - ps[pi+POLDY];
+        let ix = Math.floor(x * this.repeat);
+        let iy = Math.floor(y * this.repeat);
         
-        dx -= mdx;
-        dy -= mdy;
+        let mx = (mps[mi] + ix)/this.repeat;
+        let my = (mps[mi+1] + iy)/this.repeat;
         
-        let fac = 1.0 - this.sample(x, y);
+        let dx = x - mx;
+        let dy = y - my;
         
-        fac = Math.pow(fac, 1.0/3.0);
-        //fac = Math.pow(fac, 3.0);
+        //*
+        dx = (x - ps[pi+POLDX]) - mdx;
+        dy = (y - ps[pi+POLDY]) - mdy;
+        //dx *= this.repeat;
+        //dy *= this.repeat;
+        //*/        
+        
+        //dx -= mdx;
+        //dy -= mdy;
+        
+        let fac;
+        
+        if (cf.MASKOPT_DO_OFFSET_POWER) {
+          fac = 1.0 - this.sample(cf, x, y);
+          fac = Math.pow(fac, 1.0/cf.MASKOPT_OFFSET_POWER);
+        } else {
+          fac = 1.0;
+        }
         
         if (isNaN(fac) || isNaN(x) || isNaN(y)) {
           console.log(fac, x, y);
@@ -261,11 +405,11 @@ define([
       //console.log("warning, default implementation");
       
       var cf = this.config;
-      var sumtot, sumx, sumy, searchrad;
+      var sumtot, sumdx, sumdy, searchrad;
       
       var plen = this.points.length;
       var ps = this.points;
-      var searchfac = 2.5;
+      var searchfac = MASKOPT_FILTERWID;
       var msize = this.mask_img.width;
       
       var curgen = this.current_level();
@@ -296,6 +440,9 @@ define([
         var x2 = ps[pi], y2 = ps[pi+1], r2=ps[pi+PR];
         var gen2 = ps[pi+PGEN];
         
+        let searchr2 = r2*searchfac;
+        //let searchr2 = searchrad;
+        
         x2 -= _poffs[j][0];
         y2 -= _poffs[j][1];
         
@@ -303,7 +450,7 @@ define([
           return;
         }
         
-        var dx = x2-x, dy = y2-y;
+        var dx = x-x2, dy = y-y2;
         var dis = dx*dx + dy*dy;
 
         if (isNaN(dis)) {
@@ -316,42 +463,18 @@ define([
           throw new Error("NaN!");
         }
         
-        if (dis == 0 || dis > searchrad*searchrad) {
+        if (dis > searchr2*searchr2) {
           return;
         }
         
-        dis = Math.sqrt(dis);
-        var r3 = Math.max(r2, r1);
+        dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
         
-        var w = 1.0 - dis/searchrad;
+        var w = 1.0 - dis/searchr2;
         
-        w = cf.SPH_CURVE.evaluate(w);
+        w = Math.pow(w, 8.0);
         
-        if (w < 0.0 || w > 1.0 || isNaN(w)) {
-          console.log("Bad weight!", w);
-          
-          if (isNaN(w)) {
-            throw new Error("W NaN!");
-          }
-        }
-        
-        dx /= dis;
-        dy /= dis;
-        
-        if (isNaN(dis)) {
-          throw new Error("dis nan!");
-        }
-        
-        var fx = x - dx*r3;
-        var fy = y - dy*r3;
-        
-        if (isNaN(fx) || isNaN(fy)) {
-          console.log("fx, fy", fx, fy, dx, dy, r3);
-          throw new Error("NaN");
-        }
-        
-        sumx += w*fx;
-        sumy += w*fy;
+        sumdx += w*dx;
+        sumdy += w*dy;
         sumtot += w;
       }
       
@@ -370,7 +493,7 @@ define([
         }
         
         searchrad = r1*searchfac;
-        sumtot=1, sumx=x, sumy=y;
+        sumtot = sumdx = sumdy = 0.0;
         
         if (searchrad == 0.0) {
           continue;
@@ -386,24 +509,24 @@ define([
           continue;
         }
         
-        sumx /= sumtot;
-        sumy /= sumtot;
+        sumdx /= sumtot;
+        sumdy /= sumtot;
         
-        var fac = 0.5; //cf.GEN_MASK ? 1.0 / (0.5 + f1*f1) : 1.0;
+        var fac = MASKOPT_SPEED*0.125;//*r1*Math.sqrt(this.totpoint);
         
-        if (isNaN(sumx) || isNaN(sumy) || isNaN(sumtot)) {
-          console.log(sumx, sumy, sumtot);
+        if (isNaN(sumdx) || isNaN(sumdy) || isNaN(sumtot)) {
+          console.log(sumdx, sumdy, sumtot);
           //throw new Error("NaN6");
           continue;
         }
         
-        ps[i] += (sumx - ps[i])*cf.SPH_SPEED*fac;
-        ps[i+1] += (sumy-ps[i+1])*cf.SPH_SPEED*fac;
+        ps[i] += sumdx*cf.SPH_SPEED*fac;
+        ps[i+1] += sumdy*cf.SPH_SPEED*fac;
           
         //ps[i] = Math.fract(ps[i]);
         //ps[i+1] = Math.fract(ps[i+1]);
-        ps[i] = Math.min(Math.max(ps[i], 0), 1);
-        ps[i+1] = Math.min(Math.max(ps[i+1], 0), 1);
+        ps[i] = Math.min(Math.max(ps[i], 0), 0.999999);
+        ps[i+1] = Math.min(Math.max(ps[i+1], 0), 0.99999);
         
         //ps[i+PIX] = ~~(ps[i]*msize+0.0001);
         //ps[i+PIY] = ~~(ps[i+1]*msize+0.0001);
@@ -432,8 +555,8 @@ define([
         iview.fill(iview[0], 0, iview.length);
         //console.log("raster!");
         
-        for (var pi=0; pi<this.mpoints.length; pi += PTOT) {
-          this.raster_point(pi, this.mpoints);
+        for (var mpi=0; mpi<this.mpoints.length; mpi += PTOT) {
+          this.raster_point(mpi, this.mpoints);
         }
       //}
     }

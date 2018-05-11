@@ -752,7 +752,7 @@ define([
       //g.clearRect(-d, -d, 1+d*2, 1+d*2);
       
       let ps = this.points;
-      let r = this.r;
+      let r = this.r*DRAW_RMUL;
       
       for (let off of gridoffs) {
         if ((off[0] != 0.0 || off[1] != 0.0) && !DRAW_TILED) {

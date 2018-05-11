@@ -11,13 +11,25 @@ define([
   var Class = util.Class;
   var MaskGenerator = sinterface.MaskGenerator;
   
-  var CX=0, CY=1, CIX=2, CIY=3, CTOT=4;
+  var CX=0, CY=1, CTOT=2;
+  
+  let config = exports.config = {
+    DRAW_CELLS         : false,
+    MAX_CELL_DEPTH     : 3,
+    DART_PUSH_SPACING  : false,
+    DART_MAX_SPACING   : 0.1,
+    TRIES_STEPS_MUL    : 0.9,
+    DART_MITCHELL_MODE : false
+  };
+  
+  sinterface.MaskConfig.registerConfig(config);
   
   var DartsGenerator = exports.DartsGenerator = class DartsGenerator extends MaskGenerator {
     constructor(appstate, dilute_small_mask) {
       super(appstate, dilute_small_mask);
       
       this.cells = this.cellsize = undefined;
+      this.celldepth = 0;
       this._colortots = [0, 0, 0, 0]; //temporary variable
       
       this.totfft = 0;
@@ -38,8 +50,20 @@ define([
       //panel2.close();
       panel2.check('LIMIT_DISTANCE', 'Pack Densely');
       panel2.slider('DISTANCE_LIMIT', 'Pack Threshold', 0.1, 0.001, 1.2, 0.001, false, false);
+      panel2.slider('MAX_CELL_DEPTH', 'Cell Subdivision', 4, 0.0, 10, 1, true, false);
+      
+      panel3 = panel2.panel("Mitchell Mode");
+      panel3.check('DART_MITCHELL_MODE', 'Mitchell Mode');
+      panel3.slider('TRIES_STEPS_MUL', 'Tries', 0.9, 0.0, 30, 0.001, false, false);
+      panel3.close();
+      
+      panel2.check('DART_PUSH_SPACING', 'Pack Lightly');
+      panel2.slider('DART_MAX_SPACING', 'Pack Threshold', 0.1, 0.001, 1.2, 0.001, false, false);
+      
       panel2.check('ALIGN_GRID', 'Align To Grid');
       panel2.check('SCAN_MODE', 'Scan Mode');
+      
+      panel2.check('DRAW_CELLS', 'Draw Cells');
     }
     
     done() {
@@ -53,76 +77,20 @@ define([
     relax() {
       //this.config.RELAX_CURRENT_LEVEL = true;
       super.relax();
+      
+      this.update_cells();
     }
     
-    update_cell(ci) {
-      //return; //XXX
+    update_r() {
+      var hlvl = this.hlvl;
+      var t;
       
-      var cells = this.cells, csize = this.cellsize;
-      var cx = cells[ci*CTOT], cy = cells[ci*CTOT+1];
-      var ix1 = cells[ci*CTOT+CIX], cy1 = cells[ci*CTOT+CIY];
-      var r = this.r;
-      
-      var icsize = 1.0 / csize;
-      
-      var is_dead = false;
-      
-      function update_cell_callback(pi) {
-        var ps = this.points;
-        var x = ps[pi], y = ps[pi+1];//, r = ps[pi+2];
+      if (this.hsteps == 1)
+        t = 1;
+      else
+        t = RADIUS_CURVE.evaluate(1.0 - hlvl / (this.hsteps-1));
         
-        var ix2 = x*csize, iy2 = y*csize;
-        var mask = 0, dis;
-        
-        dis = (x-cx)*(x-cx) + (y-cy)*(y-cy);
-        mask |= dis < r*r ? 1 : 0;
-        
-        
-        dis = (x-cx)*(x-cx) + (y-(cy+icsize))*(y-(cy+icsize));
-        mask |= dis < r*r ? 2 : 0;
-        
-        dis = (x-(cx+icsize))*(x-(cx+icsize)) + (y-(cy+icsize))*(y-(cy+icsize));
-        mask |= dis < r*r ? 4 : 0;
-        
-        dis = (x-(cx+icsize))*(x-(cx+icsize)) + (y-cy)*(y-cy);
-        mask |= dis < r*r ? 8 : 0;
-        
-        is_dead = is_dead || mask == 15;
-        //console.log("mask", mask, r);
-      }
-      
-      this.kdtree.forEachPoint(cx, cy, 3.0/csize, update_cell_callback, this);
-      
-      if (is_dead) {
-        //remove cell
-        for (var i=0; cells.length > CTOT && i < CTOT; i++) {
-          cells[ci*CTOT+i] = cells[cells.length-CTOT+i];
-        }
-        
-        cells.length -= CTOT;
-      }
-    }
-    
-    update_cells() {
-      return; //XXX
-      
-      var cells = this.cells, csize = this.cellsize;
-      var _i = 0;
-      
-      for (var i=0; i<cells.length; i += CTOT) {
-        var clen = cells.length;
-        
-        if (_i++ > 1000000) {
-          console.log("infinite loop!");
-          break;
-        }
-        
-        this.update_cell(~~(i/CTOT));
-        
-        if (cells.length != clen && cells.length > 0) {
-          i -= CTOT;
-        }
-      }
+      this.r = this.start_r*t + this.final_r*(1.0-t);
     }
     
     step(custom_steps, noreport) {
@@ -132,16 +100,12 @@ define([
       var hlvl = this.hlvl;
       var size = this.dimen;
       
+      let cellrow = undefined;
       this.pass++;
       
-      var t;
-      //*
-      if (this.hsteps == 1)
-        t = 1;
-      else
-        t = RADIUS_CURVE.evaluate(1.0 - hlvl / (this.hsteps-1));
-        
-      var r = this.r = this.start_r*t + this.final_r*(1.0-t);
+      this.update_r();
+      
+      var r = this.r;
       //*/
       //var r = this.r = this.start_r*t + this.final_r*(1.0-t);
       //var r = this.r = this.start_r*Math.pow(this.hmul, ~~(t*this.hsteps));
@@ -150,127 +114,147 @@ define([
       var cells = this.cells, cellsize = this.cellsize;
       var icellsize = 1.0 / cellsize;
       
+      //console.log("tries", tries);
+      
       for (var si=0; si<steps; si++) {
-        if (cells.length == 0)
-          break; //should never happen (not implementing full maximal), but still. . .
+        let maxdis = undefined;
+        let maxx=0, maxy = 0, maxcolor=0;
         
-        var x, y, ci;
+        let tries = ~~((this.points.length/PTOT+25)*TRIES_STEPS_MUL);
+        tries = !DART_MITCHELL_MODE ? 1 : tries;
         
-        if (SCAN_MODE) {
-          ci = this.cur++ % (cells.length/CTOT);
-        } else {
-          ci = ~~(Math.random()*(~~(cells.length/CTOT))*0.999999999);
-        }
-        ci *= CTOT;
-        
-        //ci = (this._cur++) % (cells.length/CTOT);
-        //ci *= CTOT;
-        
-        var cx = cells[ci], cy = cells[ci+1], cix = cells[ci+CIX];
-        
-        if (!ALIGN_GRID) {
-          x = cx + icellsize*Math.random();
-          y = cy + icellsize*Math.random();
-        } else {
-          x = (cx+0.0000*icellsize)*size;
-          y = (cy+0.0000*icellsize)*size;
-          x = (~~x+0.5) / size;
-          y = (~~y+0.5) / size;
-        }
-        
-        //x += icellsize*Math.random()*3;
-        //y += icellsize*Math.random()*3;
-        
-        //if (x < 0 || x >= 1 || y < 0 || y >= 1) 
-        //  continue;
-        
-        x = Math.fract(x);// Math.min(Math.max(x, 0), 1);
-        y = Math.fract(y);//min(Math.max(y, 0), 1);
-        
-        if (isNaN(x) || isNaN(y)) {
-          throw new Error("nan!");
-        }
-        //if (cix%4==0) {
-        //  y += icellsize*0.5;
-        //}
-        
-        clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
-        
-        var bad = false;
-        var mindis = undefined;
-        var color = 0;
-        
-        mindis = undefined;
-        for (var i=0; i<_poffs.length; i++) {
-          //if (FFT_TARGETING) break;
+        for (let tri=0; tri<tries; tri++) {
+          if (cells.length == 0)
+            break; //should never happen (not implementing full maximal), but still. . .
           
-          if (i > 0 && !TILABLE)
-            break;
+          var x, y, ci;
+          var rsqr3 = Math.pow(r*(1.0 + DART_MAX_SPACING), 2.0);
           
-          if (bad)
-            break;
+          if (SCAN_MODE) {
+            ci = this.cur++ % (cells.length/CTOT);
+          } else {
+            ci = ~~(Math.random()*(~~(cells.length/CTOT))*0.999999999);
+          }
           
-          var ox = _poffs[i][0], oy = _poffs[i][1];
+          ci *= CTOT;
           
-          var x1 = x+ox, y1 = y+oy;
+          var cx = cells[ci], cy = cells[ci+1];
+          cellrow = cy;
+
+          if (ALIGN_GRID) {
+            x = (~~(x*size) + 0.5) / size;
+            y = (~~(y*size) + 0.5) / size;
+          } else {
+            x = cx + icellsize*Math.random()*0.5;
+            y = cy + icellsize*Math.random()*0.5;
+          }
           
-          var rsqr = r*r;
-          var rcolor = r*2.5;
-          var rsqr2 = rcolor*rcolor;
+          x = Math.fract(x);
+          y = Math.fract(y);
           
-          var rmul = Math.max(LIMIT_DISTANCE ? 5.0 : 3.0, rcolor*1.5);
+          if (isNaN(x) || isNaN(y)) {
+            throw new Error("nan!");
+          }
           
-          //
-          kdtree.forEachPoint(x1, y1, r*rmul, function(pi) {
-            var x2 = ps[pi]-(x+ox), y2 = ps[pi+1]-(y+oy);
-            var dis = x2*x2 + y2*y2;
-            var gen2 = ps[pi+PGEN];
-           
-            var color2 = ps[pi+PCLR];
+          clrtots[0] = clrtots[1] = clrtots[2] = clrtots[3] = 0.0;
+          
+          var bad = false;
+          var mindis = undefined;
+          var color = 0;
+          
+          mindis = undefined;
+          for (var i=0; i<_poffs.length; i++) {
+            //if (FFT_TARGETING) break;
             
-            if (dis < rsqr2) {
-              var w = dis != 0.0 ? Math.sqrt(dis) / rcolor: 0.0;
-              w = 1.0 - w;
+            if (i > 0 && !TILABLE)
+              break;
+            
+            if (bad)
+              break;
+            
+            var ox = _poffs[i][0], oy = _poffs[i][1];
+            
+            var x1 = x+ox, y1 = y+oy;
+            
+            var rsqr = r*r;
+            var rcolor = r*2.5;
+            var rsqr2 = rcolor*rcolor;
+            
+            var rmul = Math.max(LIMIT_DISTANCE ? 5.0 : 3.0, rcolor*1.5);
+            
+            //
+            kdtree.forEachPoint(x1, y1, r*rmul, function(pi) {
+              var x2 = ps[pi]-(x+ox), y2 = ps[pi+1]-(y+oy);
+              var dis = x2*x2 + y2*y2;
+              var gen2 = ps[pi+PGEN];
+             
+              var color2 = ps[pi+PCLR];
               
-              w = w*w*(3.0 - 2.0*w);
-              clrtots[color2] += w;
-            }
-            
-            if (dis < rsqr) {
-              bad = true;
-            }
-            
-            if (LIMIT_DISTANCE) {
-              if (mindis == undefined || dis < mindis)
+              if (dis < rsqr2) {
+                var w = dis != 0.0 ? Math.sqrt(dis) / rcolor: 0.0;
+                w = 1.0 - w;
+                
+                w = w*w*(3.0 - 2.0*w);
+                clrtots[color2] += w;
+              }
+              
+              if (mindis === undefined || dis < mindis) {
                 mindis = dis;
-            }
-          });
+              }
+              
+              if (dis < rsqr) {
+                bad = true;
+              }
+            });
+          }
+          
+          if (clrtots[0] < clrtots[1] && clrtots[0] < clrtots[2] && clrtots[0] < clrtots[3])
+            color = 0;
+          else if (clrtots[1] < clrtots[0] && clrtots[1] < clrtots[2] && clrtots[1] < clrtots[3])
+            color = 1;
+          else if (clrtots[2] < clrtots[1] && clrtots[2] < clrtots[0] && clrtots[2] < clrtots[3])
+            color = 2;
+          else if (clrtots[3] < clrtots[1] && clrtots[3] < clrtots[2] && clrtots[3] < clrtots[0])
+            color = 3;
+          //else if (clrtots[0] != 0) // && clrtots[1] != 0 && clrtots[2] != 0)
+          //  continue;
+          else
+            color = ~~(Math.random()*3.99999)
+          
+          var rsqr2 = this.r*(1.0 + DISTANCE_LIMIT);
+          rsqr2 *= rsqr2;
+        
+          if (LIMIT_DISTANCE && mindis != undefined && mindis > rsqr2) {
+            bad = true;
+          }
+          
+          if (DART_PUSH_SPACING && mindis !== undefined && mindis < rsqr3) {
+            bad = true;
+          }
+          
+          //XXX
+          bad = bad && !FFT_TARGETING
+          
+          if (bad) continue;
+          
+          if (maxdis === undefined || mindis > maxdis) {
+            maxdis = mindis === undefined ? 1 : mindis;
+            maxx = x;
+            maxy = y;
+            maxcolor = color;
+          }
         }
         
-        if (clrtots[0] < clrtots[1] && clrtots[0] < clrtots[2] && clrtots[0] < clrtots[3])
-          color = 0;
-        else if (clrtots[1] < clrtots[0] && clrtots[1] < clrtots[2] && clrtots[1] < clrtots[3])
-          color = 1;
-        else if (clrtots[2] < clrtots[1] && clrtots[2] < clrtots[0] && clrtots[2] < clrtots[3])
-          color = 2;
-        else if (clrtots[3] < clrtots[1] && clrtots[3] < clrtots[2] && clrtots[3] < clrtots[0])
-          color = 3;
-        //else if (clrtots[0] != 0) // && clrtots[1] != 0 && clrtots[2] != 0)
-        //  continue;
-        else
-          color = ~~(Math.random()*3.99999)
-        
-        var rsqr2 = this.r*(1.0 + DISTANCE_LIMIT);
-        rsqr2 *= rsqr2;
-        
-        if (mindis != undefined && mindis > rsqr2) {
-          bad = true;
+        if (maxdis === undefined) {
+          //no matches found
+          continue;
+        } else {
+          bad = false;
         }
         
-        //XXX
-        bad = bad && !FFT_TARGETING
+        x = maxx, y = maxy, color = maxcolor;
         
-        if (bad) continue;
+        if (SCAN_MODE) this.cur--;
         
         var pi = ps.length;
         
@@ -283,7 +267,13 @@ define([
         
         ps[pi+PR2] = r;
         ps[pi+PCLR] = color;
+        
         ps[pi] = x, ps[pi+1] = y, ps[pi+PR]=final_r, ps[pi+PGEN]=hlvl;
+
+        //*
+        ps[pi+PGEN] = ps.length/PTOT;
+        this.maxgen = ps.length/PTOT;
+        //*/
         
         kdtree.insert(x, y, pi);
         
@@ -307,8 +297,28 @@ define([
       //*/
       
       this.regen_spatial();
-      this.update_cells();
+      
+      if (!SCAN_MODE) {
+        this.update_cells();
+        this.subdivide();
+        this.update_cells();
+      }
       this.raster();
+      
+      /*
+      if (SCAN_MODE) {
+        cells = this.cells;
+        
+        for (let ci=0; ci<cells.length; ci += CTOT) {
+          let cx = cells[ci], cy = cells[ci+1];
+          
+          if (cy >= cellrow) {
+            this.cur = ci;
+            break;
+          }
+        }
+        //this.cur = 0;
+      }//*/
       
       if (!noreport) {
         this.report("points", this.points.length/PTOT);
@@ -462,26 +472,103 @@ define([
       ps[pi+PCLR] = color;
     }
     
+    subdivide() {
+      if (this.celldepth >= MAX_CELL_DEPTH) {
+        return;
+      }
+      
+      this.cur *= 2;
+      
+      let newcs = [], cs = this.cells, ics = 1.0 / this.cellsize;
+      
+      for (let ci=0; ci<cs.length; ci += CTOT) {
+        for (let i=0; i<4; i++) {
+          let x = cs[ci] + (i % 2)*0.5*ics;
+          let y = cs[ci+1] + Math.floor(i / 2)*0.5*ics;
+          
+          let ci2 = newcs.length;
+          for (let j=0; j<CTOT; j++) {
+            newcs.push(cs[ci+j]);
+          }
+          
+          newcs[ci2] = x;
+          newcs[ci2+1] = y;
+        }
+      }
+      
+      this.cellsize *= 2.0;
+      this.cells = newcs;
+      this.celldepth++;
+    }
+    
+    update_cells() {
+      let cs = this.cells, ics = 1.0 / this.cellsize, cellsize = this.cellsize;
+      let ps = this.points;
+      
+      let tree = this.regen_spatial();
+      let searchr = ics + this.r*1.5;
+      
+      let newcs = [];
+      
+      for (let ci=0; ci<cs.length; ci += CTOT) {
+        let cx = cs[ci], cy = cs[ci+1];
+        let ok = true;
+        
+        for (let off of _poffs) {
+          tree.forEachPoint(cx+ics*0.5+off[0], cy+ics*0.5+off[1], searchr, (pi) => {
+            let x = ps[pi]-off[0], y = ps[pi+1]-off[1], r = this.r*1.001; //ps[pi+PR];
+            let rsqr = r*r;
+            
+            let d1 = (x-cx)*(x-cx)         + (y-cy)*(y-cy);
+            let d2 = (x-cx-ics)*(x-cx-ics) + (y-cy)*(y-cy);
+            let d3 = (x-cx-ics)*(x-cx-ics) + (y-cy-ics)*(y-cy-ics);
+            let d4 = (x-cx)*(x-cx)         + (y-cy-ics)*(y-cy-ics);
+            
+            if (d1 < rsqr && d2 < rsqr && d3 < rsqr && d4 < rsqr) {
+              ok = false;
+              return true; //stop kdtree iteration
+            }
+          });
+        }
+        
+        if (ok) {
+          for (let i=0; i<CTOT; i++) {
+            newcs.push(cs[ci+i]);
+          }
+        }
+      }
+      
+      this.cells = newcs;
+    }
+    
     make_cells() {
       var r = this.r;
-      var dimen = this.dimen; //~~(Math.sqrt(2) / r);
-      //dimen *= 2;
+      var dimen = Math.max(Math.floor(1.5*Math.sqrt(2) / r), 3);
       
-      //console.log("cell size:", dimen);
+      if (SCAN_MODE)
+        dimen *= 2;
+      
+      this.cellsize = dimen;
+      this.celldepth = 0;
+      
+      console.log("cell size:", dimen);
       
       var cells = this.cells = [];
-      this.cellsize = Math.max(~~dimen, 16);
       
       for (var i=0; i<dimen*dimen; i++) {
         var x = i % dimen;
-        var y = ~~(i / dimen);
+        var y = Math.floor(i / dimen);
         
-        cells.push(x/dimen);
-        cells.push(y/dimen);
-        cells.push(x);
-        cells.push(y);
+        let ci = cells.length;
+        for (let j=0; j<CTOT; j++) {
+          cells.push(0);
+        }
+        
+        cells[ci] = x/dimen;
+        cells[ci+1] = y/dimen;
       }
       
+      this.update_cells();
       //console.log("cells:", this.cells.length/CTOT);
     }
     
@@ -506,7 +593,7 @@ define([
       }
       
       //this.final_r = Math.sqrt(0.5 / (Math.sqrt(3)*2*totpoint));
-      this.final_r = 1.0 / (Math.sqrt(1.5)*size);
+      this.final_r = 1.15 / (Math.sqrt(1.5)*size);
       
       if (cf.HIEARCHIAL_LEVELS > 1) {
         this.start_r = cf.GEN_MASK ? this.final_r*cf.HIEARCHIAL_SCALE : this.final_r;
@@ -544,32 +631,26 @@ define([
     }
     
     draw(g) {
+      let ps = this.points, cells = this.cells, icellsize = 1.0 / this.cellsize;
+      let cellsize = this.cellsize;
+      
       super.draw(g);
-            
-      if (FFT_TARGETING && this.fft_image != undefined) {
-        this.fft.raster(this.fft_image);
-        this.fft.calc_radial();
-        this.fft.draw(g, 180, 350, this.fft_image);
+      
+      if (!DRAW_CELLS) {
+        return;
       }
       
-      if (!ALIGN_GRID)
-        return;
-
-      var cf = this.config;
-      var size = this.dimen;
-      
-      g.strokeStyle = "grey";
+      let pad = this.cells.length/CTOT < 2048 ? 0.05 / this.dimen : 0.0;
       
       g.beginPath();
-      var dx = 1.0 / size;
-      for (var i=0; i<size; i++) {
-        g.moveTo(i*dx, 0);
-        g.lineTo(i*dx, 1);
+      for (let ci=0; ci<cells.length; ci += CTOT) {
+        let cx = cells[ci], cy = cells[ci+1];
         
-        g.moveTo(0, i*dx);
-        g.lineTo(1, i*dx);
+        g.rect(cx+pad, cy+pad, icellsize-2*pad, icellsize-2*pad);
       }
-      g.stroke();
+      
+      g.fillStyle = "rgba(75, 175, 255, 0.5)";
+      g.fill();
     }
     
     /*
@@ -654,23 +735,6 @@ define([
       
       //scramble order of first level if pack densely is on
       //*
-      if (this.hlvl == 0 && cf.LIMIT_DISTANCE) {
-        var ps = this.points;
-        
-        for (var i=0; i<ps.length; i += PTOT) {
-          var gen = ps[i+PGEN];
-          
-          ps[i+PGEN] = ~~(Math.random()*5);
-        }
-        
-        //this.sort();
-        
-        for (var i=0; i<ps.length; i += PTOT) {
-          var gen = ps[i+PGEN];
-          
-          ps[i+PGEN] = 0;
-        }
-      }
       
       var ps = this.points;
       for (var i=0; i<ps.length; i += PTOT) {
@@ -689,7 +753,8 @@ define([
         }
       }
       
-      //this.make_cells();
+      this.update_r();
+      this.make_cells();
     }
   };
   

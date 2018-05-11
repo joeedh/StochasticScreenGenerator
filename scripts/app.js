@@ -7,10 +7,10 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'presets', 'void_cluster', 'fft', 'interface', 'darts2', 'histogram', "mitchell", 
-  "mask_optimize"
+  "mask_optimize", "blue_voidcluster"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
            sph_presets, presets, void_cluster,
-           fftmod, iface, darts2, histogram, mitchell, mask_optimize) 
+           fftmod, iface, darts2, histogram, mitchell, mask_optimize, bluevc) 
 {
   'use strict';
   
@@ -23,7 +23,8 @@ define([
     void_cluster.VoidClusterGenerator,
     darts2.Darts2Generator,
     mitchell.MitchellGenerator,
-    mask_optimize.MaskOptGenerator
+    mask_optimize.MaskOptGenerator,
+    bluevc.BlueVCGenerator
   ];
   
   var sin_table = (function() {
@@ -640,6 +641,40 @@ define([
         g.stroke();
       }
       
+      if (DRAW_GRID) {
+        let steps = this.mask_img.width;
+        let mscale = SMALL_MASK ? 1 : (XLARGE_MASK ? 8 : 4);
+        
+        for (let axis=0; axis<2; axis++) {
+          
+          for (let i=0; i<steps; i++) {
+            let f = i / steps;
+            
+            let x = axis ? 0 : f;
+            let y = !axis ? 0 : f;
+            
+            g.beginPath();
+
+            g.moveTo(x, y);
+            
+            x = axis ? 1 : f;
+            y = !axis ? 1 : f;
+            
+            g.lineTo(x, y);
+            f = (i % mscale)/mscale;
+            f = f*0.5 + 0.5;
+            f = ~~(f*255);
+            
+            let f1 = f// & 255;
+            let f2 = f//(f>>8) & 255;
+            let f3 = f//f2;
+            
+            g.strokeStyle = "rgb("+f1+","+f2+","+f3+")";
+            g.stroke();
+          }
+        }
+      }
+      
       if (DRAW_KDTREE) {
         this.generator.kdtree.draw(g);
       }
@@ -656,13 +691,15 @@ define([
       for (var _j=0; !this.generator.skip_point_draw && _j<colors.length; _j++) {
         var j = _j % colors.length;
         
-        var c = colors[j];
-        var r = ~~(c[0]*255);
-        var g1 = ~~(c[1]*255);
-        var b = ~~(c[2]*255);
-        g.fillStyle = "rgb("+r+","+g1+","+b+")";
+        if (DRAW_COLOR) {
+          var c = colors[j];
+          var r = ~~(c[0]*255);
+          var g1 = ~~(c[1]*255);
+          var b = ~~(c[2]*255);
+          g.fillStyle = "rgb("+r+","+g1+","+b+")";
+        }
         
-        if (!DRAW_COLOR) {
+        if (!DRAW_COLOR && !DRAW_GEN) {
           g.fillStyle = "black";
         }
         
@@ -689,8 +726,21 @@ define([
             //CMYK
             if (color != j) continue;
             
+            if (DRAW_GEN) {
+              let f1 = gen, f2 = gen*0.5;
+          
+              f1 = ~~(f1*255);
+              f2 = ~~(f2*255);
+              g.fillStyle = "rgba("+f1+","+f2+",0, 1.0)";
+              g.beginPath();
+            }
+            
             g.moveTo(x, y);
             g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
+            
+            if (DRAW_GEN) {
+              g.fill();
+            }
           }
           g.fill();
         }
@@ -913,6 +963,8 @@ define([
       
       panel.slider('DRAW_RESTRICT_LEVEL', 'Display Level', 1.0, 0, 1, 0.0001, false, true);
       panel.check("DRAW_COLOR", "Show Colors");
+      panel.check("DRAW_GEN", "Show MaskLevels");
+      
       panel.check("GEN_CMYK_MASK", "Make Color Mask");
       
       panel.button('save_mask', "Save To Cache", function() {
@@ -1004,6 +1056,7 @@ define([
       panel.slider('SCALE', 'Zoom', 1.0, 0.01, 5, 0.001, false, true);
       
       panel.check('DRAW_KDTREE', 'Show kd-tree');
+      panel.check('DRAW_GRID', 'Show Grid');
       panel.check('DRAW_MASK', 'Show Mask');
       panel.check('SMALL_MASK', 'Small Mask');
       panel.check('DRAW_OFFS', 'Apply Offsets');

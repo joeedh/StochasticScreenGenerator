@@ -178,7 +178,7 @@ define([
       redraw_all()
     }
     
-    gen_initial_blue(dimen, appstate, mask_image) {
+    gen_initial_blue(cf, dimen, appstate, mask_image) {
       var midsize = this.midsize, dimen = this.dimen;
       var midr = this.start_r;
       
@@ -199,7 +199,7 @@ define([
         this.gen++;
       }
 
-      this.searchr = this.filter_r();
+      this.searchr = this.filter_r(cf);
       
       for (let i=0; i<10; i++) {
         this.relax();
@@ -336,11 +336,11 @@ define([
         if (VOID_BAYER_MODE) {
           this.gen_initial_structured(dimen, appstate, mask_image);
         } else {
-          this.gen_initial_blue(dimen, appstate, mask_image);
+          this.gen_initial_blue(this.config, dimen, appstate, mask_image);
         }
       }
 
-      this.search_r = this.filter_r();
+      this.search_r = this.filter_r(this.config);
       
       for (var i=0; i<ps.length; i += PTOT) {
         var x = ps[i], y = ps[i+1];
@@ -365,7 +365,7 @@ define([
         
         ps[i+PGEN] = 0;
         
-        this.grid_sum_point(i, 1);
+        this.grid_sum_point(this.config, i, 1);
       }
 
       var size = this.gridsize;
@@ -389,7 +389,7 @@ define([
       this.raster();
     }
     
-    init_from_points(ps) {
+    init_from_points(cf, ps) {
       var grid = this.grid, size = this.gridsize;
       
       this.points = ps;
@@ -412,10 +412,10 @@ define([
       }
       
       this.midpoints = this.totfilled = ps.length/PTOT;
-      this.search_r = this.filter_r();
+      this.search_r = this.filter_r(cf);
     }
     
-    grid_sum_point(pi, sign) {
+    grid_sum_point(cf, pi, sign) {
       var grid = this.grid, size = this.gridsize;
       var ps = this.points, r = this.search_r; //this.filter_r();
       
@@ -459,7 +459,7 @@ define([
         
         var w = 1.0 - dis/r;
         
-        w = VOIDCLUSTER_CURVE.evaluate(w);
+        w = cf.VOIDCLUSTER_CURVE.evaluate(w);
         
         var idx = (iy2*size+ix2)*GTOT;
         
@@ -537,14 +537,14 @@ define([
       return this.filter_new(ix, iy, ignore_existence, excluded_pi);
     }
     
-    filter_r() {
+    filter_r(cf) {
       var size = this.gridsize, grid = this.grid, ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
       var r = Math.sqrt(2.0) / Math.sqrt(1+this.points.length/PTOT);
-      r *= VC_FILTERWID;
+      r *= cf.VC_FILTERWID;
       
       return r;
     }
@@ -609,13 +609,13 @@ define([
       return sumtot == 0 ? 0 : sumw//sumtot;
     }
 
-    filter_old(ix, iy, mode2) {
+    filter_old(cf, ix, iy, mode2) {
       var size = this.gridsize, grid = this.grid, ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
-      var r = this.filter_r();
+      var r = this.filter_r(cf);
       var ir = r*Math.sqrt(2)*size;
       var rd = ~~(ir+2.0);
         
@@ -673,6 +673,8 @@ define([
     }
     
     step(custom_steps) {
+      let cf = this.config;
+      
       var steps = custom_steps ? custom_steps : STEPS;
       steps = ~~(Math.log(steps) / Math.log(2)) + 20;
       
@@ -722,7 +724,7 @@ define([
         }
         
         for (var i=0; i<this.midpoints; i++) {
-          this.grid_sum_point(i*PTOT, 1);
+          this.grid_sum_point(cf, i*PTOT, 1);
         }
       }
       
@@ -731,7 +733,12 @@ define([
       this.raster();
     }
     
+    done() {
+      return this.points.length/PTOT >= this.dimen*this.dimen;
+    }
+    
     cluster_step() {
+      let cf = this.config;
       var size = this.gridsize, grid = this.grid, ps = this.points;
       
       if (this.totfilled <= 0) {
@@ -781,10 +788,11 @@ define([
       var iy = ~~(mini / size);
       this.totfilled--;
       
-      this.grid_sum_point(pi, -1);
+      this.grid_sum_point(cf, pi, -1);
     }
     
     void_step(custom_steps) {
+      let cf = this.config;
       var steps = custom_steps ? custom_steps : STEPS;
       var size = this.gridsize, grid = this.grid, ps = this.points;
       
@@ -924,7 +932,7 @@ define([
       grid[mini*GTOT] = pi;
       
       this.update_fscale(true);
-      this.grid_sum_point(pi, 1);
+      this.grid_sum_point(cf, pi, 1);
     }
     
     optimize_grid_point(xy, ix, iy, pi) {

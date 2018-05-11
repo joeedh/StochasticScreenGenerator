@@ -21,7 +21,21 @@ define([
       exports._configs.push(cfg);
       cconst.registerConfig(cfg);
     }
-
+    
+    copy() {
+      let mc = new MaskConfig();
+      
+      for (let k in this) {
+        if (typeof this[k] == "function") {
+          continue;
+        }
+        
+        mc[k] = this[k];
+      }
+      
+      return mc;
+    }
+    
     update() {
       for (let cfg of exports._configs) {
         for (let k in cfg) {
@@ -400,7 +414,7 @@ define([
       this.raster();
     }
     
-    relax(use_avg_dis, max_lvl_perc) {
+    relax(use_avg_dis, max_lvl_perc, speed=1.0, config) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -408,7 +422,7 @@ define([
       
       //console.log("warning, default implementation");
       
-      var cf = this.config;
+      var cf = config === undefined ? this.config : config;
       
       var plen = this.points.length;
       var ps = this.points;
@@ -542,6 +556,8 @@ define([
         sumy /= sumtot;
         
         var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
+        
+        fac *= speed;
         
         ps[i] += (sumx - ps[i])*2.0*fac;
         ps[i+1] += (sumy-ps[i+1])*2.0*fac;
@@ -963,6 +979,8 @@ define([
           
           var start2 = util.time_ms();
           var report = 0;
+          
+          this2.config.update();
           
           while (util.time_ms() - start2 < 150) {
             appstate.step(undefined, report++);
