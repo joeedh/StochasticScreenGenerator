@@ -7,10 +7,10 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'presets', 'void_cluster', 'fft', 'interface', 'darts2', 'histogram', "mitchell", 
-  "mask_optimize", "blue_voidcluster"
+  "mask_optimize", "blue_voidcluster", "smoothedmask"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
-           sph_presets, presets, void_cluster,
-           fftmod, iface, darts2, histogram, mitchell, mask_optimize, bluevc) 
+           sph_presets, presets, void_cluster, fftmod, iface, darts2, 
+           histogram, mitchell, mask_optimize, bluevc, smoothedmask) 
 {
   'use strict';
   
@@ -18,13 +18,14 @@ define([
   var Class = util.Class;
   
   var generators = [
-    sph.SPHGenerator,
+    smoothedmask.SmoothedMaskGenerator,
     darts.DartsGenerator,
     void_cluster.VoidClusterGenerator,
     darts2.Darts2Generator,
     mitchell.MitchellGenerator,
     mask_optimize.MaskOptGenerator,
-    bluevc.BlueVCGenerator
+    bluevc.BlueVCGenerator,
+    sph.SPHGenerator
   ];
   
   var sin_table = (function() {

@@ -402,6 +402,7 @@ define([
     }
     
     relax() {
+      this.report("relaxing");
       //console.log("warning, default implementation");
       
       var cf = this.config;
@@ -534,6 +535,8 @@ define([
       
       this.regen_spatial();
       this.raster();
+      
+      this.report("done relaxing");
     }
 
     raster() {

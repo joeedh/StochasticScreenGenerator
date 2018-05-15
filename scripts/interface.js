@@ -415,6 +415,8 @@ define([
     }
     
     relax(use_avg_dis, max_lvl_perc, speed=1.0, config) {
+      this.report("relaxing. . .");
+      
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -573,6 +575,7 @@ define([
         
       this.regen_spatial();
       this.raster();
+      this.report("done relaxing");
     }
     
     sort() {

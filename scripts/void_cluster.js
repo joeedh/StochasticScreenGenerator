@@ -194,6 +194,7 @@ define([
       
         ps[pi] = x, ps[pi+1] = y;
         ps[pi+PR] = ps[pi+PR2] = midr;
+        ps[pi+PCLR] = 0;
         
         ps[pi+PGEN] = this.maxgen++;
         this.gen++;
@@ -676,7 +677,7 @@ define([
       let cf = this.config;
       
       var steps = custom_steps ? custom_steps : STEPS;
-      steps = ~~(Math.log(steps) / Math.log(2)) + 20;
+      steps = ~~(Math.log(steps) / Math.log(1.15)) + 40;
       
       console.log("steps", steps);
       
@@ -924,6 +925,8 @@ define([
       ps[pi+PIX]  = ~~((xy[0]+0.0001)*this.mask_img.width*0.999999+0.0001);
       ps[pi+PIY]  = ~~((xy[1]+0.0001)*this.mask_img.width*0.999999+0.0001);
       ps[pi+PGEN] = this.maxgen++;
+      ps[pi+PCLR] = (pi/PTOT) % 4;
+      
       //ps[pi+PCLR] = this.cur_cmyk;
       //this.cur_cmyk = (this.cur_cmyk+1) % 4;
       

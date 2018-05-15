@@ -13,13 +13,14 @@ window.APP_VERSION = 0.5;
 window.MAX_REPORT_LINES = 12;
 
 window.MODES = {
-  SPH      : 0,
-  DART     : 1,
+  SMOOTHMASK   : 0,
+  DART         : 1,
   VOID_CLUSTER : 2,
-  DART2    : 3,
-  MITCHELL : 4,
-  MASKOPT  : 5,
-  BLUEVC   : 6
+  DART2        : 3,
+  MITCHELL     : 4,
+  MASKOPT      : 5,
+  BLUEVC       : 6,
+  SPH          : 7,
 };
 
 window.DRAW_GRID = false;

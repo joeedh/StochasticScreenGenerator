@@ -83,13 +83,18 @@ define([
     
     update_r() {
       var hlvl = this.hlvl;
-      var t;
+      var t, t2;
       
       if (this.hsteps == 1)
-        t = 1;
-      else
-        t = RADIUS_CURVE.evaluate(1.0 - hlvl / (this.hsteps-1));
-        
+        return this.start_r;
+      
+      t = RADIUS_CURVE.evaluate(1.0 - hlvl / (this.hsteps-1));
+      t2 = RADIUS_CURVE.evaluate(1.0 - (hlvl+1) / (this.hsteps-1));
+      
+      var s = Math.min(this._t / 8, 1.0);
+      
+      t += (t2 - t) * s*0.5;
+      
       this.r = this.start_r*t + this.final_r*(1.0-t);
     }
     
@@ -104,6 +109,7 @@ define([
       this.pass++;
       
       this.update_r();
+      this._t++;
       
       var r = this.r;
       //*/
@@ -575,6 +581,7 @@ define([
     reset(size, appstate, mask_image) {
       super.reset(size, appstate, mask_image);
       
+      this._t = 0;
       this.cur = 0;
       var cf = this.config;
       
@@ -732,6 +739,7 @@ define([
       var cf = this.config;
       
       this.maxgen = this.hsteps;
+      this._t = 0;
       
       //scramble order of first level if pack densely is on
       //*
