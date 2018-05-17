@@ -963,7 +963,7 @@ define([
             
             this2.config.update();
             
-            while (util.time_ms() - start2 < 700) {
+            while (util.time_ms() - start2 < 350) {
               appstate.step(undefined, report++);
             }
           }
@@ -985,7 +985,7 @@ define([
           
           this2.config.update();
           
-          while (util.time_ms() - start2 < 150) {
+          while (util.time_ms() - start2 < 350) {
             appstate.step(undefined, report++);
           }
           

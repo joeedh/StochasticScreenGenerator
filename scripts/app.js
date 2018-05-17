@@ -7,10 +7,10 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'presets', 'void_cluster', 'fft', 'interface', 'darts2', 'histogram', "mitchell", 
-  "mask_optimize", "blue_voidcluster", "smoothedmask"
+  "mask_optimize", "blue_voidcluster", "smoothedmask", "indexdb_store"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
            sph_presets, presets, void_cluster, fftmod, iface, darts2, 
-           histogram, mitchell, mask_optimize, bluevc, smoothedmask) 
+           histogram, mitchell, mask_optimize, bluevc, smoothedmask, indexdb_store) 
 {
   'use strict';
   
@@ -839,7 +839,9 @@ define([
         case 83: //skey
           var dataurl = this.save_dataurl();
           
-          localStorage.startup_mask_bn4 = dataurl;
+          //localStorage.startup_mask_bn4 = dataurl;
+          new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
+
           window.open(dataurl);
           
           redraw_all();
@@ -972,7 +974,8 @@ define([
         this2.report("\nSaving blue noise mask to local storage");
         //this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
         
-        localStorage.startup_mask_bn4 = _appstate.save_dataurl();
+        new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
+        //localStorage.startup_mask_bn4 = _appstate.save_dataurl();
       });
       
       var panel2 = panel.panel("FFT");
