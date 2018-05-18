@@ -955,6 +955,14 @@ define([
       var panel = this.gui2 = new ui.UI("bn9_gui2", window); //XXX don't use window!
       panel.check('GEN_MASK', 'Generate Mask');
       
+      panel.button('save_mask', "Save To Cache", function() {
+        this2.report("\nSaving blue noise mask to local storage");
+        //this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
+        
+        new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
+        //localStorage.startup_mask_bn4 = _appstate.save_dataurl();
+      });
+      
       var panel2 = panel.panel("Tone Curve");
       window.TONE_CURVE = panel2.curve('TONE_CURVE', 'Tone Curve', presets.TONE_CURVE).curve;
       panel2.check('USE_TONE_CURVE', 'Enable Tone Curve');
@@ -969,14 +977,6 @@ define([
       panel.check("DRAW_GEN", "Show MaskLevels");
       
       panel.check("GEN_CMYK_MASK", "Make Color Mask");
-      
-      panel.button('save_mask', "Save To Cache", function() {
-        this2.report("\nSaving blue noise mask to local storage");
-        //this2.report("  so other apps can load it, e.g. BlueNoiseStippling");
-        
-        new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
-        //localStorage.startup_mask_bn4 = _appstate.save_dataurl();
-      });
       
       var panel2 = panel.panel("FFT");
       window.FFT_CURVE = panel2.curve('FFT_CURVE', 'Radial Spectrum', presets.FFT_CURVE).curve;

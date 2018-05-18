@@ -17,10 +17,10 @@ define([
   };
   
   let config = exports.config = {
-    SM_SPH_CURVE  :  {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6625,"1":0.06875000000000009,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.8687500000000001,"1":0,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":7}},
-    SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
-    SM_TONE_CURVE  :  {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.30625,"1":0.15000000000000024,"eid":9,"flag":0,"deg":3,"tangent":1},{"0":0.58125,"1":0.16875000000000007,"eid":10,"flag":0,"deg":3,"tangent":1},{"0":0.6437500000000002,"1":0.33125000000000004,"eid":12,"flag":1,"deg":3,"tangent":1},{"0":0.94375,"1":0.26875000000000004,"eid":11,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":13}},
-    SM_IMAGE_CURVE  :  {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":6}},
+    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6625,"1":0.06875000000000009,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.8687500000000001,"1":0,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":7}}),
+    SM_GEN_CURVE  : new cconst.EditableCurve("SM_GEN_CURVE"),
+    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.4062500000000001,"1":0.2250000000000001,"eid":19,"flag":0,"deg":3,"tangent":1},{"0":0.6,"1":0.55625,"eid":20,"flag":1,"deg":3,"tangent":1},{"0":1,"1":0.76875,"eid":18,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":21}}),
+    SM_IMAGE_CURVE  : new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":6}}),
     PATH_DEGREE  :  4,
     DRAW_TEST  :  true,
     MAX_SCALE  :  8,
@@ -52,10 +52,13 @@ define([
       let v = window[k] !== undefined ? window[k] : exports.config[k];
       
       if (v instanceof ui.Curve) {
-        v = v.toJSON();
+        v = JSON.stringify(v.toJSON());
+        v = "new cconst.EditableCurve(\"" + k + "\", " + v + ")";
+      } else {
+        v = JSON.stringify(v);
       }
       
-      buf += "    " + k + "  :  " + JSON.stringify(v) + ",\n";
+      buf += "    " + k + "  :  " + v + ",\n";
     }
     buf += "  };\n"
     
