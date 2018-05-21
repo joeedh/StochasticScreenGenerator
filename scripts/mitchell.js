@@ -285,7 +285,7 @@ define([
         this.find_mask_pixel(pi);
       }
       
-      console.log("Total points:", this.points.length/PTOT);
+      this.report("Total points:", this.points.length/PTOT, "of", this.maxpoints);
       
       this.regen_spatial();
       this.raster();

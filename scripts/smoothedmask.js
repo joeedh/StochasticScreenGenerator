@@ -15,7 +15,7 @@ define([
     SIMPLE  : 1,
     POLYFIT : 2
   };
-  
+  /*
   let config = exports.config = {
     SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6625,"1":0.06875000000000009,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.8687500000000001,"1":0,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":7}}),
     SM_GEN_CURVE  : new cconst.EditableCurve("SM_GEN_CURVE"),
@@ -34,6 +34,7 @@ define([
     PULL_FACTOR  :  0.378,
     RANGE  :  128,
     REPEAT  :  10,
+    SM_SPH_SPEED2 : 4.0,
     SHOW_PATHS  :  true,
     STARTCO_BLEND  :  1,
     PRESTEPS  :  35,
@@ -44,7 +45,50 @@ define([
     ADV_STEPS  :  5,
     SM_TOTPOINT_MUL  :  0.95,
     SM_PREPOWER  :  0.6,
-  };  
+  };*/
+
+  let config = exports.config = {
+    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6062500000000001,"1":0.04375000000000018,"eid":9,"flag":1,"deg":3,"tangent":1},{"0":0.6625,"1":0.06875000000000009,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.8125000000000001,"1":0.1875,"eid":4,"flag":1,"deg":3,"tangent":1},{"0":0.9125,"1":0.3437500000000002,"eid":8,"flag":0,"deg":3,"tangent":1},{"0":0.9249999999999999,"1":0.9125000000000001,"eid":7,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":10}}),
+    SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
+    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3187500000000001,"1":0.1875000000000001,"eid":19,"flag":0,"deg":3,"tangent":1},{"0":0.6,"1":0.55625,"eid":20,"flag":0,"deg":3,"tangent":1},{"0":0.8250000000000001,"1":0.7812500000000001,"eid":18,"flag":1,"deg":3,"tangent":1},{"0":0.9062500000000001,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":21}}),
+    SM_IMAGE_CURVE  :  new cconst.EditableCurve("SM_IMAGE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":6}}),
+    SM_G_CURVE : new cconst.EditableCurve("SM_G_CURVE"),
+    PATH_DEGREE  :  4,
+    DRAW_TEST  :  true,
+    MAX_SCALE  :  8,
+    SM_RADMUL  :  0.95,
+    PATH_SMOOTH_FACTOR  :  0.057,
+    SIMPLE_MODE  :  true,
+    DISPLAY_LEVEL  :  1,
+    SOLVE_LEVEL  :  1,
+    SM_DV_DAMPING  :  1,
+    SM_GENSTART  :  0.025,
+    PULL_FACTOR  :  0.28600000000000003,
+    RANGE  :  127,
+    SOLVE_RANGE_MUL : 2,
+    REPEAT  :  4,
+    SM_SPH_SPEED2  :  8.25,
+    SHOW_PATHS  :  true,
+    STARTCO_BLEND  :  1,
+    PRESTEPS  :  15,
+    UPDATE_START_COS  :  true,
+    SM_SEARCHRAD  :  2.45,
+    SM_SEARCHRAD2  :  3.96,
+    SM_PRE_PARAM   : 0.001,
+    ADV_SOLVE  :  true,
+    ADV_STEPS2  :  4,
+    ADV_STEPS  :  2,
+    SM_TOTPOINT_MUL  :  0.95,
+    SM_PREPOWER  :  1,
+    SM_G_POW     : 3,
+
+    SMOOTH_REPEAT  :  1,
+    SMOOTH_WID     : 0.1,
+    SMOOTH_PULSE_RATE : 0.1,
+    SMOOTH_PULSE_FAC  : 1.0,
+    SMOOTH_PULSE_STEPS : 3,
+    SMOOTH_PULSE : false
+  };
   
   exports.saveConfig = function() {
     let buf = "  {\n";
@@ -115,10 +159,13 @@ define([
   let path_eval_cache = util.cachering.fromConstructor(vectormath.Vector2, 64);
   
   let Path = exports.Path = class Path extends Array {
-    constructor(ctx, pi, x, y) {
+    constructor(ctx, pi, x, y, startx, starty) {
       super();
       
       this.pi = pi;
+      
+      this.last_startx = startx;
+      this.last_starty = starty;
       
       //pre-allocate points
       for (let i=0; i<ctx.RANGE; i++) {
@@ -376,7 +423,7 @@ define([
             this[ti+1] += minoff[1];
         }
 
-        return this;
+        return minoff;
     }
 
     smooth(ctx, factor, mode) {
@@ -384,7 +431,9 @@ define([
       
       switch (mode) {
         case SmoothModes.SIMPLE:
-          this.simple_smooth(ctx, factor);
+          for (let i=0; i<ctx.SMOOTH_REPEAT; i++) {
+            this.simple_smooth(ctx, factor);
+          }
           break;
         case SmoothModes.POLYFIT:
           this.fit_smooth(ctx, factor);
@@ -394,6 +443,94 @@ define([
       }
     }
     
+    local_smooth_wrap(ctx, factor, t, w) {
+      let ti = this.find(t), ti1=ti;
+      
+      let totpoint = this.length / TTOT;
+      let iw = Math.ceil(w*this.length/TTOT);
+
+      ti = (ti/TTOT - iw + totpoint) % totpoint;
+      
+      let iw2 = iw*2;
+      
+      let sumx=0, sumy=0, sumtot=0;
+
+      for (let i=0; i<iw2; i++) {
+        let ti2 = ((ti + i) % totpoint)*TTOT;
+        let ti3 = ((ti + i + 1) % totpoint)*TTOT;
+        let t2 = this[ti2+TTIME];
+        let t3 = this[ti3+TTIME];
+
+        let s2 = Math.abs(t2 - t);
+        let s3 = Math.abs((t2+1) - t);
+        let s4 = Math.abs((t2 - 1) - t);
+
+        let s = Math.min(Math.min(s2, s3), s4);
+        if (s > w) {
+          continue;
+        }
+
+        s = 1.0 - s/w;
+        s *= s;
+        
+        /*
+        //let s = 1.0 - Math.abs(i/iw2 - 0.5)*2.0;
+        
+        sumx += this[ti2]*s;
+        sumy += this[ti2+1]*s;
+        sumtot += s;
+        //*/
+
+        //*
+        let fx = (this[ti2] + this[ti3])*0.5;
+        let fy = (this[ti2+1] + this[ti3+1])*0.5;
+        s *= factor;
+        
+        this[ti2] += (fx - this[ti2])*s;
+        this[ti2+1] += (fy - this[ti2+1])*s;
+        //*/
+      }
+        
+      /*
+      if (sumtot != 0) {
+        sumx /= sumtot;
+        sumy /= sumtot;
+
+        this[ti1] += (sumx - this[ti1])*factor;
+        this[ti1+1] += (sumy - this[ti1+1])*factor;
+      }
+      //*/
+    }
+
+    local_smooth(ctx, factor, t, w) {
+      //return this.local_smooth_wrap(ctx, factor, t, w);
+      
+      let ti = this.find(t);
+
+      while (ti > 0 && this[ti+TTIME] > t-w) {
+        ti -= TTOT;
+      }
+      
+      for (; ti<this.length - TTOT; ti += TTOT) {
+        if (this[ti+TTIME] > t+w) {
+          break;
+        }
+
+        let fx = (this[ti] + this[ti+TTOT])*0.5;
+        let fy = (this[ti+1] + this[ti+TTOT+1])*0.5;
+        let s = 1.0 - Math.abs(this[ti+TTIME] - t) / w;
+
+        if (s > 1.0) {
+          continue;
+        }
+
+        s *= s*factor;
+        
+        this[ti] += (fx - this[ti])*s;
+        this[ti+1] += (fy - this[ti+1])*s;
+      }
+    }
+
     simple_smooth(ctx, factor) {
       let cpy = this.slice(0, this.length);
       
@@ -451,7 +588,16 @@ define([
         mid = (start + end)*0.5;
       }
       
-      return Math.floor(mid*this.length/TTOT)*TTOT;
+      
+      //return closest one
+      let ti = Math.floor(mid*this.length/TTOT)*TTOT;
+      
+      //. . .that's less than t
+      while (ti > 0 && this[ti+TTIME] > t) {
+        ti -= TTOT;
+      }
+      
+      return ti;
     }
     
     testFind() {
@@ -537,8 +683,31 @@ define([
         return this.update(t, x, y, r, gen, true);
       }
       
-      this[ti] = x;
-      this[ti+1] = y;
+      while (ti < this.length - TTOT && this[ti+TTIME] < t) {
+        ti += TTOT;
+      }
+      
+      while (ti > 0 && this[ti+TTIME] > t) {
+        ti -= TTOT;
+      }
+      
+      let s = t - this[ti+TTIME];
+      
+      if (ti < this.length-TTOT && this[ti+TTIME] != this[ti+TTOT+TTIME]) {
+        let w = this[ti+TTOT+TTIME] - this[ti+TTIME];
+        
+        s /= w;
+        
+        this[ti]   += (x - this[ti])*(1.0 - s);
+        this[ti+1] += (y - this[ti+1])*(1.0 - s);
+        
+        this[ti+TTOT]   += (x - this[ti+TTOT])*s;
+        this[ti+TTOT+1] += (y - this[ti+TTOT+1])*s;
+      } else {
+        this[ti] = x;
+        this[ti+1] = y;
+      }
+      
       this[ti+TR] = r;
       this[ti+TGEN] = gen;
     }
@@ -572,7 +741,9 @@ define([
 
         return ret;
       }
-
+      
+      s /= w;
+      
       ret[0] = this[ti] + (this[ti+TTOT] - this[ti])*s;
       ret[1] = this[ti+1] + (this[ti+TTOT+1] - this[ti+1])*s;
 
@@ -675,6 +846,9 @@ define([
      
       let panel;
       
+      panel = gui.panel("G Curve");
+      window.SM_G_CURVE = panel.curve("SM_G_CURVE", "G Curve", cconst.DefaultCurves.SM_G_CURVE).curve;
+
       panel = gui.panel("SPH Curve");
       window.SM_SPH_CURVE = panel.curve("SM_SPH_CURVE", "Filter Curve", cconst.DefaultCurves.SM_SPH_CURVE).curve;
 
@@ -685,13 +859,20 @@ define([
       window.SM_TONE_CURVE = panel.curve("SM_TONE_CURVE", "Tone Curve", cconst.DefaultCurves.SM_TONE_CURVE).curve;
       
       panel = gui.panel("Settings2");
-      panel.slider("SM_PREPOWER", "PrePower", 1, 0.001, 9.0, 0.0001, false, true);
+      //panel.slider("SM_PREPOWER", "PrePower", 1, 0.001, 9.0, 0.0001, false, true);
+      panel.slider("SM_SPH_SPEED2", "PreSpeed", 1.0, 0.005, 16.0, 0.01, false, true);
+      panel.slider("SM_SEARCHRAD2", "PreSearchRad", 3.0, 0.1, 15.0, 0.01, false, true);
+      panel.slider("SM_PRE_PARAM", "PreParam", 0.001, 0.00001, 5.0, 0.00001, false, false);
+      panel.slider("SM_G_POW", "g pow", 3, -2.0, 16.0, 0.001, false, false);
+      
       panel.slider("SM_TOTPOINT_MUL", "TotalPointMul", 0.85, 0.001, 1.5, 0.0001, false, true);
 
       panel.slider("RANGE", "Range", 255, 2, 255, 1, true, true);
+      panel.slider("SOLVE_RANGE_MUL", "RangeMul", 2, 0.125, 64, 0.0001, false, true);
       panel.slider("PATH_DEGREE", "Path Degree", 4, 1, 8, 1, true, true);
       panel.slider("PRESTEPS", "PreSteps", 16, 0, 1024, 1, true, true);
       panel.slider("ADV_STEPS", "AdvSteps", 32, 0, 255, 1, true, true);
+      panel.slider("ADV_STEPS2", "AdvSteps2", 2, 0, 25, 1, true, true);
       panel.slider("SM_RADMUL", "Radius Factor", 0.8, 0.0, 1.0, 0.001, false, true);
       panel.slider("SM_DV_DAMPING", "Damping", 1.0, 0.0, 1.0, 0.001, false, true);
       panel.slider("SM_GENSTART", "GenStart", 0.05, 0.001, 0.5, 0.001, false, true);
@@ -709,9 +890,19 @@ define([
       panel.slider("STARTCO_BLEND", "Offset Blend", 1.0, 0.0, 1.0, 0.001, false, true);
       panel.slider("SOLVE_LEVEL", "Solve Level", 1.0, 0.0, 1.0, 0.001, false, true);
       panel.slider("PULL_FACTOR", "Pull Factor", 1.0, 0.0, 1.0, 0.001, false, true);
-      panel.slider("PATH_SMOOTH_FACTOR", "Path Smoothing", 1.0, 0.0, 1.0, 0.001, false, true);
-      
+
+      let panel2 = panel.panel("Path Smoothing");
+
+      panel2.slider("PATH_SMOOTH_FACTOR", "Amount", 1.0, 0.0, 1.0, 0.001, false, true);
+      panel2.slider("SMOOTH_REPEAT", "Repeat", 1, 0, 45.0, 1, true, false);
+      panel2.slider("SMOOTH_WID", "Filter Width", 1.0, 0.005, 16.0, 0.01, false, true);
+      panel2.check("SMOOTH_PULSE", "Initial Smooth Pulse", true);
+      panel2.slider("SMOOTH_PULSE_RATE", "Pulse Rate", 0.1, 0.005, 2.0, 0.01, false, true);
+      panel2.slider("SMOOTH_PULSE_FAC", "Pulse Amplitude", 1.0, 0.005, 2.0, 0.01, false, true);
+      panel2.slider("SMOOTH_PULSE_STEPS", "Pulse Steps", 1, 0, 45.0, 1, true, false);
+
       panel.slider("SPH_SPEED", "Speed", 1.0, 0.005, 16.0, 0.01, false, true);
+
       panel.slider("SM_SEARCHRAD", "Search Rad", 3.0, 0.1, 15.0, 0.01, false, true);
       //panel.slider("EXPONENT", "Exponent", 1.0, 0.001, 18.0, 0.001, false, true);
       
@@ -824,6 +1015,9 @@ define([
       
       this.config.update();
       
+      this.smooth_mul = 1.0;
+      this.smooth_i = 0;
+      
       this.dimen = dimen;
       this.points = [];
       this.totpoint = 0;
@@ -836,40 +1030,82 @@ define([
       
       let ctx = this.config;
       
+      ctx.SOLVE_RANGE = ctx.SOLVE_RANGE_MUL*ctx.RANGE;
+      
       this.cur_r = 0;
-      this.cur_t = (ctx.RANGE-1) / ctx.RANGE;
-      this.cur_t_i = ctx.RANGE-1;
+      this.cur_t = (ctx.SOLVE_RANGE_MUL-1) / ctx.SOLVE_RANGE;
+      this.cur_t_i = ctx.SOLVE_RANGE-1;
       
       ctx = ctx.copy();
 
       let dimen2 = dimen;
       
-      //let vc = new void_cluster.VoidClusterGenerator(this.appstate);
-      //let vc = new darts.DartsGenerator(this.appstate);
-      //dimen2 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
-      
-      let vc = new mitchell.MitchellGenerator(this.appstate);
-      ctx.MITCHELL_STEPSMUL = 0.125;
-      ctx.MITCHELL_TOTPOINT_MUL = ctx.SM_TOTPOINT_MUL;
-      
-      vc.config = ctx;
-      vc.reset(dimen2, appstate, mask_image);
-        
-      let i = 0;
-      while (!vc.done()) {
-          vc.step();
-          //if (i % 8 == 0) { //for darts
-          //  this.next_level();
-          //}
-          i++;
+      let maxgen;
+
+      if (1) {
+          let vc = new void_cluster.VoidClusterGenerator(this.appstate);
+          //let vc = new darts.DartsGenerator(this.appstate);
+          dimen2 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
+
+          /*
+          let vc = new mitchell.MitchellGenerator(this.appstate);
+          ctx.MITCHELL_STEPSMUL = 0.1465;
+          ctx.MITCHELL_TOTPOINT_MUL = ctx.SM_TOTPOINT_MUL;
+          //*/
+
+          vc.config = ctx;
+          vc.reset(dimen2, appstate, mask_image);
+
+          let i = 0;
+          while (!vc.done()) {
+              vc.step();
+              //if (i % 8 == 0) { //for darts
+              //  this.next_level();
+              //}
+              i++;
+          }
+
+          this.points = vc.points;
+          maxgen = vc.max_level();
+      } else {
+          let ps = this.points = [];
+          let totpoint = Math.ceil(dimen*dimen*ctx.SM_TOTPOINT_MUL);
+          maxgen = 1.0;
+
+          for (let i=0; i<totpoint; i++) {
+              let pi = ps.length;
+
+              for (let j=0; j<PTOT; j++) {
+                  ps.push(0.0);
+              }
+
+              ps[pi] = util.random();
+              ps[pi+1] = util.random();
+              
+              //let gen = util.random();
+              let gen = i/totpoint;
+              
+              ps[pi+PGEN] = ps[pi+POGEN] = gen;
+
+              let r = 0.95 / Math.sqrt(gen*totpoint + totpoint*0.1);
+              ps[pi+PR] = r;
+
+              ps[pi+PSTARTX] = ps[pi];
+              ps[pi+PSTARTY] = ps[pi+1];
+          }
       }
 
-      this.points = vc.points;
       let ps = this.points;
+      
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+          //make hexagonal  
+          ps[pi+1] += Math.fract(ps[pi]*this.dimen/2.0)/this.dimen;
+          ps[pi+1] = Math.fract(ps[pi+1]);
+      }
 
       for (let pi=0; pi<ps.length; pi += PTOT) {
-          let gen = ps[pi+PGEN] = ps[pi+PGEN] / vc.max_level();
-
+          let gen = ps[pi+PGEN] = ps[pi+PGEN] / maxgen;
+          
           gen = 1.0 - ctx.SM_TONE_CURVE.evaluate(1.0 - gen);
           ps[pi+PGEN] = gen;
           
@@ -881,6 +1117,22 @@ define([
       }
 
       this.calcRadii();
+
+      for (let i=0; i<ctx.PRESTEPS; i++) {
+          this.step_base_generate(this.config.copy());
+      }
+      this.updateStartCos(this.config);
+
+
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+          //ps[pi] += (util.random()-0.5)/this.dimen*0.225;
+          //ps[pi+1] += (util.random()-0.5)/this.dimen*0.225;
+          //ps[pi] = util.random();
+          //ps[pi+1] = util.random();
+
+          ps[pi] = ps[pi+PSTARTX] = Math.fract(ps[pi]);
+          ps[pi+1] = ps[pi+PSTARTY] = Math.fract(ps[pi+1]);
+      }
       
       /*
       this.throw();
@@ -897,7 +1149,7 @@ define([
     
     getPath(ctx, pi, create_if_nonexisting) {
       if (create_if_nonexisting && !(pi in this.paths)) {
-        this.paths[pi] = new Path(ctx, pi, this.points[pi], this.points[pi+1]);
+        this.paths[pi] = new Path(ctx, pi, this.points[pi], this.points[pi+1], this.points[pi+PSTARTX], this.points[pi+PSTARTY]);
       }
       
       return this.paths[pi];
@@ -1060,7 +1312,8 @@ define([
     regen_spatial(ctx) {
       ctx = ctx === undefined ? this.config : ctx;
 
-      let kd = this.kdtree = new kdtree.KDTree([-2.5, -2.5, -2.5], [2.5, 2.5, 2.5]);
+      let kd = this.kdtree === undefined ? new kdtree.KDTree([-2.5, -2.5, -2.5], [2.5, 2.5, 2.5]) : this.kdtree;
+      kd.clear();
       
       let ps = this.points;
       let co = [0, 0, 0];
@@ -1157,32 +1410,89 @@ define([
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let path = this.getPath(ctx, pi, true);
         
-        path.wrap();
+        let off = path.wrap();
 
         let co = path.evaluate(solvet);
-
+        
         ps[pi] = co[0];
         ps[pi+1] = co[1];
+
+        ps[pi+PSTARTX] += off[0];
+        ps[pi+PSTARTY] += off[1];
       }
     }
       
     advanced_solve(ctx) {
+      //make copy of ctx so we can make changes of it
       ctx = ctx.copy();
       
-      this.cur_t = this.cur_t_i / ctx.RANGE + 0.00001;
-      ctx.SOLVE_LEVEL = this.cur_t;
+      ctx.SOLVE_RANGE = ctx.RANGE * ctx.SOLVE_RANGE_MUL;
       
+      //let s = ctx.PATH_SMOOTH_FACTOR;
+      //s += (s*this.smooth_mul - s) * ctx.SMOOTH_PULSE_FAC;
+      //ctx.PATH_SMOOTH_FACTOR = s;
+      
+      /*
+         To get better correlations across levels (and thus better handle sharp gradients
+         and sharp edges in sampling), we:
+
+         1. do 1 normal solve across the full 1.0 time range
+         2. Set PATH_SMOOTH_FACTOR to 1 and solve for SMOOTH_PULSE_STEPS steps
+         3. go back to normal solving with user-set PATH_SMOOTH_FACTOR
+      */
+
+      if (ctx.SMOOTH_PULSE && this.smooth_i > 1 && this.smooth_i < ctx.SMOOTH_PULSE_STEPS + 1) {
+        ctx.PATH_SMOOTH_FACTOR = 1.0;
+        ctx.PULL_FACTOR = 0.9;
+      } else if (ctx.SMOOTH_PULSE) {
+        ctx.PATH_SMOOTH_FACTOR = Math.max(this.smooth_mul, ctx.PATH_SMOOTH_FACTOR);
+      }
+
+      this.cur_t_i = Math.min(this.cur_t_i, ctx.SOLVE_RANGE-1);
+
+      this.cur_t = this.cur_t_i / ctx.SOLVE_RANGE + 0.00001;
+      ctx.SOLVE_LEVEL = this.cur_t;
+
+      for (let i=0; i<ctx.ADV_STEPS2; i++) {
+        this.advanced_solve_intern(ctx);
+      }
+      
+      this.cur_t_i--;
+      
+      if (this.cur_t_i < 0) {
+        this.cur_t_i = ctx.SOLVE_RANGE - 1;
+        this.smooth_i++;
+
+        if (this.smooth_i > 1 + ctx.SMOOTH_PULSE_STEPS) {
+          this.smooth_mul *= 1.0 - ctx.SMOOTH_PULSE_RATE;
+        }
+        //this.smooth_mul *= 1.0 - ctx.SMOOTH_PULSE_RATE; //= Math.fract(this.smooth_mul - ctx.SMOOTH_PULSE_RATE);
+        //this.smooth_mul = 1.0 - (1.1 - this.smooth_mul) * (1.0 - ctx.SMOOTH_PULSE_RATE);
+      }
+      
+      if (ctx.SMOOTH_PULSE) {
+        this.report("cur_t", this.cur_t.toFixed(3), "smooth_i", Math.max(this.smooth_i, 1), "of", ctx.SMOOTH_PULSE_STEPS, "amount", ctx.PATH_SMOOTH_FACTOR);
+      } else {
+        this.report("cur_t", this.cur_t.toFixed(3));
+      }
+    }
+
+    advanced_solve_intern(ctx) {      
       //load last solve for this level
       let ps = this.points;
+
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let path = this.getPath(ctx, pi, true);
         
-        //path.wrap();
+        let off = path.wrap();
 
         let co = path.evaluate(this.cur_t);
 
         ps[pi] = co[0];
         ps[pi+1] = co[1];
+
+        ps[pi+PSTARTX] += off[0];
+        ps[pi+PSTARTY] += off[1];
       }
       
       for (let i=0; i<ctx.ADV_STEPS; i++) {
@@ -1193,17 +1503,21 @@ define([
         this.updateStartCos(ctx);
       
       //profiler said this is slow, so do it every third frame
-      if (this.cur_t_i % 3 == 0) {
-         this.smoothPaths(ctx);
-      }
-      
-      this.cur_t_i--;
-      
-      if (this.cur_t_i < 0) {
-        this.cur_t_i = ctx.RANGE - 1;
-      }
+      //if (this.cur_t_i % 3 == 0) {
+         //this.smoothPaths(ctx);
+      //}
 
-      this.report("cur_t", this.cur_t.toFixed(3));
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let path = this.getPath(ctx, pi, false);
+
+        if (path === undefined) {
+          continue;
+        }
+        
+        for (let j=0; j<ctx.SMOOTH_REPEAT; j++) {
+          path.local_smooth(ctx, ctx.PATH_SMOOTH_FACTOR*0.05, this.cur_t, ctx.SMOOTH_WID/Math.min(ctx.RANGE, ctx.SOLVE_RANGE));
+        }
+      }
     }
     
     updateStartCos(ctx) {
@@ -1214,7 +1528,7 @@ define([
         let path = this.getPath(ctx, pi);
         
         if (path === undefined) {
-          console.log("no paths!");
+          //console.log("no paths!");
           continue;
         }
         
@@ -1233,9 +1547,11 @@ define([
         sumx /= sumtot;
         sumy /= sumtot;
         
-        ps[pi+PSTARTX] = sumx;
-        ps[pi+PSTARTY] = sumy;
+        ps[pi+PSTARTX] += (Math.fract(sumx) - ps[pi+PSTARTX])*0.015;
+        ps[pi+PSTARTY] += (Math.fract(sumy) - ps[pi+PSTARTY])*0.015;
       }
+
+      //this.rebasePaths(ctx);
     }
     
     step(ctx) {
@@ -1315,7 +1631,8 @@ define([
         dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
         let w = 1.0 - dis/searchr;
         
-        w = ctx.SM_SPH_CURVE.evaluate(w);
+        w *= w*w*w*w; 
+        //w = ctx.SM_SPH_CURVE.evaluate(w);
         
         sumdx += dx*w;
         sumdy += dy*w;
@@ -1363,8 +1680,8 @@ define([
         let dx = ps[pi1+PSTARTX] - ps[pi1];
         let dy = ps[pi1+PSTARTY] - ps[pi1+1];
         
-        ps[pi1] += dx*ctx.PULL_FACTOR/16.0;
-        ps[pi1+1] += dy*ctx.PULL_FACTOR/16.0;
+        ps[pi1] += dx*ctx.PULL_FACTOR/2.0;
+        ps[pi1+1] += dy*ctx.PULL_FACTOR/2.0;
         
         //pull towards path position too
         let path = this.getPath(ctx, pi1, false);
@@ -1374,8 +1691,8 @@ define([
             dx = co[0] - ps[pi1];
             dy = co[1] - ps[pi1+1];
 
-            ps[pi1] += dx*ctx.PULL_FACTOR;
-            ps[pi1+1] += dy*ctx.PULL_FACTOR;
+            ps[pi1] += dx*ctx.PULL_FACTOR/2*0.25;
+            ps[pi1+1] += dy*ctx.PULL_FACTOR/2*0.25;
         }
 
         /*
@@ -1402,8 +1719,10 @@ define([
     }
     
     step_base_generate(ctx) {
+      //return this.step_base_generate_old(ctx);
+
       let ps = this.points;
-      let searchfac = ctx.SM_SEARCHRAD;
+      let searchfac = ctx.SM_SEARCHRAD2;
       
       let x1, y1, r1, sumdx, sumdy, sumw, sumtot, searchr, gen1, off, pi1;
       
@@ -1437,13 +1756,27 @@ define([
         dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
         let w = 1.0 - dis/searchr;
         
+        //w *= w*w;
         w = ctx.SM_SPH_CURVE.evaluate(w);
+        //let wd = -0.2;
+        //w = w * (1.0 + wd) - wd;
         
         if (gen2 > gen1) {
+          //w *= 0.25;
           //return;
           //w *= 0.6;
-          let d = 0.001;
-          w *= (gen1+d)/(gen2+d);
+          let d = ctx.SM_PRE_PARAM; //0.001;
+          let g = gen2 > gen1 ? (gen1+d)/(gen2+d) : (gen2+d)/(gen1+d);
+          
+          g = 1.0 - (gen2 - gen1);
+          
+          w *= Math.pow(g, ctx.SM_G_POW);
+          //w = Math.pow(w, 1.0 + ctx.SM_G_POW*g);
+          
+          //w *= ctx.SM_G_CURVE.evaluate(g);
+          //w = Math.pow(w, 1.0 + (gen1+d)/(gen2+d));
+        } else {
+          //return;
         }
         
         sumdx += dx*w;
@@ -1453,7 +1786,7 @@ define([
       }
 
       let r = this.cur_r = ctx.SM_RADMUL / Math.sqrt(tot);
-      let fac = ctx.SPH_SPEED;// * 0.45;
+      let fac = ctx.SM_SPH_SPEED2;// * 0.45;
       
       let max_r = undefined;
       for (let pi=0; pi<ps.length; pi += PTOT) {
@@ -1469,7 +1802,7 @@ define([
         
         //searchr = max_r*searchfac;
         //searchr = (r1+max_r)*0.5*searchfac;
-        searchr = r1*searchfac;
+        searchr = Math.pow(r1/max_r, 0.5)*max_r*searchfac;
         
         for (off of gridoffs) {
           tree.forEachPoint(x1+off[0], y1+off[1], searchr, callback);
@@ -1503,7 +1836,9 @@ define([
       
       let settings = {"DIMEN":28,"MAX_SCALE":8,"SM_RADMUL":0.8,"SIMPLE_MODE":false,"APP_VERSION":0.0001,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"SM_PREPOWER":0.5,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"DRAW_COLORS":true,"SM_SEARCHRAD":4,"RMUL":1,"SPH_SPEED":4.69,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.406,"PARAM":0.45,"PARAM2":3.751,"PARAM3":0.000001,"PARAM4":4,"PARAM5":0.721,"TIMER_STEPS":11074,"START_THRESHOLD":0.3,"SM_GENSTART":0.05,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"SM_DV_DAMPING":1,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SM_SEARCHRAD2":3.96,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}},"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1};
       
-      ctx.loadJSON(settings);
+      for (let k in settings) {
+          ctx[k] = settings[k];
+      }
       
       this.applyVelocity(ctx);
       this.step_base_generate_intern(ctx);
@@ -1549,7 +1884,7 @@ define([
       let ps = this.points;
       
       let searchfac = ctx.SM_SEARCHRAD;
-      let speed = ctx.SPH_SPEED;
+      let speed = ctx.SM_SPH_SPEED2;
       
       let sumdx, sumdy, sumw, sumtot, x1, y1, r1, pi1, gen1, searchr, off;
       let testgen;
@@ -1561,7 +1896,7 @@ define([
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let gen = ps[pi+POGEN];
         
-        ps[pi+PGEN] = ctx.SM_GEN_CURVE.evaluate(gen);
+        //ps[pi+PGEN] = ctx.SM_GEN_CURVE.evaluate(gen);
         
         if (ps[pi+PGEN] < thresh) {
           this.totbase++;
@@ -1776,13 +2111,63 @@ define([
       }
     }
     
-    relax() {
-        super.relax();
-
+    rebasePaths(ctx) {
         let ps = this.points;
+
+        for (let pi=0; pi<ps.length; pi += PTOT) {
+            let path = this.getPath(ctx, pi, false);
+
+            if (path === undefined) {
+                continue;
+            }
+
+            let dx = ps[pi+PSTARTX] - path.last_startx;
+            let dy = ps[pi+PSTARTY] - path.last_starty;
+
+            for (let ti=0; ti<path.length; ti += TTOT) {
+                path[ti] += dx;
+                path[ti+1] += dy;
+            }
+
+            path.last_startx = ps[pi+PSTARTX];
+            path.last_starty = ps[pi+PSTARTY];
+        }
+    }
+
+    setStartCos(ctx) {
+        let ps = this.points;
+
         for (let pi=0; pi<ps.length; pi += PTOT) {
             ps[pi+PSTARTX] = ps[pi];
             ps[pi+PSTARTY] = ps[pi+1];
+        }
+
+        //this.rebasePaths(ctx);
+    }
+
+    relax() {
+        let ps = this.points;
+        
+        for (let pi=0; pi<ps.length; pi += PTOT) {
+          //make sure path exists
+          this.getPath(this.config, pi, true);
+          
+          ps[pi+POFFX] = ps[pi];
+          ps[pi+POFFY] = ps[pi+1];
+          
+          ps[pi] = ps[pi+PSTARTX];
+          ps[pi+1] = ps[pi+PSTARTY];
+        }
+        
+        super.relax();
+        //this.step_base_generate(this.config.copy());
+
+        this.setStartCos(this.config);
+        this.rebasePaths(this.config);
+        
+        for (let pi=0; pi<ps.length; pi += PTOT) {
+          ps[pi] = ps[pi+POFFX];
+          ps[pi+1] = ps[pi+POFFY];
         }
 
         this.regen_spatial();
@@ -1865,6 +2250,8 @@ define([
       for (let rx=0; rx<repeat; rx++) {
       for (let ry=0; ry<repeat; ry++) {
       
+      g.beginPath();
+      
       let offx = rx/repeat, offy = ry/repeat;
       for (let i=0; i<ps.length; i += PTOT) {
         let x = ps[i], y = ps[i+1], gen = ps[i+PGEN], r = ps[i+PR], val = gen;
@@ -1877,7 +2264,8 @@ define([
         x = x/repeat + offx;
         y = y/repeat + offy;
 
-        let f = x;
+        let f = x * Math.floor(1 + y*9);
+        f = Math.fract(f);
         
         if (ctx.DRAW_TEST && this.image !== undefined) {
             let idata = this.image.data;
@@ -1981,18 +2369,20 @@ define([
         //f1=f2=f3=~~((1.0-mf)*255);
         f1=~~((1.0-Math.sqrt(mf))*255), f2=f3=0.0;
         
-        g.beginPath();
+        if (ctx.DRAW_COLORS && !ctx.DRAW_TEST) {
+          g.beginPath();
+        }
+
         g.moveTo(x, y);
         g.arc(x, y, w/repeat, -Math.PI, Math.PI);
 
         if (ctx.DRAW_COLORS && !ctx.DRAW_TEST) {
           
           g.fillStyle = "rgba("+f1+","+f2+","+f3+","+alpha+")";
+          g.fill();
         } else {
           g.fillStyle = "black";
         }
-        g.fill();
-        
         if (ctx.SHOW_RADII) {
           r = ps[i+PR]*ctx.SM_SEARCHRAD/repeat;
           

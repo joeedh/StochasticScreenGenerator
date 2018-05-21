@@ -963,7 +963,7 @@ define([
             
             this2.config.update();
             
-            while (util.time_ms() - start2 < 350) {
+            while (util.time_ms() - start2 < 225) {
               appstate.step(undefined, report++);
             }
           }
@@ -985,7 +985,7 @@ define([
           
           this2.config.update();
           
-          while (util.time_ms() - start2 < 350) {
+          while (util.time_ms() - start2 < 225) {
             appstate.step(undefined, report++);
           }
           
@@ -1005,7 +1005,11 @@ define([
     }
     
     regen_spatial() {
-      this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+      if (this.kdtree === undefined) {
+        this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+      }
+      
+      this.kdtree.clear();
       var ps = this.points;
       
       //console.log("regenerating kdtree...");

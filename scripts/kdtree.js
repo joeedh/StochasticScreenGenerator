@@ -103,58 +103,58 @@ define(["util", "vectormath"], function(util, vectormath) {
       return this.insert_intern(x, y, z, id, 0);
     }
     
-    insert_intern(x, y, z, id, depth) {
-      let recurse = (ni, depth) => {
-        let data = this.data;
-        
-        if (depth >= this.maxdepth) {
-          if (log_everything || util.time_ms() - this.last_warn_time > 500) {
-            console.log(depth)
-            console.warn("Malformed data: 3 to insert point", depth, x.toFixed(4), y.toFixed(4), z.toFixed(4), "id=", id);
-            this.last_warn_time = util.time_ms();
-          }
-          return;
+    _insert_recurse(x, y, z, id, ni, depth) {
+      let data = this.data;
+      
+      if (depth >= this.maxdepth) {
+        if (log_everything || util.time_ms() - this.last_warn_time > 500) {
+          console.log(depth)
+          console.warn("Malformed data: 3 to insert point", depth, x.toFixed(4), y.toFixed(4), z.toFixed(4), "id=", id);
+          this.last_warn_time = util.time_ms();
         }
-        
-        //not a leaf node?
-        if (data[ni+NCHILDA] != 0) {
-          let axis = data[ni+NSPLITPLANE];
-          let split = data[ni+NSPLITPOS];
-          
-          let paxis = axis == 0 ? x : (axis == 1 ? y : z);
-          
-          if (paxis == split) {
-            //handle case of points exactly on boundary
-            //distribute point randomly to children
-            
-            let child = !!(Math.random() > 0.5);
-            //console.log("exact!", child, p[axis], split, axis);
-            
-            recurse(data[ni+NCHILDA+child], depth+1);
-          } else if (paxis < split) {
-            recurse(data[ni+NCHILDA], depth+1);
-          } else {
-            recurse(data[ni+NCHILDB], depth+1);
-          }
-          
-        //a full leaf node?
-        } else if (data[ni+NTOTPOINT] >= MAXPOINTS) {
-          this.split(ni, _insert_split_out);
-
-          this.insert_intern(x, y, z, id, depth+1);
-        } else { //add point
-          let i = ni + NTOTPOINT + 1 + data[ni+NTOTPOINT]*4;
-          
-          data[i++] = x;
-          data[i++] = y;
-          data[i++] = z;
-          data[i++] = id;
-          
-          data[ni+NTOTPOINT]++;
-        }
+        return;
       }
       
-      recurse(this.root, depth+1);
+      //not a leaf node?
+      if (data[ni+NCHILDA] != 0) {
+        let axis = data[ni+NSPLITPLANE];
+        let split = data[ni+NSPLITPOS];
+        
+        let paxis = axis == 0 ? x : (axis == 1 ? y : z);
+        
+        if (paxis == split) {
+          //handle case of points exactly on boundary
+          //distribute point randomly to children
+          
+          let child = !!(Math.random() > 0.5);
+          //console.log("exact!", child, p[axis], split, axis);
+          
+          this._insert_recurse(x, y, z, id, data[ni+NCHILDA+child], depth+1);
+        } else if (paxis < split) {
+          this._insert_recurse(x, y, z, id, data[ni+NCHILDA], depth+1);
+        } else {
+          this._insert_recurse(x, y, z, id, data[ni+NCHILDB], depth+1);
+        }
+        
+      //a full leaf node?
+      } else if (data[ni+NTOTPOINT] >= MAXPOINTS) {
+        this.split(ni, _insert_split_out);
+
+        this.insert_intern(x, y, z, id, depth+1);
+      } else { //add point
+        let i = ni + NTOTPOINT + 1 + data[ni+NTOTPOINT]*4;
+        
+        data[i++] = x;
+        data[i++] = y;
+        data[i++] = z;
+        data[i++] = id;
+        
+        data[ni+NTOTPOINT]++;
+      }
+    }
+    
+    insert_intern(x, y, z, id, depth) {
+      this._insert_recurse(x, y, z, id, this.root, depth+1);
       this.totpoint++;
     }
     
