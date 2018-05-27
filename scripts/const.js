@@ -12,6 +12,7 @@ window.APP_VERSION = 0.5;
 
 window.MAX_REPORT_LINES = 12;
 
+//make sure to keep in sync with list in generators.js
 window.MODES = {
   SMOOTHMASK   : 0,
   DART         : 1,

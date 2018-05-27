@@ -10,6 +10,7 @@ define([
   
   const PSTARTX = POX;
   const PSTARTY = POY;
+  const PCOLOR = PCLR;
   
   let SmoothModes = exports.SmoothModes = {
     SIMPLE  : 1,
@@ -46,7 +47,7 @@ define([
     SM_TOTPOINT_MUL  :  0.95,
     SM_PREPOWER  :  0.6,
   };*/
-
+/*
   let config = exports.config = {
     SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.6062500000000001,"1":0.04375000000000018,"eid":9,"flag":1,"deg":3,"tangent":1},{"0":0.6625,"1":0.06875000000000009,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.8125000000000001,"1":0.1875,"eid":4,"flag":1,"deg":3,"tangent":1},{"0":0.9125,"1":0.3437500000000002,"eid":8,"flag":0,"deg":3,"tangent":1},{"0":0.9249999999999999,"1":0.9125000000000001,"eid":7,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":10}}),
     SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
@@ -57,6 +58,7 @@ define([
     DRAW_TEST  :  true,
     MAX_SCALE  :  8,
     SM_RADMUL  :  0.95,
+    SM_START_GENERATOR : MODES.VOID_CLUSTER,
     PATH_SMOOTH_FACTOR  :  0.057,
     SIMPLE_MODE  :  true,
     DISPLAY_LEVEL  :  1,
@@ -67,10 +69,12 @@ define([
     RANGE  :  127,
     SOLVE_RANGE_MUL : 2,
     REPEAT  :  4,
+    SM_SPH_SPEED  :  4.5,
     SM_SPH_SPEED2  :  8.25,
     SHOW_PATHS  :  true,
     STARTCO_BLEND  :  1,
-    PRESTEPS  :  15,
+    PRESTEPS   : 15,
+    PRESTEPS2  :  15,
     UPDATE_START_COS  :  true,
     SM_SEARCHRAD  :  2.45,
     SM_SEARCHRAD2  :  3.96,
@@ -89,7 +93,56 @@ define([
     SMOOTH_PULSE_STEPS : 3,
     SMOOTH_PULSE : false
   };
+  */
   
+   let config = exports.config = {
+    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.31875,"1":0,"eid":30,"flag":0,"deg":3,"tangent":1},{"0":0.60625,"1":0,"eid":29,"flag":0,"deg":3,"tangent":1},{"0":0.81875,"1":0.83125,"eid":32,"flag":1,"deg":3,"tangent":1},{"0":0.9375000000000001,"1":1,"eid":34,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":35}}),
+    SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
+    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":47}}),
+    SM_IMAGE_CURVE  :  new cconst.EditableCurve("SM_IMAGE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":6}}),
+    SM_G_CURVE  :  new cconst.EditableCurve("SM_G_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.58125,"1":0.475,"eid":4,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":5}}),
+    PATH_DEGREE  :  2,
+    DRAW_TEST  :  true,
+    MAX_SCALE  :  8,
+    SM_RADMUL  :  0.95,
+    SM_START_GENERATOR  :  2,
+    PATH_SMOOTH_FACTOR  :  0.303,
+    SIMPLE_MODE  :  true,
+    DISPLAY_LEVEL  :  1,
+    SOLVE_LEVEL  :  1,
+    SM_DV_DAMPING  :  0,
+    SM_GENSTART  :  0.01,
+    PULL_FACTOR  :  0.229,
+    RANGE  :  42,
+    SOLVE_RANGE_MUL  :  1,
+    REPEAT  :  7,
+    SM_SPH_SPEED  :  10.26,
+    SM_SPH_SPEED2  :  4,
+    SM_PRE_RAND    : 0.0,
+    SHOW_PATHS  :  true,
+    STARTCO_BLEND  :  1,
+    PRESTEPS  :  55,
+    PRESTEPS2  :  0,
+    UPDATE_START_COS  :  false,
+    SM_SEARCHRAD  :  2.32,
+    SM_SEARCHRAD2  :  3.5,
+    SM_PRE_PARAM  :  5,
+    ADV_SOLVE  :  true,
+    ADV_STEPS2  :  3,
+    ADV_STEPS  :  2,
+    SM_TOTPOINT_MUL  :  0.95,
+    SM_PREPOWER  :  1,
+    SM_G_POW  :  3,
+    SMOOTH_REPEAT  :  0,
+    SMOOTH_WID  :  4,
+    SMOOTH_PULSE_RATE  :  0.52,
+    SMOOTH_PULSE_FAC  :  1,
+    SMOOTH_PULSE_STEPS  :  3,
+    SMOOTH_PULSE  :  false,
+    START_FACTOR : 0.0,
+    GEN_RANGE     : 4096
+  };
+
   exports.saveConfig = function() {
     let buf = "  {\n";
     for (let k in exports.config) {
@@ -124,6 +177,9 @@ define([
     [0, -1]
   ];
   
+  let WHITE_NOISE_PATTERN = 100;
+  let GRATING_NOISE_PATTERN = 101;
+  
   //"optional" fract
   function optfract(f) {
     //return Math.fract(f);
@@ -154,7 +210,7 @@ define([
     return Math.floor(t*ctx.RANGE + 0.0001/ctx.RANGE)/ctx.RANGE;
   }
 
-  let TX=0, TY=1, TR=2, TGEN=3, TTIME=4, TTOT=5;
+  let TX=0, TY=1, TR=2, TGEN=3, TTIME=4, TLEN=5, TTOT=6;
   
   let path_eval_cache = util.cachering.fromConstructor(vectormath.Vector2, 64);
   
@@ -385,6 +441,7 @@ define([
     }
     
     wrap(ctx) {
+      return gridoffs[0];
         let sumx = 0, sumy = 0, sumtot = 0;
 
         for (let ti=0; ti<this.length; ti += TTOT) {
@@ -443,7 +500,86 @@ define([
       }
     }
     
+    
+    curvature_smooth(ctx, factor) {
+      function curvature(v1, v2, v3, v4, v5) {
+        let len1 = (v4[0]-v2[0])*(v4[0]-v2[0]) + (v4[1]-v2[1])*(v4[1]-v2[1]);
+        let len2 = (v3[0]-v1[0])*(v3[0]-v1[0]) + (v3[1]-v1[1])*(v3[1]-v1[1]);
+        
+        let dx1 = v4[0] - v2[0], dy1 = v4[1] - v2[1];
+        let dx2 = v3[0] - v1[0], dy2 = v3[1] - v1[1];
+        
+        dx1 /= 2*len1, dy1 /= 2*len1;
+        dx2 /= 2*len2, dy2 /= 2*len2;
+        
+        dx2 = (dx2 - dx1) / ((len1+len2)*0.5);
+        dy2 = (dy2 - dy1) / ((len1+len2)*0.5);
+        
+        return (dx1*dy2 - dy1*dx2) / Math.pow(dx1*dx1 + dy1*dy1, 3/2);
+      }
+    }
+   
+    updateTlen() {
+      for (let ti=0; ti<this.length-TTOT; ti += TTOT) {
+        let dx = this[ti+TTOT] - this[ti];
+        let dy = this[ti+TTOT+1] - this[ti+1];
+        let dis = dx*dx + dy*dy;
+        
+        dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
+        
+        this[ti+TLEN] = dis;
+      }
+    }
+    
+    constrainTlen(factor=0.5, t, w) {
+      for (let ti=0; ti<this.length-TTOT; ti += TTOT) {
+        let dx = this[ti+TTOT] - this[ti];
+        let dy = this[ti+TTOT+1] - this[ti+1];
+        let dis = dx*dx + dy*dy;
+        
+        let t1 = this[ti+TTIME];
+        let t2 = this[ti+TTOT+TTIME];
+        
+        if (this[ti+TGEN] == -1) {
+          continue; //unfilled point
+        }
+        //wrap around functions
+        //let tdis1 = Math.min(Math.min(Math.abs(t-t1), Math.abs(t-t1-1.0)), Math.abs(t-t1+1.0));
+        //let tdis2 = Math.min(Math.min(Math.abs(t-t2), Math.abs(t-t2-1.0)), Math.abs(t-t2+1.0));
+        
+        let tdis1 = Math.abs(t - t1);
+        let tdis2 = Math.abs(t - t2);
+        
+        if (tdis1 >= w) {
+          continue;
+        }
+        
+        let s = 1.0 - tdis1/w;
+        
+        dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
+        
+        let goal = this[ti+TLEN];
+        
+        if (dis == 0.0 || goal == 0.0) {
+          continue;
+        }
+        
+        goal = dis - goal;
+        
+        dx *= 0.5*goal/dis;
+        dy *= 0.5*goal/dis;
+        
+        this[ti] += dx*factor*s;
+        this[ti+1] += dy*factor*s;
+        
+        this[ti+TTOT] -= dx*factor*s;
+        this[ti+TTOT+1] -= dy*factor*s;
+      }
+    }
+
     local_smooth_wrap(ctx, factor, t, w) {
+      this.updateTlen();
+      
       let ti = this.find(t), ti1=ti;
       
       let totpoint = this.length / TTOT;
@@ -500,9 +636,11 @@ define([
         this[ti1+1] += (sumy - this[ti1+1])*factor;
       }
       //*/
+      this.constrainTlen(undefined, t, w);
     }
 
     local_smooth(ctx, factor, t, w) {
+      this.updateTlen();
       //return this.local_smooth_wrap(ctx, factor, t, w);
       
       let ti = this.find(t);
@@ -529,6 +667,8 @@ define([
         this[ti] += (fx - this[ti])*s;
         this[ti+1] += (fy - this[ti+1])*s;
       }
+      
+      this.constrainTlen(undefined, t, w);
     }
 
     simple_smooth(ctx, factor) {
@@ -648,6 +788,11 @@ define([
       }
       
       return this;
+    }
+    
+    hasData(t) {
+      let ti = this.find(t);
+      return this[ti+TGEN] != -1;
     }
     
     update(t, x, y, r, gen, _is_recurse) {
@@ -862,15 +1007,38 @@ define([
       //panel.slider("SM_PREPOWER", "PrePower", 1, 0.001, 9.0, 0.0001, false, true);
       panel.slider("SM_SPH_SPEED2", "PreSpeed", 1.0, 0.005, 16.0, 0.01, false, true);
       panel.slider("SM_SEARCHRAD2", "PreSearchRad", 3.0, 0.1, 15.0, 0.01, false, true);
-      panel.slider("SM_PRE_PARAM", "PreParam", 0.001, 0.00001, 5.0, 0.00001, false, false);
+      panel.slider("SM_PRE_RAND", "PreRand", 0.001, 0.00001, 5.0, 0.00001, false, false);
       panel.slider("SM_G_POW", "g pow", 3, -2.0, 16.0, 0.001, false, false);
+      //listenum(path, name, enummap, defaultval, callback) {
+
+      let modes = {};
+      for (let k in MODES) {
+        if (k == "SMOOTHMASK") {
+          continue;
+        }
+
+        let v = MODES[k];
+        k = k.replace(/_/g, " ");
+        k = k[0].toUpperCase() + k.slice(1, k.length).toLowerCase();
+
+        modes[k] = v;
+      }
       
+      modes["White Noise"] = WHITE_NOISE_PATTERN;
+      modes["Grating Noise"] = GRATING_NOISE_PATTERN;
+
+      panel.listenum("SM_START_GENERATOR", "Start Pattern", modes, config.SM_START_GENERATOR, () => {
+        //
+      });
+
       panel.slider("SM_TOTPOINT_MUL", "TotalPointMul", 0.85, 0.001, 1.5, 0.0001, false, true);
 
+      panel.slider("GEN_RANGE", "IntensityRange", 255, 2, 4096, 1, true, true);
       panel.slider("RANGE", "Range", 255, 2, 255, 1, true, true);
       panel.slider("SOLVE_RANGE_MUL", "RangeMul", 2, 0.125, 64, 0.0001, false, true);
       panel.slider("PATH_DEGREE", "Path Degree", 4, 1, 8, 1, true, true);
-      panel.slider("PRESTEPS", "PreSteps", 16, 0, 1024, 1, true, true);
+      panel.slider("PRESTEPS", "SPH Steps", 16, 0, 102, 1, true, true);
+      panel.slider("PRESTEPS2", "Initial Relax Steps", 16, 0, 400, 1, true, true);
       panel.slider("ADV_STEPS", "AdvSteps", 32, 0, 255, 1, true, true);
       panel.slider("ADV_STEPS2", "AdvSteps2", 2, 0, 25, 1, true, true);
       panel.slider("SM_RADMUL", "Radius Factor", 0.8, 0.0, 1.0, 0.001, false, true);
@@ -890,6 +1058,7 @@ define([
       panel.slider("STARTCO_BLEND", "Offset Blend", 1.0, 0.0, 1.0, 0.001, false, true);
       panel.slider("SOLVE_LEVEL", "Solve Level", 1.0, 0.0, 1.0, 0.001, false, true);
       panel.slider("PULL_FACTOR", "Pull Factor", 1.0, 0.0, 1.0, 0.001, false, true);
+      panel.slider("START_FACTOR", "Start Factor", 1.0, 0.0, 1.0, 0.001, false, true);
 
       let panel2 = panel.panel("Path Smoothing");
 
@@ -901,7 +1070,7 @@ define([
       panel2.slider("SMOOTH_PULSE_FAC", "Pulse Amplitude", 1.0, 0.005, 2.0, 0.01, false, true);
       panel2.slider("SMOOTH_PULSE_STEPS", "Pulse Steps", 1, 0, 45.0, 1, true, false);
 
-      panel.slider("SPH_SPEED", "Speed", 1.0, 0.005, 16.0, 0.01, false, true);
+      panel.slider("SM_SPH_SPEED", "Speed", 1.0, 0.005, 16.0, 0.01, false, true);
 
       panel.slider("SM_SEARCHRAD", "Search Rad", 3.0, 0.1, 15.0, 0.01, false, true);
       //panel.slider("EXPONENT", "Exponent", 1.0, 0.001, 18.0, 0.001, false, true);
@@ -919,6 +1088,31 @@ define([
       let ps = this.points;
       
       let pset = new smoothmask.PointSet(this.dimen);
+      
+      let itone = new Array(128);
+      let s=0, ds = 1.0 / itone.length;
+      let ctx = this.config;
+
+      for (let i=0; i<itone.length; i++, s += ds) {
+        itone[i] = 1.0-ctx.SM_TONE_CURVE.inverse(1.0-s);
+        //itone[i] = ctx.SM_TONE_CURVE.evaluate(s);
+        //let f = ctx.SM_TONE_CURVE.evaluate(s);
+        //let fi = ~~(f*itone.length*0.99999);
+        //itone[fi] = s;
+      }
+      
+      /*
+      if (itone[0] === undefined) {
+        itone[0] = 0;
+      }
+
+      for (let i=0; i<itone.length-1; i++) {
+        if (itone[i+1] === undefined) {
+          itone[i+1] = itone[i];
+        }
+      }//*/
+      
+      pset.setInverseToneCurve(itone);
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let path = this.getPath(this.config, pi, true);
@@ -1010,8 +1204,8 @@ define([
       };
     }
     
-    reset(dimen, appstate, mask_image) {
-      super.reset(dimen, appstate, mask_image);
+    reset(dimen, appstate, mask_image, generators) {
+      super.reset(dimen, appstate, mask_image, generators);
       
       this.config.update();
       
@@ -1032,42 +1226,131 @@ define([
       
       ctx.SOLVE_RANGE = ctx.SOLVE_RANGE_MUL*ctx.RANGE;
       
+      let rand = new util.MersenneRandom(0);
+      
+      let random = rand.random.bind(rand);
+      
       this.cur_r = 0;
       this.cur_t = (ctx.SOLVE_RANGE_MUL-1) / ctx.SOLVE_RANGE;
-      this.cur_t_i = ctx.SOLVE_RANGE-1;
+      this.cur_t_i = 0;
       
       ctx = ctx.copy();
 
       let dimen2 = dimen;
       
-      let maxgen;
+      let maxgen=1.0;
+      let mode = ctx.SM_START_GENERATOR;
 
-      if (1) {
-          let vc = new void_cluster.VoidClusterGenerator(this.appstate);
-          //let vc = new darts.DartsGenerator(this.appstate);
-          dimen2 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
+      if (mode < 100) {
+          
+          if (mode == MODES.BLUEVC) {
+            this.report("BlueVC not supported right now; make sure to fix it");
+            throw new Error("BlueVC not supported right now; fix it!");
+            //mode = MODES.VOID_CLUSTER;
+          }
 
-          /*
-          let vc = new mitchell.MitchellGenerator(this.appstate);
-          ctx.MITCHELL_STEPSMUL = 0.1465;
-          ctx.MITCHELL_TOTPOINT_MUL = ctx.SM_TOTPOINT_MUL;
-          //*/
+          let vc = new generators[mode](this.appstate);
+          
+          switch (mode) {
+            case MODES.VOID_CLUSTER:
+              dimen2 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
+              break;
+            case MODES.DART:
+              break;
+            case MODES.MITCHELL:
+              ctx.MITCHELL_STEPSMUL = 0.465;
+              ctx.MITCHELL_TOTPOINT_MUL = ctx.SM_TOTPOINT_MUL;
+              break;
+          }
 
           vc.config = ctx;
-          vc.reset(dimen2, appstate, mask_image);
+          vc.reset(dimen2, appstate, mask_image, generators);
 
           let i = 0;
           while (!vc.done()) {
               vc.step();
-              //if (i % 8 == 0) { //for darts
-              //  this.next_level();
-              //}
+              
+              if (i % 8 == 0 && (mode == MODES.DART || mode == MODES.DART2)) { //for darts
+                vc.next_level();
+              }
+
+              if (i > ctx.PRESTEPS && (mode == MODES.SPH || mode == MODES.MASKOPT)) {
+                break;
+              }
+
               i++;
           }
 
           this.points = vc.points;
+          
           maxgen = vc.max_level();
+
+          //make hexagonal for void-cluster, which is a grid based method
+          if (mode == MODES.VOID_CLUSTER) {
+            let ps = this.points;
+            for (let pi=0; pi<ps.length; pi += PTOT) {
+                ps[pi+1] += Math.fract(ps[pi]*this.dimen/2.0)/this.dimen;
+                ps[pi+1] = Math.fract(ps[pi+1]);
+            }
+          }
+      } else if (mode == GRATING_NOISE_PATTERN) {
+          function grating(ix, iy) {
+            return Math.fract(ix*3.3234 + iy*0.539 + util.random()*0.05);
+          }
+
+          let totpoint = dimen*dimen*ctx.SM_TOTPOINT_MUL;
+
+          dimen = Math.ceil(Math.sqrt(totpoint)*0.935);
+          let dimen3 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
+          dimen2 = Math.ceil(dimen3*2.5);
+
+          let ps = this.points = [];
+          
+          console.log("DIMEN2", dimen2);
+          
+          for (let i=0; i<dimen3*dimen2; i++) {
+            let ix = i % dimen2, iy = ~~(i / dimen2);
+            
+            let x = ix/dimen3, y = iy/dimen3;
+            x *= Math.sqrt(3)*0.5;
+
+            if (ix % 2 == 0) {
+              y += 0.5/dimen3;
+            }
+            
+            x += 0.5/dimen3;
+            y += 0.5/dimen3;
+
+            if (x <= 0 || y < 0 || x > 1.0 || y > 1) {
+              continue;
+            }
+            
+            let pi = ps.length;
+            for (let j=0; j<PTOT; j++) {
+              ps.push(0.0);
+            }
+
+            let gen = grating(ix, iy);
+            
+            ps[pi+PGEN] = ps[pi+POGEN] = gen;
+            
+            let r = 0.95 / Math.sqrt(gen*dimen2*dimen2 + dimen2*dimen2*ctx.SM_GENSTART);
+            ps[pi+PR] = r;
+            
+            let maxr = 0.95 / Math.sqrt(dimen2*dimen2*ctx.SM_GENSTART);
+            let rf = Math.pow(r/maxr, 2.0)*maxr;
+            
+            //x += 0.1*r*(random()-0.5)//dimen2;
+            //y += 0.1*r*(random()-0.5)//dimen2;
+            
+            ps[pi] = x;
+            ps[pi+1] = y;
+            
+            ps[pi+PSTARTX] = ps[pi];
+            ps[pi+PSTARTY] = ps[pi+1];
+          }
       } else {
+          //*/
           let ps = this.points = [];
           let totpoint = Math.ceil(dimen*dimen*ctx.SM_TOTPOINT_MUL);
           maxgen = 1.0;
@@ -1087,7 +1370,7 @@ define([
               
               ps[pi+PGEN] = ps[pi+POGEN] = gen;
 
-              let r = 0.95 / Math.sqrt(gen*totpoint + totpoint*0.1);
+              let r = 0.95 / Math.sqrt(gen*totpoint + totpoint*ctx.SM_GENSTART);
               ps[pi+PR] = r;
 
               ps[pi+PSTARTX] = ps[pi];
@@ -1098,15 +1381,16 @@ define([
       let ps = this.points;
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
-          //make hexagonal  
-          ps[pi+1] += Math.fract(ps[pi]*this.dimen/2.0)/this.dimen;
-          ps[pi+1] = Math.fract(ps[pi+1]);
-      }
-
-      for (let pi=0; pi<ps.length; pi += PTOT) {
           let gen = ps[pi+PGEN] = ps[pi+PGEN] / maxgen;
           
+          if (isNaN(gen) || isNaN(ps[pi+PR])) {
+            console.log(ps[pi+PGEN], maxgen);
+            throw new Error("NaN");
+          }
+
           gen = 1.0 - ctx.SM_TONE_CURVE.evaluate(1.0 - gen);
+          gen = Math.floor(gen * ctx.GEN_RANGE) / ctx.GEN_RANGE;
+          
           ps[pi+PGEN] = gen;
           
           ps[pi+PSTARTX] = ps[pi];
@@ -1118,15 +1402,20 @@ define([
 
       this.calcRadii();
 
-      for (let i=0; i<ctx.PRESTEPS; i++) {
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+          ps[pi] += (util.random()-0.5)/this.dimen*ctx.SM_PRE_RAND;
+          ps[pi+1] += (util.random()-0.5)/this.dimen*ctx.SM_PRE_RAND;
+          ps[pi] = Math.fract(ps[pi]);
+          ps[pi+1] = Math.fract(ps[pi+1]);
+      }
+
+      for (let i=0; i<ctx.PRESTEPS2; i++) {
           this.step_base_generate(this.config.copy());
       }
-      this.updateStartCos(this.config);
-
+      
+      //this.updateStartCos(this.config);
 
       for (let pi=0; pi<ps.length; pi += PTOT) {
-          //ps[pi] += (util.random()-0.5)/this.dimen*0.225;
-          //ps[pi+1] += (util.random()-0.5)/this.dimen*0.225;
           //ps[pi] = util.random();
           //ps[pi+1] = util.random();
 
@@ -1137,7 +1426,7 @@ define([
       /*
       this.throw();
       
-      let steps = ctx.PRESTEPS;
+      let steps = ctx.PRESTEPS2;
       for (let i=0; i<steps; i++) {
         if (Math.random() > 0.1) {
           console.log(i, "of", steps)
@@ -1447,20 +1736,26 @@ define([
       } else if (ctx.SMOOTH_PULSE) {
         ctx.PATH_SMOOTH_FACTOR = Math.max(this.smooth_mul, ctx.PATH_SMOOTH_FACTOR);
       }
+      
+      let ci = this.cur_t_i % ctx.SOLVE_RANGE;
+      let ci2 = (~~(this.cur_t_i / ctx.SOLVE_RANGE)) % 2;
 
-      this.cur_t_i = Math.min(this.cur_t_i, ctx.SOLVE_RANGE-1);
-
-      this.cur_t = this.cur_t_i / ctx.SOLVE_RANGE + 0.00001;
+      if (1) { //!ci2) {
+        this.cur_t = ci / ctx.SOLVE_RANGE + 0.00001;
+      } else {
+        this.cur_t = (ctx.SOLVE_RANGE-ci-1) / ctx.SOLVE_RANGE + 0.00001;
+      }
+      
       ctx.SOLVE_LEVEL = this.cur_t;
 
       for (let i=0; i<ctx.ADV_STEPS2; i++) {
         this.advanced_solve_intern(ctx);
       }
       
-      this.cur_t_i--;
+      //this.cur_t_i = Math.floor(Math.random()*0.999999*ctx.SOLVE_RANGE);
+      this.cur_t_i++;
       
-      if (this.cur_t_i < 0) {
-        this.cur_t_i = ctx.SOLVE_RANGE - 1;
+      if (this.cur_t_i % ctx.SOLVE_RANGE == 0) {
         this.smooth_i++;
 
         if (this.smooth_i > 1 + ctx.SMOOTH_PULSE_STEPS) {
@@ -1483,6 +1778,10 @@ define([
 
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let path = this.getPath(ctx, pi, true);
+        
+        if (!path.hasData(this.cur_t)) {
+          continue;
+        }
         
         let off = path.wrap();
 
@@ -1585,7 +1884,7 @@ define([
         ps[pi+PIY] = ~~(ps[pi+1]*msize*0.9999999);
       }
       
-      this.regen_spatial();
+      this.regen_spatial(this.config);
       this.raster();
     }
     
@@ -1641,7 +1940,7 @@ define([
       }
 
       let r = this.cur_r = ctx.SM_RADMUL / Math.sqrt(tot);
-      let fac = ctx.SPH_SPEED * 0.0625;
+      let fac = ctx.SM_SPH_SPEED * 0.0625;
       
       for (pi1=0; pi1<ps.length; pi1 += PTOT) {
         sumdx = sumdy = sumw = sumtot = 0.0;
@@ -1680,9 +1979,22 @@ define([
         let dx = ps[pi1+PSTARTX] - ps[pi1];
         let dy = ps[pi1+PSTARTY] - ps[pi1+1];
         
+        let pfac = ctx.PULL_FACTOR;// + ctx.PULL_FACTOR*(1.0 - ctx.SOLVE_LEVEL);
+        
         ps[pi1] += dx*ctx.PULL_FACTOR/2.0;
         ps[pi1+1] += dy*ctx.PULL_FACTOR/2.0;
         
+        let sfac = ctx.START_FACTOR; //Math.min(ctx.START_FACTOR, ctx.PULL_FACTOR);
+        
+        //pull start (path origin) positions towards points too
+        ps[pi1+PSTARTX] += -dx*0.02*sfac;
+        ps[pi1+PSTARTY] += -dy*0.02*sfac;
+        
+        if (ctx.START_FACTOR > 0) {
+           ps[pi1+PSTARTX] = Math.fract(ps[pi1+PSTARTX]);
+           ps[pi1+PSTARTY] = Math.fract(ps[pi1+PSTARTY]);
+        }
+
         //pull towards path position too
         let path = this.getPath(ctx, pi1, false);
         if (path !== undefined) {
@@ -1716,9 +2028,354 @@ define([
         //update paths
         this.updatePath(pi1, ctx);
       }
+      
+      this.rebasePaths(ctx);
     }
     
+    step_base_generate_new(ctx) {
+      let config = {"SmoothModes":{"SIMPLE":1,"POLYFIT":2},"PATH_DEGREE":8,"IMAGE_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.15625000000000003,"1":0.19374999999999998,"eid":16,"flag":1,"deg":3,"tangent":1},{"0":0.41875000000000007,"1":0.35625000000000007,"eid":15,"flag":0,"deg":3,"tangent":1},{"0":0.7937500000000005,"1":0.6437499999999997,"eid":11,"flag":0,"deg":3,"tangent":1},{"0":0.9999999999999999,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":17}},"TONE_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.9812500000000001,"1":0.99375,"eid":28,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":37}},"SPH_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.25625,"1":0.07499999999999996,"eid":7,"flag":0,"deg":3,"tangent":1},{"0":0.5,"1":0,"eid":8,"flag":0,"deg":3,"tangent":1},{"0":0.65625,"1":0.09375,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.7500000000000001,"1":0.07500000000000018,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.9187500000000001,"1":0.8375,"eid":6,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}},"APPLY_TONING":false,"SEARCHRAD":1.2,"CMYK_SEARCHRAD":3,"DRAW_TEST":true,"DIMEN":32,"MAX_SCALE":3,"RADMUL":0.95,"PATH_SMOOTH_FACTOR":1,"SIMPLE_MODE":true,"DISPLAY_LEVEL":1,"SOLVE_LEVEL":1,"DV_DAMPING":1,"GENSTART":0.05,"PULL_FACTOR":0.05,"RANGE":255,"REPEAT":8,"STARTCO_BLEND":1,"PRESTEPS":16,"PARAM1":2,"PARAM2":0.5,"PARAM3":2,"PARAM4":0.7,"PARAM5":1,"PARAM6":0.8,"PARAM7":1,"DRAW_INTENSITY":true,"DRAW_COLORS":false,"IMAGE_COLORS":true,"USE_IMAGE":false,"GENSTEPS":4096,"APP_VERSION":0.0001,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"PREPOWER":1,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"RMUL":1,"SPH_SPEED":0.5,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.3,"PARAM":0.45,"TIMER_STEPS":33554432,"START_THRESHOLD":0.3,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SEARCHRAD2":3.96,"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1,"SHOW_PATHS":false,"UPDATE_START_COS":false,"ADV_SOLVE":false,"ADV_STEPS":32,"CMYRK_SEARCHRAD":4,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}}};
+      
+      ctx = ctx.copy();
+
+      for (let k in config) {
+        if (k.search("CURVE") < 0) {
+          ctx[k] = config[k];
+        }
+      }
+      
+      ctx.SPH_SPEED = ctx.SM_SPH_SPEED2;
+      ctx.SEARCHRAD = ctx.SM_SEARCHRAD2;
+      
+      if (this.cmyk_tick === undefined) {
+        this.cmyk_tick = 0;
+      }
+      
+      //recalculate radii
+      
+      function calcradius(gen, maxgen, ctx) {
+        let b = ctx.RADMUL / Math.sqrt(1 + maxgen);
+        let a = b*ctx.MAX_SCALE;
+
+        return a + (b - a)*gen;
+        
+        return ctx.RADMUL / Math.sqrt(1 + gen*maxgen);
+      }
+
+      let ps = this.points;
+      let old_radii = [], old_gen = [];
+      let totpoint = ps.length/PTOT;
+      
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let gen = ps[pi+PGEN];
+        
+        old_radii.push(ps[pi+PR]);
+        old_gen.push(gen);
+        
+        ps[pi+PGEN] = ctx.SM_TONE_CURVE.inverse(gen);
+        ps[pi+PR] = calcradius(ps[pi+PGEN], totpoint, ctx);
+      }
+      
+      this.step_base_generate_new_intern(ctx);
+      
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let i = pi/PTOT;
+        
+        ps[pi+PR] = old_radii[i];
+        ps[pi+PGEN] = old_gen[i];
+      }
+    }
+    
+    makeKDTree(ctx) {
+      return this.regen_spatial(ctx);
+    }
+    
+    step_base_generate_new_intern(ctx) {
+      this.cmyk_tick++;
+      
+      ctx = ctx === undefined ? cconst : ctx;
+      
+      let ps = this.points;
+      let searchfac = ctx.SEARCHRAD;
+      let cmyk_searchfac = ctx.CMYK_SEARCHRAD;
+
+      let ct = Math.min(this.cmyk_tick / 64, 1.0);
+      
+      cmyk_searchfac += (0.6 - cmyk_searchfac) * (1.0 - ct);
+
+      this.ct = cmyk_searchfac.toFixed(3);
+      
+      let x1, y1, r1, sumdx, sumdy, sumw, sumtot, searchr, gen1, off, pi1, color1, sumcolorw, sumcolortot;
+      let sumcmyk = [0, 0, 0, 0], sumcolor=0;
+      
+      let max_r = undefined;
+      
+      ctx = ctx.copy();
+      ctx.SIMPLE_MODE = false;
+      ctx.ADV_SOLVE = false;
+      
+      let tree = this.makeKDTree(ctx);
+      let tot = ps.length / PTOT;
+      
+      if (tot == 0) {
+        return;
+      }
+      
+      let calcweight = (w, r1, r2, gen1, gen2) => {
+        
+        /*
+        off factor;
+        off period;
+        
+        k1 := 1;
+        k2 := 2;
+        k3 := 3;
+        k4 := 1;
+        k5 := 1;
+        d := 0.0;
+        
+        g1 := gen1 - gen2 + 1.0;
+        g2 := (gen2+d) / (gen1+d);
+        g1 := g1**k1;
+        g2 := g2**k4;
+        
+        fw := w; comment: 1.0 - dis/searchr;
+        fw := fw**(g2*k2 + k3);
+        fw := fw*(g1*k5 + 1.0-k5);
+        
+        */
+        let g1 = gen1 - gen2 + 1.0;
+        let g2 = (gen2+0.0001) / (gen1+0.0001);
+        
+        //g = Math.pow(g, ctx.PARAM1 + Math.pow(1.0-gen1, ctx.PARAM3)*ctx.PARAM2);
+        g1 = Math.pow(g1, ctx.PARAM1);
+        g2 = Math.pow(g2, ctx.PARAM4);
+        
+        //w *= 0.00001+g*dis;
+        //w = g/dis;
+        //w *= -g;
+        
+        //w += g*ctx.PARAM2;
+        //w *= g+ctx.PARAM2;
+        w = Math.pow(w, g2*ctx.PARAM2 + ctx.PARAM3);
+        w *= g1*ctx.PARAM5 + 1.0 - ctx.PARAM5;
+        
+        if (gen1 < gen2) {
+          w *= ctx.PARAM6;
+          w = Math.pow(w, ctx.PARAM7);
+        }
+        //w *= Math.pow(g, ctx.PARAM1);
+        return w;
+      } 
+           
+      let callback = (pi2) => {
+        if (pi1 == pi2) {
+          return;
+        }
+        
+        let x2 = ps[pi2], y2 = ps[pi2+1], r2 = ps[pi2+PR], gen2 = ps[pi2+PGEN], color2 = ps[pi2+PCOLOR];
+        
+        let dx = x2-x1-off[0];
+        let dy = y2-y1-off[1];
+        
+        let dis = dx*dx + dy*dy;
+        
+        if (dis == 0.0 || dis >= searchr*searchr) {
+          return;
+        }
+        
+        dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
+        let w = 1.0 - dis/searchr;
+        
+        w = calcweight(w, r1, r2, gen1, gen2);
+
+        //w = ctx.SPH_CURVE.evaluate(w);
+        
+        dx /= dis;
+        dy /= dis;
+        
+        sumdx += dx*w;
+        sumdy += dy*w;
+        sumw += w;
+        sumtot += 1.0;
+      }
+
+      let cmyk_callback = (pi2) => {
+        if (pi1 == pi2) {
+          return;
+        }
+        
+        let x2 = ps[pi2], y2 = ps[pi2+1], r2 = ps[pi2+PR], gen2 = ps[pi2+PGEN], color2 = ps[pi2+PCOLOR];
+        
+        let dx = x2 - x1-off[0];
+        let dy = y2 - y1-off[1];
+        
+        let dis = dx*dx + dy*dy;
+        
+        if (dis == 0.0 || dis >= searchr*searchr) {
+          return;
+        }
+        
+        dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
+        let w = 1.0 - dis/searchr;
+        
+        w = calcweight(w, r1, r2, gen1, gen2);
+        w *= w*w;
+        
+        sumcolor += color2*w;
+        sumcmyk[color2] += w;
+        
+        sumcolorw += w;
+        sumcolortot += 1.0;
+      }
+
+      let fac = ctx.SPH_SPEED*0.5;// * 0.45;
+      
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let r1 = ps[pi+PR];
+        
+        max_r = max_r === undefined ? r1 : Math.max(max_r, r1);
+      }
+      
+      let swaps = [[], [], [], []];
+      let bins = [[], [], [], []];
+          
+      for (pi1=0; pi1<ps.length; pi1 += PTOT) {
+        sumdx = sumdy = sumw = sumtot = sumcolor = sumcolorw = sumcolortot = 0.0;
+        
+        for (let i=0; i<4; i++) {
+          sumcmyk[i] = 0;
+        }
+        
+        x1 = ps[pi1], y1 = ps[pi1+1], r1 = ps[pi1+PR], gen1 = ps[pi1+PGEN], color1 = ps[pi1+PCOLOR];
+        
+        //searchr = (r1+max_r)*0.5*searchfac;
+        //searchr = r1*searchfac;
+        
+        for (off of gridoffs) {
+          searchr = max_r*searchfac;
+          tree.forEachPoint(x1+off[0], y1+off[1], searchr, callback);
+
+          //XXX disabled for speed, until needed
+          //searchr = max_r*cmyk_searchfac;
+          //tree.forEachPoint(x1+off[0], y1+off[1], searchr, cmyk_callback);
+        }
+        
+        if (sumtot == 0.0 || sumw == 0.0) {
+          continue;
+        }
+        
+        sumdx /= sumw;
+        sumdy /= sumw;
+        
+        let fac2 = Math.pow(1.0 - r1/max_r, 2.0) + 0.125;
+        fac2 *= 0.5;
+        fac2 = 0.1;
+        
+        ps[pi1] += -sumdx*fac2*fac;
+        ps[pi1+1] += -sumdy*fac2*fac;
+        
+        if (sumcolorw == 0.0) {
+          continue;
+        }
+
+        if (sumcolor / sumcolorw >= 4) {
+          throw new Error("sumcolor corruption");
+        }
+
+        sumcolor = (~~((sumcolor + color1) / (sumcolorw + 1))) % 4;
+        //sumcolor = (~~(sumcolor / sumcolorw)) % 4;
+        
+        let mini=0, maxi=0, minc=0, maxc=0;
+        
+        for (let i=0; i<4; i++) {
+          sumcmyk[i] /= sumcolortot;
+          
+          if (i==0 || sumcmyk[i] > maxc) {
+            maxc = sumcmyk[i];
+            maxi = i;
+          }
+          
+          if (i == 0 || sumcmyk[i] < minc) {
+            minc = sumcmyk[i];
+            mini = i;
+          }
+        }
+        
+        //mini = sumcolor;
+        if (mini != color1) {
+          swaps[mini].push(pi1);
+          bins[mini].push(pi1);
+        }
+        //if (color1 != sumcolor) {
+        //  swaps[sumcolor].push(pi1);
+        // bins[color1].push(pi1);
+        //}
+      }
+
+      for (let i=0; i<4; i++) {
+        swaps[i].sort();
+        bins[i].sort();
+      }
+
+      let steplen = swaps[0].length + swaps[1].length + swaps[2].length + swaps[3].length;
+      for (let step=0; step<steplen; step++) {
+        let i = ~~(Math.random()*3.999999);
+        
+        for (let i2=0; i2<swaps[i].length; i2++) {
+          let pi1 = swaps[i][i2];
+          let rj = ~~(Math.random()*2.999999);
+          let j = (i + rj) % 4;
+          
+          j = ps[pi1+PCOLOR];
+          
+          if (j == undefined) {
+            throw new Error("eek!");
+          }
+
+          if (swaps[j].length == 0) {
+            continue;
+          }
+          
+          let k;
+          for (k=0; k<swaps[j].length; k++) {
+            if (ps[swaps[j][k]+PCOLOR] == i) {
+              break;
+            }
+          }
+
+          if (k == swaps[j].length) {
+            continue;
+          }
+          
+          let pi2 = swaps[j][k];
+          
+          let t = ps[pi1+PCOLOR];
+          ps[pi1+PCOLOR] = i;//ps[pi2+PCOLOR];
+          ps[pi2+PCOLOR] = j;//t;
+          
+          //remove from lists
+          swaps[i][i2] = swaps[i][swaps[i].length-1];
+          swaps[j][k] = swaps[j][swaps[j].length-1];
+
+          swaps[i].pop();
+          swaps[j].pop();
+
+          i2--;
+        }
+      }
+      console.log(swaps);
+      
+      for (pi1=0; pi1<ps.length; pi1 += PTOT) {
+        ps[pi1] = Math.fract(ps[pi1]);
+        ps[pi1+1] = Math.fract(ps[pi1+1]);
+        
+        ps[pi1+PSTARTX] = ps[pi1];
+        ps[pi1+PSTARTY] = ps[pi1+1];
+      }
+    }
+      
     step_base_generate(ctx) {
+      return this.step_base_generate_new(ctx);
       //return this.step_base_generate_old(ctx);
 
       let ps = this.points;
@@ -1756,26 +2413,36 @@ define([
         dis = dis != 0.0 ? Math.sqrt(dis) : 0.0;
         let w = 1.0 - dis/searchr;
         
-        //w *= w*w;
-        w = ctx.SM_SPH_CURVE.evaluate(w);
-        //let wd = -0.2;
-        //w = w * (1.0 + wd) - wd;
-        
-        if (gen2 > gen1) {
+        if (1||gen2 > gen1) {
           //w *= 0.25;
           //return;
           //w *= 0.6;
           let d = ctx.SM_PRE_PARAM; //0.001;
-          let g = gen2 > gen1 ? (gen1+d)/(gen2+d) : (gen2+d)/(gen1+d);
+          //let g = gen2 > gen1 ? (gen1+d)/(gen2+d) : (gen2+d)/(gen1+d);
           
-          g = 1.0 - (gen2 - gen1);
+          let g1 = gen1; //Math.pow(gen1, d);
+          let g2 = gen2; //Math.pow(gen2, d);
+
+          let g = g1 - g2 + 1.0;
+          //g = 1.0 / (gen1*gen1 + gen2*gen2 + d);
+          //g = Math.atan2(gen1, gen2)/Math.PI/2.0 + 0.5;
           
-          w *= Math.pow(g, ctx.SM_G_POW);
+          let pw = ctx.SM_G_POW;//*Math.pow((1.0-gen1), 0.5);
+
+          //pw += (1.0-gen1)*1.0;
+          g2 = g;
+          g2 = g2 != 0.0 ? Math.pow(g2, 1) : g2;
+          let d2 = 0.1;
+          //w = Math.pow(w, 3 + (g1+d2)/(g2+d2)*ctx.SM_PRE_PARAM); //2.0 + g2*ctx.SM_PRE_PARAM);
+          w *= Math.pow(g, pw);
+          w = Math.pow(w, ctx.SM_PRE_PARAM);
+          
           //w = Math.pow(w, 1.0 + ctx.SM_G_POW*g);
           
           //w *= ctx.SM_G_CURVE.evaluate(g);
           //w = Math.pow(w, 1.0 + (gen1+d)/(gen2+d));
         } else {
+          w = Math.pow(w, ctx.SM_PRE_PARAM);
           //return;
         }
         
@@ -1786,7 +2453,7 @@ define([
       }
 
       let r = this.cur_r = ctx.SM_RADMUL / Math.sqrt(tot);
-      let fac = ctx.SM_SPH_SPEED2;// * 0.45;
+      let fac = ctx.SM_SPH_SPEED2*5.0;// * 0.45;
       
       let max_r = undefined;
       for (let pi=0; pi<ps.length; pi += PTOT) {
@@ -1802,7 +2469,8 @@ define([
         
         //searchr = max_r*searchfac;
         //searchr = (r1+max_r)*0.5*searchfac;
-        searchr = Math.pow(r1/max_r, 0.5)*max_r*searchfac;
+        searchr = r1*searchfac;
+        //searchr = Math.pow(r1/max_r, ctx.SM_PRE_PARAM)*max_r*searchfac;
         
         for (off of gridoffs) {
           tree.forEachPoint(x1+off[0], y1+off[1], searchr, callback);
@@ -1834,7 +2502,7 @@ define([
     step_base_generate_old(ctx) {
       ctx = ctx.copy();
       
-      let settings = {"DIMEN":28,"MAX_SCALE":8,"SM_RADMUL":0.8,"SIMPLE_MODE":false,"APP_VERSION":0.0001,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"SM_PREPOWER":0.5,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"DRAW_COLORS":true,"SM_SEARCHRAD":4,"RMUL":1,"SPH_SPEED":4.69,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.406,"PARAM":0.45,"PARAM2":3.751,"PARAM3":0.000001,"PARAM4":4,"PARAM5":0.721,"TIMER_STEPS":11074,"START_THRESHOLD":0.3,"SM_GENSTART":0.05,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"SM_DV_DAMPING":1,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SM_SEARCHRAD2":3.96,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}},"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1};
+      let settings = {"DIMEN":28,"MAX_SCALE":8,"SM_RADMUL":0.8,"SIMPLE_MODE":false,"APP_VERSION":0.0001,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"SM_PREPOWER":0.5,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"DRAW_COLORS":true,"SM_SEARCHRAD":4,"RMUL":1,"SM_SPH_SPEED":4.69,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.406,"PARAM":0.45,"PARAM2":3.751,"PARAM3":0.000001,"PARAM4":4,"PARAM5":0.721,"TIMER_STEPS":11074,"START_THRESHOLD":0.3,"SM_GENSTART":0.05,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"SM_DV_DAMPING":1,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SM_SEARCHRAD2":3.96,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}},"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1};
       
       for (let k in settings) {
           ctx[k] = settings[k];
@@ -2159,8 +2827,8 @@ define([
           ps[pi+1] = ps[pi+PSTARTY];
         }
         
-        super.relax();
-        //this.step_base_generate(this.config.copy());
+        //super.relax();
+        this.step_base_generate(this.config.copy());
 
         this.setStartCos(this.config);
         this.rebasePaths(this.config);
@@ -2170,7 +2838,7 @@ define([
           ps[pi+1] = ps[pi+POFFY];
         }
 
-        this.regen_spatial();
+        this.regen_spatial(this.config);
     }
 
     max_level() {
@@ -2209,34 +2877,42 @@ define([
           let r = this.r*0.2;//*ctx.DRAW_RMUL;
           let lastp = undefined;
           
-          g.beginPath();
-          g.lineWidth = r*0.05;
-          
-          for (let s=0, j=0; j<steps; j++, s += ds) {
-            if (s < gen) {
-              continue;
+          let repeat = !ctx.DRAW_TEST && ctx.DRAW_TILED ? 9 : 1;
+
+          for (let step=0; step<repeat; step++) {
+            let rx = gridoffs[step][0], ry = gridoffs[step][1];
+
+            g.beginPath();
+            g.lineWidth = r*0.15;
+            
+            let off = gridoffs[step];
+            
+            for (let s=0, j=0; j<steps; j++, s += ds) {
+              if (s < gen) {
+                continue;
+              }
+
+              let p = path.evaluate(s);
+
+              if (lastp !== undefined && p.vectorDistance(lastp) > 0.25) {
+                //sudden jump, probably caused by points wrapping around.
+                //during solve
+
+                //for now, just break
+                break;
+              }
+
+              if (lastp === undefined) {
+                g.moveTo(p[0]+off[0], p[1]+off[1]);
+              } else {
+                g.lineTo(p[0]+off[0], p[1]+off[1]);
+              }
+
+              lastp = p;
             }
-            
-            let p = path.evaluate(s);
-            
-            if (lastp !== undefined && p.vectorDistance(lastp) > 0.25) {
-              //sudden jump, probably caused by points wrapping around.
-              //during solve
-              
-              //for now, just break
-              break;
-            }
-            
-            if (lastp === undefined) {
-              g.moveTo(p[0], p[1]);
-            } else {
-              g.lineTo(p[0], p[1]);
-            }
-            
-            lastp = p;
+
+            g.stroke();
           }
-          
-          g.stroke();
         }
       }
       
@@ -2328,10 +3004,10 @@ define([
         if (ctx.DRAW_TEST) {
           w = this.r;
         } else if (gen > solve_limit) {
-            w = this.r*0.25;
+          w = this.r*0.25*2.0;
         } else {
           w = ctx.SIMPLE_MODE && _appstate.timer !== undefined ? this.cur_r : this.r;
-          w *= 0.2;
+          w *= 0.2*2.0;
         }
         
         w *= ctx.DRAW_RMUL;
@@ -2371,6 +3047,11 @@ define([
         
         if (ctx.DRAW_COLORS && !ctx.DRAW_TEST) {
           g.beginPath();
+        }
+
+        if (ctx.DRAW_TILED && !ctx.DRAW_TEST) {
+          x = x*repeat - 1.0;
+          y = y*repeat - 1.0;
         }
 
         g.moveTo(x, y);

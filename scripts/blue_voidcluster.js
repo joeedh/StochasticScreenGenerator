@@ -312,7 +312,9 @@ define([
       }
       
       if (minw === undefined) {
-        console.log("eek!");
+        if (Math.random() > 0.9999) {
+          console.log("eek!");
+        }
         return;
       }
       

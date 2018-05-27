@@ -88,13 +88,13 @@ define([
   var GIDX=0, GW=1, GSUM=2, GTAG=3, GTOT=4;
   
   let config = {
-    VOIDCLUSTER_MID_R : 0.8,
+    //VOIDCLUSTER_MID_R : 0.8,
     VC_FILTERWID : 0.55,
     VC_HIEARCHIAL_SCALE : 7.6,
     TEST_CLUSTER : false,
     VOID_HEX_MODE : false,
     VOID_BAYER_MODE : false,
-    VOIDCLUSTER_CURVE : new cconst.EditableCurve("VC Filter Curve", {"points":[{"0":0,"1":0,"eid":40,"flag":0,"deg":3,"tangent":1},{"0":0.5499999999999999,"1":0.02499999999999991,"eid":85,"flag":0,"deg":3,"tangent":1},{"0":0.6125,"1":0,"eid":84,"flag":0,"deg":3,"tangent":1},{"0":0.9187500000000001,"1":0.8312499999999999,"eid":83,"flag":1,"deg":3,"tangent":1},{"0":1,"1":0.9999999999999998,"eid":12,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":86}})
+    VOIDCLUSTER_CURVE : new cconst.EditableCurve("VC Filter Curve", {"points":[{"0":0,"1":0,"eid":40,"flag":0,"deg":3,"tangent":1},{"0":0.07499999999999968,"1":0.03749999999999987,"eid":156,"flag":0,"deg":3,"tangent":1},{"0":0.1874999999999999,"1":0.04375000000000018,"eid":166,"flag":0,"deg":3,"tangent":1},{"0":0.48749999999999993,"1":0.03125,"eid":165,"flag":1,"deg":3,"tangent":1},{"0":0.58125,"1":0.16874999999999996,"eid":162,"flag":0,"deg":3,"tangent":1},{"0":0.64375,"1":0.70625,"eid":168,"flag":0,"deg":3,"tangent":1},{"0":0.8250000000000002,"1":0.9812500000000002,"eid":170,"flag":0,"deg":3,"tangent":1},{"0":0.9125,"1":1,"eid":169,"flag":0,"deg":3,"tangent":1},{"0":0.91875,"1":1,"eid":167,"flag":0,"deg":3,"tangent":1},{"0":0.9999999999999999,"1":0.9875,"eid":130,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":123,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":171}})
   };
   
   sinterface.MaskConfig.registerConfig(config);
@@ -124,8 +124,8 @@ define([
       window.VOIDCLUSTER_CURVE = panel3.curve('VOIDCLUSTER_CURVE', 'VC Filter Curve',  cconst.DefaultCurves.VOIDCLUSTER_CURVE).curve;
       panel3.close();
       
-      panel2.slider('VOIDCLUSTER_MID_R', 'Middle Radius', 0.5, 0, 1, 0.001, false, false);
-      panel2.slider('VC_FILTERWID', 'Filter Width', 0.5, 0, 3, 0.001, false, false);
+      //panel2.slider('VOIDCLUSTER_MID_R', 'Middle Radius', 0.5, 0, 1, 0.001, false, false);
+      panel2.slider('VC_FILTERWID', 'Filter Width', 0.5, 0, 16, 0.001, false, false);
       panel2.slider('VC_HIEARCHIAL_SCALE', 'Density Range', 1.0, 0, 40, 0.001, false, false);
       
       panel2.check('TEST_CLUSTER', 'Test Cluster');
@@ -184,8 +184,10 @@ define([
       
       let ps = this.points;
       
+      util.seed(0);
+      
       for (let i=0; i<midsize*midsize; i++) {
-        let x = Math.random(), y = Math.random();
+        let x = util.random(), y = util.random();
         
         let pi = ps.length;
         for (let j=0; j<PTOT; j++) {
@@ -309,8 +311,9 @@ define([
       var hscale = this.hscale = VC_HIEARCHIAL_SCALE;
       
       var r = 1.0 / dimen;
-      var midr = r*0.5 + this.hscale*r*0.5;
-      var midr = r + (r*hscale - r)*cf.VOIDCLUSTER_MID_R;
+      //var midr = r*0.5 + this.hscale*r*0.5;
+      //var midr = r + (r*hscale - r)*cf.VOIDCLUSTER_MID_R;
+      let midr = r*hscale;
       
       if (TEST_CLUSTER) {
         midr *= 0.4;
@@ -544,7 +547,7 @@ define([
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
-      var r = Math.sqrt(2.0) / Math.sqrt(1+this.points.length/PTOT);
+      var r = Math.sqrt(2.0) / Math.sqrt(this.dimen*this.dimen*0.1+this.points.length/PTOT);
       r *= cf.VC_FILTERWID;
       
       return r;
@@ -677,7 +680,9 @@ define([
       let cf = this.config;
       
       var steps = custom_steps ? custom_steps : STEPS;
-      steps = ~~(Math.log(steps) / Math.log(1.15)) + 40;
+      if (steps > 64) {
+        steps = ~~(Math.log(steps) / Math.log(1.15)) + 40;
+      }
       
       console.log("steps", steps);
       

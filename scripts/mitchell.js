@@ -14,6 +14,7 @@ define([
   
   let config = exports.config = {
     MITCHELL_TOTPOINT_MUL : 0.85,
+    MITCHELL_GENSTART     : 0.05,
     MITCHELL_POISSON_TEST : true,
     MITCHELL_FILTERWID : 4.0,
     MITCHELL_STEPSMUL   : 2.0,
@@ -41,6 +42,7 @@ define([
       panel2.slider('MITCHELL_BRIGHTNESS', 'Brightness', 2.0, 0.0001, 5.0, 0.001, false, false);
       panel2.slider('MITCHELL_STEPSMUL', 'Extra Steps', 1.0, 0.0001, 35.0, 0.001, false, false);
       panel2.slider('MITCHELL_TOTPOINT_MUL', 'TotalPointMul', 1.0, 0.0001, 1.0, 0.00001, false, false);
+      panel2.slider('MITCHELL_GENSTART', 'genstart', 0.05, 0.004, 0.999, 0.0001, false, false);
       
       panel2.check('MITCHELL_POISSON_TEST', "Poisson Mode");
       
@@ -199,15 +201,15 @@ define([
         this.maxgen = this.maxpoints; //Math.max(this.maxgen, gen);
         
         //r = Math.sqrt(0.5 / (Math.sqrt(3)*2*(totpoint+1)));
-        let rgen = gen;
-        rgen = MITCHELL_RAD_CURVE.evaluate(rgen);
+        let rgen = gen*(1.0 - cf.MITCHELL_GENSTART) + cf.MITCHELL_GENSTART;
+        rgen = cf.MITCHELL_RAD_CURVE.evaluate(rgen);
         
         rgen *= this.maxpoints;
         
         r = 0.75 / Math.sqrt(rgen+1);
         let maxr = 0.75 / Math.sqrt(this.maxpoints+1);
         
-        //r = MITCHELL_RAD_CURVE.evaluate(r/maxr)*maxr;
+        //r = cf.MITCHELL_RAD_CURVE.evaluate(r/maxr)*maxr;
         
         //r = 0.72 / Math.sqrt(this.maxpoints+1);
         

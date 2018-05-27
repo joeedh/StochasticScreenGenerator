@@ -205,6 +205,10 @@ define([
       });
     }
     
+    done() {
+      return false;
+    }
+    
     reset(dimen, appstate, mask_image) {
       super.reset(dimen, appstate, mask_image);
       

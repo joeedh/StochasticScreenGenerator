@@ -52,7 +52,7 @@ define([
       this.TONE_CURVE = TONE_CURVE;
       this.SPH_CURVE = SPH_CURVE;
       this.FFT_CURVE = FFT_CURVE;
-      this.VOIDCLUSTER_MID_R = VOIDCLUSTER_MID_R;
+      //this.VOIDCLUSTER_MID_R = VOIDCLUSTER_MID_R;
       
       this.VOID_HEX_MODE = VOID_HEX_MODE;
       this.GEN_CMYK_MASK = GEN_CMYK_MASK;
@@ -623,8 +623,10 @@ define([
     regen_kdtree() {
       this.regen_spatial();
     }
-
-    reset(size, appstate, mask_image) {
+    
+    //generators is a list of generator constructors
+    //it's passed in here to avoid module dependency cycles
+    reset(size, appstate, mask_image, generators) { 
       this.appstate = appstate;
       
       this.dimen = size;

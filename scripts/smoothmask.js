@@ -25,7 +25,7 @@ define([
     [CurveTypes.LINEAR_NONUNIFORM] : NTOT  
   };
 
-  let VERSION = 0.001;
+  let VERSION = 0.002;
   let eval_rets = new util.cachering(() => [0, 0], 64);
   
   class BinaryEncoder extends Array {
@@ -445,10 +445,34 @@ define([
     }
   };
   
+  
   exports.PointSet = class PointSet {
     constructor(blocksize) {
       this.blocksize = blocksize;
       this.points = [];
+      
+      //evenly spaced piecewise-linear curve to get linear toning
+      this.inverse_tone_curve = [0.0, 1.0];
+    }
+    
+    setInverseToneCurve(curve) {
+      this.inverse_tone_curve = curve.slice(0, curve.length);
+    }
+    
+    evalInverseTone(s) {
+      s = Math.min(Math.max(s, 0.0), 0.9999999);
+      let si = Math.floor(s*this.inverse_tone_curve.length);
+      
+      let curve = this.inverse_tone_curve;
+      if (si < curve.length-1) {
+        let t = si / this.inverse_tone_curve.length;
+        
+        t = (s - t) * this.inverse_tone_curve.length;
+        
+        return curve[si] + (curve[si+1] - curve[si]) * t;
+      } else {
+        return curve[si];
+      }
     }
     
     fromBinary(buf) {
@@ -474,6 +498,24 @@ define([
         this.points.push(p);
       }
 
+      if (version > 0.001) {
+        let totcurve = decoder.int32();
+        decoder.int32(); //drop padding bytes
+        
+        if (totcurve <= 0) {
+          console.warn("Warning: corrupted inverse toning curve data");
+          return this;
+        }
+        
+        let curve = this.inverse_tone_curve = [];
+        
+        for (let i=0; i<totcurve; i++) {
+          let f = decoder.uint16() / 65535;
+          
+          curve.push(f);
+        }
+      }
+      
       return this;
     }
 
@@ -487,6 +529,17 @@ define([
       
       for (let p of this.points) {
         p.toBinary(encoder);
+      }
+      
+      let curve = this.inverse_tone_curve;
+
+      encoder.int32(curve.length);
+      encoder.int32(0.0); //padding 
+      
+      for (let i=0; i<curve.length; i++) {
+        let f = ~~(Math.min(Math.max(curve[i], 0.0), 1.0) * 65535);
+        
+        encoder.uint16(f);
       }
       
       return encoder;

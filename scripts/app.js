@@ -7,26 +7,15 @@ var _app = undefined;
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
   'presets', 'void_cluster', 'fft', 'interface', 'darts2', 'histogram', "mitchell", 
-  "mask_optimize", "blue_voidcluster", "smoothedmask", "indexdb_store"
+  "mask_optimize", "blue_voidcluster", "smoothedmask", "indexdb_store", "generators"
 ], function(util, cconst, ui, kdtree, sample_removal, darts, sph, 
            sph_presets, presets, void_cluster, fftmod, iface, darts2, 
-           histogram, mitchell, mask_optimize, bluevc, smoothedmask, indexdb_store) 
+           histogram, mitchell, mask_optimize, bluevc, smoothedmask, indexdb_store, generators) 
 {
   'use strict';
   
   var exports = _app = {};
   var Class = util.Class;
-  
-  var generators = [
-    smoothedmask.SmoothedMaskGenerator,
-    darts.DartsGenerator,
-    void_cluster.VoidClusterGenerator,
-    darts2.Darts2Generator,
-    mitchell.MitchellGenerator,
-    mask_optimize.MaskOptGenerator,
-    bluevc.BlueVCGenerator,
-    sph.SPHGenerator
-  ];
   
   var sin_table = (function() {
     var steps = 32768;
@@ -115,7 +104,7 @@ define([
       this.mask_canvas.width = this.mask_canvas.height = this.mask_img.width;
       
       this.generator.set_config(new iface.MaskConfig());
-      this.generator.reset(size, this, this.mask_img);
+      this.generator.reset(size, this, this.mask_img, generators);
     },
     
     function fft() {
@@ -701,7 +690,7 @@ define([
         }
         
         if (!DRAW_COLOR && !DRAW_GEN) {
-          g.fillStyle = "black";
+          g.fillStyle = "red";
         }
         
         var maxgen = this.generator.max_level();
