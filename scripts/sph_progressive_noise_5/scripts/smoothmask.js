@@ -1,22 +1,17 @@
-let _smoothmask = undefined;
+//let _smoothmask = undefined;
 
 define([
-  "util"
+  "./util"
 ], function(util) {
   "use strict";
   
-  let exports = _smoothmask = {};
+  let exports = {};
   
   let CurveTypes = exports.CurveTypes = {
     LINEAR            : 0,
     LINEAR_NONUNIFORM : 1
   };
   
-  let OffsetsType = exports.OffsetsType = {
-    FLOAT32 : 0,
-    UINT16  : 1
-  };
-
   let OFFX=0, OFFY=1, OFFTOT=2;
   let NX=0, NY=1, NT=2, NTOT=3;
 
@@ -25,7 +20,7 @@ define([
     [CurveTypes.LINEAR_NONUNIFORM] : NTOT  
   };
 
-  let VERSION = 0.003;
+  let VERSION = 0.001;
   let eval_rets = new util.cachering(() => [0, 0], 64);
   
   class BinaryEncoder extends Array {
@@ -35,7 +30,6 @@ define([
       this.buffer = new ArrayBuffer(8);
       
       this.u8view = new Uint8Array(this.buffer);
-      this.u16view = new Uint16Array(this.buffer);
       this.i32view = new Int32Array(this.buffer);
       this.f32view = new Float32Array(this.buffer);
       this.f64view = new Float64Array(this.buffer);
@@ -45,16 +39,6 @@ define([
       this.i32view[0] = f;
       
       for (let i=0; i<4; i++) {
-        this.push(this.u8view[i]);
-      }
-      
-      return this;
-    }
-    
-    uint16(f) {
-      this.u16view[0] = f;
-      
-      for (let i=0; i<2; i++) {
         this.push(this.u8view[i]);
       }
       
@@ -108,11 +92,6 @@ define([
       return this.view.getInt32(this.i - 4, this.endian);
     }
     
-    uint16() {
-      this.i += 2;
-      return this.view.getUint16(this.i - 2, this.endian);
-    }
-    
     byte() {
       this.i += 1;
       return this.view.getInt8(this.i - 1);
@@ -130,9 +109,7 @@ define([
   }
   
   let MaskPoint = exports.MaskPoint = class MaskPoint {
-    constructor(startx, starty, id, gen, r, curvetype) {
-      this.startx = startx;
-      this.starty = starty;
+    constructor(id, gen, r, curvetype) {
       this.id = id;
       this.gen = gen;
       this.r = r;
@@ -143,21 +120,11 @@ define([
     }
     
     fromBinary(decoder) {
-      if (decoder.version >= 0.003) {
-        this.startx = decoder.float32();
-        this.starty = decoder.float32();
-      }
-      
       this.curvetype = decoder.int32();
       this.id = decoder.int32();
       this.gen = decoder.float64();
       this.r = decoder.float64();
       
-      this.fieldlen = fieldLens[this.curvetype];
-
-      this.decode16(decoder);
-
-      /*
       let len = decoder.int32();
       decoder.int32(); //drop padding bytes
       
@@ -166,117 +133,29 @@ define([
       for (let i=0; i<len; i++) {
         this.offsets.push(decoder.float32());
       }
-      //*/
       
-      if (decoder.version < 0.003) {
-        this.startx = this.starty = 0.0;
-        let ftot = this.fieldlen, totpoint = this.offsets.length / ftot;
-        
-        for (let i=0; i<this.offsets.length; i += ftot) {
-          this.startx += this.offsets[i], this.starty += this.offsets[i+1];
-        }
-        
-        if (totpoint > 0) {
-          this.startx /= totpoint;
-          this.starty /= totpoint;
-        }
-      }
-      
-      return this;
-    }
-    
-    encode16(encoder) {
-      let min = 1e17, max = -1e17;
-      for (let i=0; i<this.offsets.length; i++) {
-        min = Math.min(min, this.offsets[i]);
-        max = Math.max(max, this.offsets[i]);
-      }
-      
-      this.min = min;
-      this.max = max;
-      
-      encoder.int32(this.offsets.length);
-      encoder.int32(OffsetsType.UINT16);
+      this.fieldlen = fieldLens[this.curvetype];
 
-      encoder.float32(min);
-      encoder.float32(max);
-      
-      for (let i=0; i<this.offsets.length; i++) {
-        let f = this.offsets[i];
-        
-        f = (f - min) / (max - min);
-        f = ~~(f * 65535);
-        
-        encoder.uint16(f);
-      }
-      
-      return this;
-    }
-    
-    encode32(encoder) {
-      encoder.int32(this.offsets.length);
-      encoder.int32(OffsetsType.FLOAT32);
-
-      for (let f of this.offsets) {
-        encoder.float32(f);
-      }
-    }
-    
-    decode16(decoder) {
-      let len = decoder.int32();
-      let datatype = decoder.int32();
-      
-      //legacy float32 data
-      if (datatype == OffsetsType.FLOAT32) {
-        this.offsets.length = 0;
-        for (let i=0; i<len; i++) {
-          this.offsets.push(decoder.float32());
-        }
-
-        return;
-      }
-
-      let min = this.min = decoder.float32();
-      let max = this.max = decoder.float32();
-      
-      this.offsets.length = 0;
-      
-      for (let i=0; i<len; i++) {
-        let f = decoder.uint16() / 65535;
-        
-        f = f*(max - min) + min;
-        
-        this.offsets.push(f);
-      }
-      
       return this;
     }
     
     toBinary(encoder) {
-      encoder.float32(this.startx);
-      encoder.float32(this.starty);
-      
       encoder.int32(this.curvetype); //maintain 8-byte alignment for floats
       encoder.int32(this.id);
 
       encoder.float64(this.gen);
       encoder.float64(this.r);
       
-      this.encode16(encoder);
-      /*
       encoder.int32(this.offsets.length);
       encoder.int32(0); //padding
       
       for (let f of this.offsets) {
         encoder.float32(f);
       }
-      //*/
     }
     
     toJSON() {
       return {
-        startx    : this.startx,
-        starty    : this.starty,
         curvetype : this.curvetype,
         id        : this.id,
         gen       : this.gen,
@@ -471,34 +350,10 @@ define([
     }
   };
   
-  
   exports.PointSet = class PointSet {
     constructor(blocksize) {
       this.blocksize = blocksize;
       this.points = [];
-      
-      //evenly spaced piecewise-linear curve to get linear toning
-      this.inverse_tone_curve = [0.0, 1.0];
-    }
-    
-    setInverseToneCurve(curve) {
-      this.inverse_tone_curve = curve.slice(0, curve.length);
-    }
-    
-    evalInverseTone(s) {
-      s = Math.min(Math.max(s, 0.0), 0.9999999);
-      let si = Math.floor(s*this.inverse_tone_curve.length);
-      
-      let curve = this.inverse_tone_curve;
-      if (si < curve.length-1) {
-        let t = si / this.inverse_tone_curve.length;
-        
-        t = (s - t) * this.inverse_tone_curve.length;
-        
-        return curve[si] + (curve[si+1] - curve[si]) * t;
-      } else {
-        return curve[si];
-      }
     }
     
     fromBinary(buf) {
@@ -511,7 +366,7 @@ define([
       
       let decoder = new BinaryDecoder(bytes.buffer);
       
-      let version = decoder.version = decoder.float64();
+      let version = decoder.float64();
       
       let len = decoder.int32();
       this.blocksize = decoder.int32();
@@ -524,24 +379,6 @@ define([
         this.points.push(p);
       }
 
-      if (version > 0.001) {
-        let totcurve = decoder.int32();
-        decoder.int32(); //drop padding bytes
-        
-        if (totcurve <= 0) {
-          console.warn("Warning: corrupted inverse toning curve data");
-          return this;
-        }
-        
-        let curve = this.inverse_tone_curve = [];
-        
-        for (let i=0; i<totcurve; i++) {
-          let f = decoder.uint16() / 65535;
-          
-          curve.push(f);
-        }
-      }
-      
       return this;
     }
 
@@ -555,17 +392,6 @@ define([
       
       for (let p of this.points) {
         p.toBinary(encoder);
-      }
-      
-      let curve = this.inverse_tone_curve;
-
-      encoder.int32(curve.length);
-      encoder.int32(0.0); //padding 
-      
-      for (let i=0; i<curve.length; i++) {
-        let f = ~~(Math.min(Math.max(curve[i], 0.0), 1.0) * 65535);
-        
-        encoder.uint16(f);
       }
       
       return encoder;

@@ -1,16 +1,19 @@
 var _smoothedmask = undefined;
 
 define([
-  "util", "vectormath", "kdtree", "const", "linear_algebra", "binomial_table", "smoothmask", "interface", "void_cluster", "mitchell", "darts", "indexdb_store", "ui"
+  "util", "vectormath", "kdtree", "const", "linear_algebra", "binomial_table", "smoothmask", "interface", "void_cluster", "mitchell", "darts", "indexdb_store", "ui", "./sph_progressive_noise_5/scripts/sph",
+  "./sph_progressive_noise_5/scripts/const"
 ], function(util, vectormath, kdtree, cconst, linalg, binomial_table, smoothmask, sinterface, 
-            void_cluster, mitchell, darts, indexdb_store, ui)
+            void_cluster, mitchell, darts, indexdb_store, ui, sph5, sph5_const)
 {
   "use strict";
   let exports = _smoothedmask = {};
   
-  const PSTARTX = POX;
-  const PSTARTY = POY;
-  const PCOLOR = PCLR;
+  //for compatibility with sph5
+  window.PSTARTX = POX;
+  window.PSTARTY = POY;
+  
+  sph5_const.headlessLoad(undefined, ui);
   
   let SmoothModes = exports.SmoothModes = {
     SIMPLE  : 1,
@@ -96,51 +99,51 @@ define([
   */
   
    let config = exports.config = {
-    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.31875,"1":0,"eid":30,"flag":0,"deg":3,"tangent":1},{"0":0.60625,"1":0,"eid":29,"flag":0,"deg":3,"tangent":1},{"0":0.81875,"1":0.83125,"eid":32,"flag":1,"deg":3,"tangent":1},{"0":0.9375000000000001,"1":1,"eid":34,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":35}}),
+    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_SPH CurveSM_SPH_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.31875,"1":0,"eid":30,"flag":0,"deg":3,"tangent":1},{"0":0.7625,"1":0,"eid":29,"flag":1,"deg":3,"tangent":1},{"0":0.81875,"1":0.83125,"eid":32,"flag":0,"deg":3,"tangent":1},{"0":0.9375000000000001,"1":1,"eid":34,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":35}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
     SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
-    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":47}}),
-    SM_IMAGE_CURVE  :  new cconst.EditableCurve("SM_IMAGE_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":6}}),
-    SM_G_CURVE  :  new cconst.EditableCurve("SM_G_CURVE", {"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.58125,"1":0.475,"eid":4,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":5}}),
-    PATH_DEGREE  :  2,
+    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Tone CurveSM_TONE_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.65,"1":0.68125,"eid":86,"flag":1,"deg":3,"tangent":1},{"0":0.9624999999999999,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":87}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    SM_IMAGE_CURVE  :  new cconst.EditableCurve("SM_IMAGE_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Image CurveSM_IMAGE_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":6}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    SM_RADIUS_CURVE  :  new cconst.EditableCurve("SM_RADIUS_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Radius CurveSM_RADIUS_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":3}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    PATH_DEGREE  :  3,
     DRAW_TEST  :  true,
     MAX_SCALE  :  8,
     SM_RADMUL  :  0.95,
     SM_START_GENERATOR  :  2,
-    PATH_SMOOTH_FACTOR  :  0.303,
+    PATH_SMOOTH_FACTOR  :  0.21,
     SIMPLE_MODE  :  true,
     DISPLAY_LEVEL  :  1,
-    SOLVE_LEVEL  :  1,
+    SOLVE_LEVEL  :  0.973,
     SM_DV_DAMPING  :  0,
     SM_GENSTART  :  0.01,
-    PULL_FACTOR  :  0.229,
-    RANGE  :  42,
+    PULL_FACTOR  :  0.355,
+    RANGE  :  129,
     SOLVE_RANGE_MUL  :  1,
-    REPEAT  :  7,
-    SM_SPH_SPEED  :  10.26,
-    SM_SPH_SPEED2  :  4,
-    SM_PRE_RAND    : 0.0,
+    REPEAT  :  14,
+    SM_SPH_SPEED  :  2,
+    SM_SPH_SPEED2  :  1,
+    SM_PRE_RAND  :  0.00001,
     SHOW_PATHS  :  true,
     STARTCO_BLEND  :  1,
     PRESTEPS  :  55,
     PRESTEPS2  :  0,
     UPDATE_START_COS  :  false,
     SM_SEARCHRAD  :  2.32,
-    SM_SEARCHRAD2  :  3.5,
-    SM_PRE_PARAM  :  5,
+    SM_SEARCHRAD2  :  1.3,
+    SM_PRE_PARAM  :  2,
     ADV_SOLVE  :  true,
     ADV_STEPS2  :  3,
     ADV_STEPS  :  2,
-    SM_TOTPOINT_MUL  :  0.95,
+    SM_TOTPOINT_MUL  :  0.85,
     SM_PREPOWER  :  1,
-    SM_G_POW  :  3,
-    SMOOTH_REPEAT  :  0,
-    SMOOTH_WID  :  4,
+    SM_G_POW  :  0.5,
+    SMOOTH_REPEAT  :  1,
+    SMOOTH_WID  :  8.59,
     SMOOTH_PULSE_RATE  :  0.52,
     SMOOTH_PULSE_FAC  :  1,
     SMOOTH_PULSE_STEPS  :  3,
     SMOOTH_PULSE  :  false,
-    START_FACTOR : 0.0,
-    GEN_RANGE     : 4096
+    START_FACTOR  :  0.584,
+    GEN_RANGE  :  4096,
   };
 
   exports.saveConfig = function() {
@@ -441,7 +444,7 @@ define([
     }
     
     wrap(ctx) {
-      return gridoffs[0];
+      //return gridoffs[0];
         let sumx = 0, sumy = 0, sumtot = 0;
 
         for (let ti=0; ti<this.length; ti += TTOT) {
@@ -991,8 +994,8 @@ define([
      
       let panel;
       
-      panel = gui.panel("G Curve");
-      window.SM_G_CURVE = panel.curve("SM_G_CURVE", "G Curve", cconst.DefaultCurves.SM_G_CURVE).curve;
+      panel = gui.panel("Radius Curve");
+      window.SM_RADIUS_CURVE = panel.curve("SM_RADIUS_CURVE", "Radius Curve", cconst.DefaultCurves.SM_RADIUS_CURVE).curve;
 
       panel = gui.panel("SPH Curve");
       window.SM_SPH_CURVE = panel.curve("SM_SPH_CURVE", "Filter Curve", cconst.DefaultCurves.SM_SPH_CURVE).curve;
@@ -1120,7 +1123,9 @@ define([
         let gen = ps[pi+PGEN];
         //gen = 1.0 - this.config.SM_TONE_CURVE.evaluate(1.0 - gen);
 
-        let p = new smoothmask.MaskPoint(pi/PTOT, gen, ps[pi+PR]); //, smoothmask.CurveTypes.LINEAR_NONUNIFORM);
+        let p = new smoothmask.MaskPoint(ps[pi+PSTARTX], ps[pi+PSTARTY], pi/PTOT, gen, ps[pi+PR]); 
+        
+        //, smoothmask.CurveTypes.LINEAR_NONUNIFORM);
         path.fillMaskPoint(p);
         //p.compress();
         
@@ -1448,7 +1453,7 @@ define([
         for (let k in this.paths) {
             let path = this.paths[k];
 
-            let p = new smoothmask.MaskPoint(undefined, undefined, undefined, smoothmask.CurveTypes.LINEAR_NONUNIFORM);
+            let p = new smoothmask.MaskPoint(path.last_startx, path.last_starty, undefined, undefined, undefined, smoothmask.CurveTypes.LINEAR_NONUNIFORM);
             
             path.fillMaskPoint(p);
             p.compress();
@@ -1752,8 +1757,8 @@ define([
         this.advanced_solve_intern(ctx);
       }
       
-      //this.cur_t_i = Math.floor(Math.random()*0.999999*ctx.SOLVE_RANGE);
-      this.cur_t_i++;
+      this.cur_t_i = Math.floor(Math.random()*0.999999*ctx.SOLVE_RANGE);
+      //this.cur_t_i++;
       
       if (this.cur_t_i % ctx.SOLVE_RANGE == 0) {
         this.smooth_i++;
@@ -1832,12 +1837,34 @@ define([
         }
         
         let sumx = 0, sumy = 0, sumtot = 0;
+        let minx, miny, maxx, maxy;
+        
         for (let ti=0; ti<path.length; ti += TTOT) {
           if (path[ti+TGEN] == -1) continue;
           
+          if (minx === undefined) {
+            minx = maxx = path[ti];
+            miny = maxy = path[ti+1];
+          } else {
+            minx = Math.min(minx, path[ti]);
+            maxx = Math.max(maxx, path[ti]);
+            
+            miny = Math.min(miny, path[ti+1]);
+            maxy = Math.max(maxy, path[ti+1]);
+          }
+          
+          //*
           sumx += path[ti];
           sumy += path[ti+1];
           sumtot++;
+          
+          //*/
+          
+          /*
+          sumx += path[ti]*path[ti];
+          sumy += path[ti+1]*path[ti+1];
+          sumtot++;
+          //*/
         }
         
         if (sumtot == 0.0)
@@ -1846,8 +1873,18 @@ define([
         sumx /= sumtot;
         sumy /= sumtot;
         
-        ps[pi+PSTARTX] += (Math.fract(sumx) - ps[pi+PSTARTX])*0.015;
-        ps[pi+PSTARTY] += (Math.fract(sumy) - ps[pi+PSTARTY])*0.015;
+        /*
+        sumx = Math.sqrt(sumx);
+        sumy = Math.sqrt(sumy);
+        //*/
+        
+        //*
+        sumx = (minx + maxx)*0.5;
+        sumy = (miny + maxy)*0.5;
+        //*/
+        
+        ps[pi+PSTARTX] += (sumx - ps[pi+PSTARTX])*0.015;
+        ps[pi+PSTARTY] += (sumy - ps[pi+PSTARTY])*0.015;
       }
 
       //this.rebasePaths(ctx);
@@ -1979,24 +2016,51 @@ define([
         let dx = ps[pi1+PSTARTX] - ps[pi1];
         let dy = ps[pi1+PSTARTY] - ps[pi1+1];
         
-        let pfac = ctx.PULL_FACTOR;// + ctx.PULL_FACTOR*(1.0 - ctx.SOLVE_LEVEL);
+        let tfac = 1.0 - Math.abs(ps[pi1+PGEN] - ctx.SOLVE_LEVEL);
+        
+        let pfac = tfac*ctx.PULL_FACTOR;// + ctx.PULL_FACTOR*(1.0 - ctx.SOLVE_LEVEL);
         
         ps[pi1] += dx*ctx.PULL_FACTOR/2.0;
         ps[pi1+1] += dy*ctx.PULL_FACTOR/2.0;
         
-        let sfac = ctx.START_FACTOR; //Math.min(ctx.START_FACTOR, ctx.PULL_FACTOR);
+        let sfac = /*tfac**/ctx.START_FACTOR; //Math.min(ctx.START_FACTOR, ctx.PULL_FACTOR);
         
-        //pull start (path origin) positions towards points too
-        ps[pi1+PSTARTX] += -dx*0.02*sfac;
-        ps[pi1+PSTARTY] += -dy*0.02*sfac;
+        let dstartx=0, dstarty=0;
         
-        if (ctx.START_FACTOR > 0) {
-           ps[pi1+PSTARTX] = Math.fract(ps[pi1+PSTARTX]);
-           ps[pi1+PSTARTY] = Math.fract(ps[pi1+PSTARTY]);
+        let sdx = dx, sdy = dy, slen = Math.sqrt(sdx*sdx + sdy*sdy);
+        if (slen > 0) {
+          //sdx /= slen*this.dimen;
+          //sdy /= slen*this.dimen;
+          
+          //pull start (path origin) positions towards points too
+          dstartx += -sdx*0.02*sfac;
+          dstarty += -sdy*0.02*sfac;
+        }
+        
+        let path = this.getPath(ctx, pi1, false);
+
+        //wrap around as necessary
+        if (ctx.START_FACTOR > 0 && path !== undefined) {
+          let offx=0, offy=0;
+          
+          if (ps[pi1+PSTARTX] < 0)
+            offx = 1.0;
+          else if (ps[pi1+PSTARTX] >= 1.0)
+            offx = -1.0;
+          
+          if (ps[pi1+PSTARTY] < 0)
+            offy = 1.0;
+          else if (ps[pi1+PSTARTY] >= 1.0)
+            offy = -1.0;
+          
+          dstartx += offx;
+          dstarty += offy;
+          
+          ps[pi1] += offx;
+          ps[pi1+1] += offy;
         }
 
         //pull towards path position too
-        let path = this.getPath(ctx, pi1, false);
         if (path !== undefined) {
             let co = path.evaluate(this.cur_t);
 
@@ -2005,6 +2069,17 @@ define([
 
             ps[pi1] += dx*ctx.PULL_FACTOR/2*0.25;
             ps[pi1+1] += dy*ctx.PULL_FACTOR/2*0.25;
+        }
+        
+        ps[pi1+PSTARTX] += dstartx;
+        ps[pi1+PSTARTY] += dstarty;
+        
+        path.last_startx += dstartx;
+        path.last_starty += dstarty;
+        
+        for (let ti=0; ti<path.length; ti += TTOT) {
+          path[ti] += dstartx;
+          path[ti+1] += dstarty;
         }
 
         /*
@@ -2029,22 +2104,21 @@ define([
         this.updatePath(pi1, ctx);
       }
       
-      this.rebasePaths(ctx);
+      //this.rebasePaths(ctx);
     }
     
     step_base_generate_new(ctx) {
-      let config = {"SmoothModes":{"SIMPLE":1,"POLYFIT":2},"PATH_DEGREE":8,"IMAGE_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.15625000000000003,"1":0.19374999999999998,"eid":16,"flag":1,"deg":3,"tangent":1},{"0":0.41875000000000007,"1":0.35625000000000007,"eid":15,"flag":0,"deg":3,"tangent":1},{"0":0.7937500000000005,"1":0.6437499999999997,"eid":11,"flag":0,"deg":3,"tangent":1},{"0":0.9999999999999999,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":17}},"TONE_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.9812500000000001,"1":0.99375,"eid":28,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":37}},"SPH_CURVE":{"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.25625,"1":0.07499999999999996,"eid":7,"flag":0,"deg":3,"tangent":1},{"0":0.5,"1":0,"eid":8,"flag":0,"deg":3,"tangent":1},{"0":0.65625,"1":0.09375,"eid":5,"flag":0,"deg":3,"tangent":1},{"0":0.7500000000000001,"1":0.07500000000000018,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.9187500000000001,"1":0.8375,"eid":6,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}},"APPLY_TONING":false,"SEARCHRAD":1.2,"CMYK_SEARCHRAD":3,"DRAW_TEST":true,"DIMEN":32,"MAX_SCALE":3,"RADMUL":0.95,"PATH_SMOOTH_FACTOR":1,"SIMPLE_MODE":true,"DISPLAY_LEVEL":1,"SOLVE_LEVEL":1,"DV_DAMPING":1,"GENSTART":0.05,"PULL_FACTOR":0.05,"RANGE":255,"REPEAT":8,"STARTCO_BLEND":1,"PRESTEPS":16,"PARAM1":2,"PARAM2":0.5,"PARAM3":2,"PARAM4":0.7,"PARAM5":1,"PARAM6":0.8,"PARAM7":1,"DRAW_INTENSITY":true,"DRAW_COLORS":false,"IMAGE_COLORS":true,"USE_IMAGE":false,"GENSTEPS":4096,"APP_VERSION":0.0001,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"PREPOWER":1,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"RMUL":1,"SPH_SPEED":0.5,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.3,"PARAM":0.45,"TIMER_STEPS":33554432,"START_THRESHOLD":0.3,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SEARCHRAD2":3.96,"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1,"SHOW_PATHS":false,"UPDATE_START_COS":false,"ADV_SOLVE":false,"ADV_STEPS":32,"CMYRK_SEARCHRAD":4,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}}};
+      let sph = new sph5.SPH(this.dimen);
+      sph.points = this.points;
       
-      ctx = ctx.copy();
-
-      for (let k in config) {
-        if (k.search("CURVE") < 0) {
-          ctx[k] = config[k];
-        }
-      }
+      let ctx2 = sph5_const.copy();
       
-      ctx.SPH_SPEED = ctx.SM_SPH_SPEED2;
-      ctx.SEARCHRAD = ctx.SM_SEARCHRAD2;
+      this.report("suggested PreSpeed: " + ctx2.SPH_SPEED.toFixed(4) + ", PreSearchRad: "
+                  + ctx2.SEARCHRAD.toFixed(4));
+      
+      ctx2.SPH_SPEED = ctx.SM_SPH_SPEED2;
+      ctx2.SEARCHRAD = ctx.SM_SEARCHRAD2;
+      ctx2.RADIUS_CURVE = ctx.SM_RADIUS_CURVE;
       
       if (this.cmyk_tick === undefined) {
         this.cmyk_tick = 0;
@@ -2075,7 +2149,8 @@ define([
         ps[pi+PR] = calcradius(ps[pi+PGEN], totpoint, ctx);
       }
       
-      this.step_base_generate_new_intern(ctx);
+      sph.step(ctx2);
+      //this.step_base_generate_new_intern(ctx);
       
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let i = pi/PTOT;
@@ -2817,9 +2892,6 @@ define([
         let ps = this.points;
         
         for (let pi=0; pi<ps.length; pi += PTOT) {
-          //make sure path exists
-          this.getPath(this.config, pi, true);
-          
           ps[pi+POFFX] = ps[pi];
           ps[pi+POFFY] = ps[pi+1];
           
@@ -2831,11 +2903,13 @@ define([
         this.step_base_generate(this.config.copy());
 
         this.setStartCos(this.config);
-        this.rebasePaths(this.config);
+        //this.rebasePaths(this.config);
         
         for (let pi=0; pi<ps.length; pi += PTOT) {
-          ps[pi] = ps[pi+POFFX];
-          ps[pi+1] = ps[pi+POFFY];
+          if (this.getPath(this.config, pi, false) !== undefined) {
+            ps[pi] = ps[pi+POFFX];
+            ps[pi+1] = ps[pi+POFFY];
+          }
         }
 
         this.regen_spatial(this.config);
