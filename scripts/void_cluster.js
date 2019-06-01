@@ -684,7 +684,7 @@ define([
         steps = ~~(Math.log(steps) / Math.log(1.15)) + 40;
       }
       
-      console.log("steps", steps);
+      //console.log("steps", steps);
       
       //steps = 1;
       

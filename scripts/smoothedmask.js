@@ -10,8 +10,12 @@ define([
   let exports = _smoothedmask = {};
   
   //for compatibility with sph5
-  window.PSTARTX = POX;
-  window.PSTARTY = POY;
+  if (window.POX !== undefined) {
+    window.PSTARTX = POX;
+    window.PSTARTY = POY;
+  } else {
+    window.PSTARTX = window.PSTARTY = 0;
+  }
   
   sph5_const.headlessLoad(undefined, ui);
   
@@ -202,7 +206,7 @@ define([
       binomial_table = _binomial_table;
       binomials = binomial_table.binomial_table;
       
-      console.log(binomial_table);
+      //console.log(binomial_table);
       window.clearInterval(timer);
     }, 150);
     //throw new Error("module load error");

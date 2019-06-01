@@ -1,4 +1,4 @@
-var _binomial_table = undefined;
+window._binomial_table = undefined;
 /*define([
   "util"
 ], function(util) {

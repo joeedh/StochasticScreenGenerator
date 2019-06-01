@@ -1,0 +1,30 @@
+{
+  "name": "bluegen",
+  "version": "0.0.1",
+  "description": "blue noise mask generator",
+  "main": "bluegen.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joeedh/StochasticScreenGenerator.git"
+  },
+  "keywords": [
+    "bluenoise\u001b[D\u001b[C",
+    "sampling",
+    "2d",
+    "mask",
+    "stippling"
+  ],
+  "author": "Joseph Eagar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/joeedh/StochasticScreenGenerator/issues"
+  },
+  "homepage": "https://github.com/joeedh/StochasticScreenGenerator#readme",
+  "dependencies": {
+    "pngjs": "^3.4.0",
+    "requirejs": "^2.3.6"
+  }
+}

@@ -6,7 +6,7 @@ var _linear_algebra = undefined;
 try {
   var globals = window.self;
 } catch(error) {
-  var self = global;
+  global.self = global;
 }
 
 if (self.define == undefined) { //node.js!

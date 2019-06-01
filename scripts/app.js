@@ -63,7 +63,7 @@ define([
   window.sin_table = sin_table;
   
   
-  var AppState = Class([
+  var AppState = exports.AppState = Class([
     function constructor() {
       this.generator = undefined
       
@@ -391,7 +391,7 @@ define([
       return s;
     },
     
-    function save_cmatrix() {
+    function gen_cmatrix() {
       let config = _appstate.generator.config;
       let sz = config.XLARGE_MASK ? 8 : (!config.SMALL_MASK ? 4 : 1);
       let ps = this.generator.points;
@@ -454,7 +454,10 @@ ret += `
   return bluenoise_mask[idx];
 }
       `
-      
+      return ret;
+    },
+    
+    function save_cmatrix() {
       var blob = new Blob([ret], {type : "text/plain"});
       var url = URL.createObjectURL(blob);
       window.open(url);
@@ -1146,6 +1149,10 @@ ret += `
       this.gui2.load();
     }
   ]);
+  
+  if (window.HEADLESS_APP) {
+    return exports;
+  }
   
   var animreq = undefined;
   window.redraw_all = function() {

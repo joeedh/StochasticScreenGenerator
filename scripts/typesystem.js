@@ -52,7 +52,7 @@ define([
       return this.prototype.__prototypeid__;
     }
     
-    cls.__parent__ = parent;
+    cls.__parent__ = undefined;
     cls.__statics__ = [];
 
     handle_statics(cls, undefined);

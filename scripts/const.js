@@ -48,9 +48,16 @@ var MAX_BIN = 128;
   
 
 //points, if PR is < 0 then point is dead
-var PX=0, PY=1, PR=2, PGEN=3, PDX=4, PDY=5, PR2=6, PD=7, 
-    PIX=8, PIY=9, PCLR=10, PFLAG=11, POLDX=12, POLDY=13,
-    POFFX=14, POFFY=15, POX=16, POY=17, POGEN=18, PTOT=19;
+let PointRecord = {
+  PX:0, PY:1, PR:2, PGEN:3, PDX:4, PDY:5, PR2:6, PD:7, 
+  PIX:8, PIY:9, PCLR:10, PFLAG:11, POLDX:12, POLDY:13,
+  POFFX:14, POFFY:15, POX:16, POY:17, POGEN:18, PTOT:19
+}
+//put in global namespace
+for (let k in PointRecord) {
+  console.log(k)
+  window[k] = PointRecord[k];
+}
 
 window.DRAW_OFFS = false;
 window.DRAW_HISTOGRAM = true;
@@ -100,7 +107,7 @@ window.USE_MERSENNE = true;
 
 Math._random = Math.random;
 Math.random = function() {
-  if (USE_MERSENNE) {
+  if (USE_MERSENNE && window._util) {
     return _util.random();
   } else {
     return Math._random();
@@ -120,7 +127,7 @@ window._search_offs = new Array(64);
 _search_offs[0] = [];
 
 //helper offsets for making pointsets tilable
-var _poffs = [
+window._poffs = [
   [ 0,  0],
   
   [-1, -1],
@@ -160,8 +167,6 @@ define([
   }
   
   exports.load = function(obj) {
-    console.log("loading", obj);
-    
      for (let k in obj) {
        let v = obj[k];
        
