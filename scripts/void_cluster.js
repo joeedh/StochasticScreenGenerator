@@ -930,7 +930,7 @@ define([
       ps[pi+PIX]  = ~~((xy[0]+0.0001)*this.mask_img.width*0.999999+0.0001);
       ps[pi+PIY]  = ~~((xy[1]+0.0001)*this.mask_img.width*0.999999+0.0001);
       ps[pi+PGEN] = this.maxgen++;
-      ps[pi+PCLR] = (pi/PTOT) % 4;
+      ps[pi+PCLR] = (~~(pi/PTOT)) % 4;
       
       //ps[pi+PCLR] = this.cur_cmyk;
       //this.cur_cmyk = (this.cur_cmyk+1) % 4;

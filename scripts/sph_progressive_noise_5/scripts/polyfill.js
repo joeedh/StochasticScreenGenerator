@@ -18,13 +18,15 @@ if (Array.prototype.set === undefined) {
         return this;
     }
     
-    Float64Array.prototype.set = Array.prototype.set;
-    Float32Array.prototype.set = Array.prototype.set;
-    Uint8Array.prototype.set = Array.prototype.set;
-    Uint8ClampedArray.prototype.set = Array.prototype.set;
-    Int32Array.prototype.set = Array.prototype.set;
-    Int16Array.prototype.set = Array.prototype.set;
-    Int8Array.prototype.set = Array.prototype.set;
+    if (Float64Array.prototype.set === undefined) {
+      Float64Array.prototype.set = Array.prototype.set;
+      Float32Array.prototype.set = Array.prototype.set;
+      Uint8Array.prototype.set = Array.prototype.set;
+      Uint8ClampedArray.prototype.set = Array.prototype.set;
+      Int32Array.prototype.set = Array.prototype.set;
+      Int16Array.prototype.set = Array.prototype.set;
+      Int8Array.prototype.set = Array.prototype.set;
+    }
 }
 
 if (Array.prototype.reject === undefined) {
@@ -33,7 +35,7 @@ if (Array.prototype.reject === undefined) {
     }
 }
 
-if (window.Symbol == undefined) { //eek!
+if (window.Symbol === undefined) { //eek!
   window.Symbol = {
     iterator : "$__iterator__$",
     keystr   : "$__keystr__$"

@@ -22,6 +22,7 @@ window.MODES = {
   MASKOPT      : 5,
   BLUEVC       : 6,
   SPH          : 7,
+  VOID_CLUSTER_CMYK : 8
 };
 
 window.DRAW_GRID = false;

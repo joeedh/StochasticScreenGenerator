@@ -853,6 +853,18 @@ define([
       iview.fill(iview[0], 0, iview.length);
       
       if (this.config.SMALL_MASK) {
+        /*
+        let mask = this.mask;
+        
+        for (var i=0; i<mask.length; i += 4) {
+          let f = Math.random()*255;
+          mask[i] = f;
+          mask[i+1] = f;
+          mask[i+2] = f;
+          mask[i+3] = 255;
+        }
+        return;
+        //*/
         this.assign_mask_pixels();
       } else {
         //this.mask[0] = this.mask[1] = this.mask[2] = 0;

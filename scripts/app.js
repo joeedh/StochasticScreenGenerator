@@ -391,6 +391,77 @@ define([
       return s;
     },
     
+    function save_cmatrix() {
+      let config = _appstate.generator.config;
+      let sz = config.XLARGE_MASK ? 8 : (!config.SMALL_MASK ? 4 : 1);
+      let ps = this.generator.points;
+      let dimen = this.generator.dimen*sz;
+      
+      let grid = new Uint16Array(dimen*dimen);
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        let x = ps[pi], y = ps[pi+1], gen = ps[pi+PGEN];
+        
+        let ix = ~~(Math.min(Math.max(x, 0), 0.999999)*dimen);
+        let iy = ~~(Math.min(Math.max(y, 0), 0.999999)*dimen);
+        
+        let idx = iy*dimen + ix;
+        grid[idx] = gen*65535;
+      }
+      
+      let is_pw2 = Math.log(dimen) / Math.log(2);
+      is_pw2 = Math.fract(is_pw2) < 0.00001;
+      
+      let ret = `#define BLUE_MASK_DIMEN ${dimen}\n`
+      ret += `#define BLUE_MASK_BYTES_PER_PIXEL 2\n`
+      
+      if (is_pw2) {
+        ret += `#define BLUE_MASK_MASK ${dimen-1}\n`
+      }
+      
+      ret += `static unsigned short bluenoise_mask[${dimen*dimen}] = {\n`;
+      let line = "";
+      for (let val of grid) {
+        let chunk = "0x" + val.toString(16) + ",";
+        ret += chunk;
+        line += chunk;
+        
+        if (line.length > 75) {
+          ret += "\n"
+          line = "";
+        }
+      }
+      ret += "};\n";
+      
+      ret += `
+static int sample_bluenoise_mask(int x, int y) {
+  int idx;
+`;
+  
+  if (is_pw2) {
+ret += `
+  x &= BLUE_MASK_MASK;
+  y &= BLUE_MASK_MASK;
+`;
+  } else {
+ret += `
+  x = x % BLUE_MASK_DIMEN;
+  y = y % BLUE_MASK_DIMEN;
+`;
+  }
+  ret += `
+  
+  idx = y*BLUE_MASK_DIMEN + x;
+  return bluenoise_mask[idx];
+}
+      `
+      
+      var blob = new Blob([ret], {type : "text/plain"});
+      var url = URL.createObjectURL(blob);
+      window.open(url);
+      
+      return ret;
+    },
+    
     function save_ps_matrix() {
       var s = this.gen_ps_matrix();
       
@@ -958,6 +1029,10 @@ define([
       panel2.close();
       
       for (let gen of generators) {
+        console.log(gen);
+        
+        if (gen === undefined)
+          continue;
         gen.build_ui(panel);
       }
       
@@ -1031,11 +1106,15 @@ define([
       
       var this2 = this;
       
+      panel.button("save_cmatrix", "Save C matrix", function() {
+        _appstate.save_cmatrix();
+      });
+      
       panel.button('save_matrix', "Save PS Matrix", function() {
         _appstate.save_ps_matrix();
       });
       
-      panel.button('save_matrix', "Save PS CMYK", function() {
+      panel.button('save_matrix2', "Save PS CMYK", function() {
         _appstate.save_ps_matrix_cmyk();
       });
       

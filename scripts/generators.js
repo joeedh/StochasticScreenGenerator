@@ -3,9 +3,9 @@ var _generators = undefined;
 define([
   'util', 'const', 'sample_removal', 'darts', 'sph', 'void_cluster', 
   'fft', 'darts2', "mitchell", "mask_optimize", 
-  "blue_voidcluster", "smoothedmask"
+  "blue_voidcluster", "smoothedmask", "void_cluster_cmyk"
 ], function(util, cconst, sample_removal, darts, sph, void_cluster,
-           fftmod, darts2, mitchell, mask_optimize, bluevc, smoothedmask) 
+           fftmod, darts2, mitchell, mask_optimize, bluevc, smoothedmask, vccmyk) 
 {
   'use strict';
   
@@ -18,6 +18,7 @@ define([
     mitchell.MitchellGenerator,
     mask_optimize.MaskOptGenerator,
     bluevc.BlueVCGenerator,
-    sph.SPHGenerator
+    sph.SPHGeneratorm,
+    vccmyk.VoidClusterGeneratorCMYK
   ];
 });
