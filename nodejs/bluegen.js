@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 let cparse = require("./cmdparse");
 let fs = require("fs");
 
@@ -103,11 +105,11 @@ rjs(["util", "interface", "ui", "generators", "app"],
     });
     
     options.path("out", "mask${dimen}.png", "Output path");
-    options.path("gen_csource", undefined, "Generate C source code").callback((path) => {
+    options.path("gen_csource", "masksrc.c", "Generate C source code").callback((path) => {
     });
     
     options.bool("large_mask", false, "Generate larger mask with black space around mask pixels");
-    options.int("dimen", 64, "Dimension of generated mask");
+    options.int("dimen", 32, "Dimension of generated mask");
     options.float("filterwid", 1.25, "Void-cluster/SPH/etc filter kernel width");
 
     options.path("make_config", "config.json", "Generate default config file").callback(() => {

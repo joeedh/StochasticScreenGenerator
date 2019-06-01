@@ -57,9 +57,10 @@ let CommandEnum = exports.CommandEnum = class CommandEnum extends CommandArg {
     super(key, "ENUM", help, defaultval, cb, short);
     
     this.enumdef = enumdef;
-    if (defaultval !== undefined) {
-      this.defaultval = enumdef[defaultval];
-    }
+    
+    //if (defaultval !== undefined) {
+    //this.defaultval = enumdef[defaultval];
+    //}
   }
       
   process(val, parser) {

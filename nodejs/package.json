@@ -10,6 +10,9 @@
     "type": "git",
     "url": "git+https://github.com/joeedh/StochasticScreenGenerator.git"
   },
+  "bin": {
+    "bluegen": "./bluegen.js"
+  },
   "keywords": [
     "bluenoise\u001b[D\u001b[C",
     "sampling",
