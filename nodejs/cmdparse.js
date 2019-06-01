@@ -25,6 +25,7 @@ let CommandArg = exports.CommandArg = class CommandArg {
     this.defaultval = defaultval;
     this._trigger = false; //used by parse function to defer firing events
     this.not_in_json = false;
+    this.not_in_config_list = false;
     this.short = short;
   }
   
@@ -48,6 +49,11 @@ let CommandArg = exports.CommandArg = class CommandArg {
   
   notInJSON() {
     this.not_in_json = true;
+    return this;
+  }
+  
+  notInCfgList() {
+    this.not_in_config_list = true;
     return this;
   }
 }
@@ -97,10 +103,24 @@ let CommandParse = exports.CommandParse = class CommandParse {
       obj = JSON.parse(obj);
     }
     
-    for (let key of obj) {
+    for (let key in obj) {
       this.config[key] = obj[key];
     }
     
+    for (let key in obj) {
+      let cmd = this.keymap[key];
+      
+      if (cmd === undefined) {
+        this.error("Unknown configuration key " + key);
+        continue;
+      }
+      
+      if (cmd.type == "CMD" || this.config[key] === undefined) {
+        continue;
+      }
+      
+      this.config[key] = cmd.process(this.config[key], this);
+    }
     return this;
   }
   
@@ -391,6 +411,14 @@ let CommandParse = exports.CommandParse = class CommandParse {
     for (let k in this.config) {
       let v = this.config[k];
       let cmd = this.keymap[k];
+      
+      if (cmd === undefined) {
+        console.log("ERROR in printConfig(): bad key", k);
+        continue;
+      }
+      
+      if (cmd.not_in_config_list)
+        continue;
       
       if (1) { //v != cmd.defaultval) {
         keys.push(k);

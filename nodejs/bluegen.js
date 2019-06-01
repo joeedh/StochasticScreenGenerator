@@ -112,6 +112,8 @@ rjs(["util", "interface", "ui", "generators", "app"],
     options.int("dimen", 32, "Dimension of generated mask");
     options.float("filterwid", 1.25, "Void-cluster/SPH/etc filter kernel width");
 
+    options.path("config", undefined, "use config json").notInJSON();
+    
     options.path("make_config", "config.json", "Generate default config file").callback(() => {
       console.log(options.printConfig());
 
@@ -123,7 +125,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
       //console.log(json, path)
       
       process.exit(0);
-    }).notInJSON();
+    }).notInJSON().notInCfgList();
     
     return options;
   }
@@ -197,6 +199,11 @@ rjs(["util", "interface", "ui", "generators", "app"],
 
   //console.log(process.argv)
   options.parseCmdLine(process.argv.slice(2, process.argv.length))
+  if (options.config.config) {
+    let json = fs.readFileSync(options.config.config, "utf8")
+    json = JSON.parse(json);
+    options.loadJSON(json);
+  }
   console.log(options.printConfig());
   
   let mconfig = genMaskConfig(options);

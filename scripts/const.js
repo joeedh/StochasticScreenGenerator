@@ -55,7 +55,6 @@ let PointRecord = {
 }
 //put in global namespace
 for (let k in PointRecord) {
-  console.log(k)
   window[k] = PointRecord[k];
 }
 
