@@ -22,6 +22,7 @@ let CommandArg = exports.CommandArg = class CommandArg {
     this.key = key;
     this.type = type;
     this.cb = cb;
+    this.user_set = false;
     this.defaultval = defaultval;
     this._trigger = false; //used by parse function to defer firing events
     this.not_in_json = false;
@@ -98,12 +99,16 @@ let CommandParse = exports.CommandParse = class CommandParse {
     process.exit(-1);
   }
   
-  loadJSON(obj) {
+  loadJSON(obj, override_user=false) {
     if (typeof obj == "string") {
       obj = JSON.parse(obj);
     }
     
     for (let key in obj) {
+      if (!override_user && this.keymap[key] !== undefined && this.keymap[key].user_set) {
+        continue;
+      }
+      
       this.config[key] = obj[key];
     }
     
@@ -118,6 +123,11 @@ let CommandParse = exports.CommandParse = class CommandParse {
       if (cmd.type == "CMD" || this.config[key] === undefined) {
         continue;
       }
+      
+      if (!override_user && cmd.user_set) {
+        continue;
+      }
+      
       
       this.config[key] = cmd.process(this.config[key], this);
     }
@@ -227,6 +237,7 @@ let CommandParse = exports.CommandParse = class CommandParse {
       if (have_next && cmd.type != "CMD") {
         this.config[cmd.key] = args[++i];
         cmd._trigger = 2;
+        cmd.user_set = true;
       } else {
         cmd._trigger = 1;
       }
