@@ -113,6 +113,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
     options.float("filterwid", 1.25, "Void-cluster/SPH/etc filter kernel width");
 
     options.path("config", undefined, "use config json").notInJSON();
+    options.int("seed", 0, "random seed")
     
     options.path("make_config", "config.json", "Generate default config file").callback(() => {
       console.log(options.printConfig());
@@ -140,6 +141,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
     let config = options.config;
     let cf = new iface.MaskConfig();
     
+    cf.SEED = options.config.seed;
     cf.USE_TONE_CURVE = false;
     cf.CMYK = false;
     cf.GEN_MASK = true;

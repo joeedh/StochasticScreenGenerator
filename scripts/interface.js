@@ -14,6 +14,7 @@ define([
     constructor() {
       this.update();
       
+      this.SEED = 0;
       this.RELAX_CURRENT_LEVEL = false;
     }
     
@@ -627,6 +628,8 @@ define([
     //generators is a list of generator constructors
     //it's passed in here to avoid module dependency cycles
     reset(size, appstate, mask_image, generators) { 
+      util.seed(this.config.SEED);
+      
       this.appstate = appstate;
       
       this.dimen = size;

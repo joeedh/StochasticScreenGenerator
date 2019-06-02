@@ -184,8 +184,6 @@ define([
       
       let ps = this.points;
       
-      util.seed(0);
-      
       for (let i=0; i<midsize*midsize; i++) {
         let x = util.random(), y = util.random();
         
@@ -289,7 +287,7 @@ define([
     
     reset(dimen, appstate, mask_image) {
       super.reset(dimen, appstate, mask_image);
-
+       
       this.dimen = dimen;
       this.hscale = this.hlvl = this.gen = this.maxgen = this.totfilled = 0;
       
@@ -891,7 +889,6 @@ define([
       var mini2 = 0;
       
       var minf = 1e17;
-      var seed = Math.random();
       var arr = [0, 0, 0, 0, 0, 0];
 
       mini2 = 0;
