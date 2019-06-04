@@ -664,7 +664,7 @@ define([
     
     raster_point(pi, ps) {
       var mscale = SMALL_MASK ? 1 : (XLARGE_MASK ? 8 : 4);
-      
+      var config = this.config;
       var mask = this.mask, msize = this.mask_img.width
       ps = ps === undefined ? this.points : ps;
       
@@ -678,8 +678,8 @@ define([
       //XXX
       //d = 1.0 - (pi) / ps.length;
       
-      if (TONE_CURVE != undefined && USE_TONE_CURVE) {
-        d = 1.0 - this.config.TONE_CURVE.evaluate(1.0-d);
+      if (config.TONE_CURVE != undefined && config.USE_TONE_CURVE) {
+        d = 1.0 - config.TONE_CURVE.evaluate(1.0-d);
       }
       
       if (d < 0 || d > 1.0 || isNaN(d)) {
@@ -696,16 +696,16 @@ define([
       //iy = Math.min(Math.max(iy, 0), msize-1);
       
       var idx = (iy*msize+ix)*4;
-      if (!ALLOW_OVERDRAW && mask[idx] != 0) return;
+      if (!config.ALLOW_OVERDRAW && mask[idx] != 0) return;
       
       //small offset to signal that a pixel isn't blank in expanded/large masks.
       //didn't want to use alpha for it.
-      let off = LARGE_MASK_NONZERO_OFFSET;
+      let off = config.LARGE_MASK_NONZERO_OFFSET;
       
       d = ~~(d*(255-off)) + off;
       
       var color = ps[pi+PCLR];
-      if (GEN_CMYK_MASK) {
+      if (config.GEN_CMYK_MASK) {
         var r = ~~(d*CMYK[color&3][0]*255);
         var g = ~~(d*CMYK[color&3][1]*255);
         var b = ~~(d*CMYK[color&3][2]*255);

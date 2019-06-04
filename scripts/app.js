@@ -398,8 +398,12 @@ define([
       let dimen = this.generator.dimen*sz;
       
       let grid = new Uint16Array(dimen*dimen);
+      let max_level = this.generator.max_level();
+      
       for (let pi=0; pi<ps.length; pi += PTOT) {
         let x = ps[pi], y = ps[pi+1], gen = ps[pi+PGEN];
+        
+        gen /= max_level;
         
         let ix = ~~(Math.min(Math.max(x, 0), 0.999999)*dimen);
         let iy = ~~(Math.min(Math.max(y, 0), 0.999999)*dimen);

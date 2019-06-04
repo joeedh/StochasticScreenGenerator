@@ -153,6 +153,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
     cf.SEARCHRAD = cf.SEARCHRAD2 = config.filterwid;
     cf.DIMEN = config.dimen;
     cf.SMALL_MASK = !config.large_mask;
+    cf.LARGE_MASK_NONZERO_OFFSET = 0;
     
     return cf;
   }
