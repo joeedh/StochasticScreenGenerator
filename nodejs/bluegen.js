@@ -110,7 +110,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
     
     options.bool("large_mask", false, "Generate larger mask with black space around mask pixels");
     options.int("dimen", 32, "Dimension of generated mask");
-    options.float("filterwid", 1.25, "Void-cluster/SPH/etc filter kernel width");
+    options.float("filterwid", 0.75, "Void-cluster/SPH/etc filter kernel width");
 
     options.path("config", undefined, "use config json").notInJSON();
     options.int("seed", 0, "random seed")
@@ -154,6 +154,7 @@ rjs(["util", "interface", "ui", "generators", "app"],
     cf.DIMEN = config.dimen;
     cf.SMALL_MASK = !config.large_mask;
     cf.LARGE_MASK_NONZERO_OFFSET = 0;
+    cf.VC_HIEARCHIAL_SCALE = 7.6;
     
     return cf;
   }
