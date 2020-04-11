@@ -6,6 +6,8 @@ Stochastic Screen Generator (for printing, stippling, etc)
 This little web app generates stochastic (blue noise) screens
 for digital halftoning/stippling.  It has four methods:
 
+* Smoothmask: Makes a standard hiearchial blue noise mask, then computes offsets to nudge each mask level to be more smooth.
+              These go into a table.
 * Void-and-cluster: A classic, this one works best for generating
   stochastic screens for printers.
   
@@ -19,10 +21,6 @@ for digital halftoning/stippling.  It has four methods:
   hiearhcial levels, not the point positions.  Mostly for reference purposes.
   Produces the worst results.
   
-* AA: AA patterns, optimized to have blue noise properties via the SPH
-      method.  Based on papers by Abdalla G. M. Ahmed, but modified to use skewed 
-      grids and a dynamic threshold limit instead of a fixed one.
-
 Usage
 =====
 
