@@ -783,8 +783,6 @@ define([
           if (clr == 3 && !small_mask_mode) {
             mask[idx] = mask[idx+1] = mask[idx+2] = gen;
             mask[idx+3] = 255;
-          } else {
-            mask[idx+3] = 255;
           }
         }
       }

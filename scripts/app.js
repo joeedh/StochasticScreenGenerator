@@ -471,7 +471,7 @@ ret += `
       let grid = new Uint16Array(dimen*dimen*GTOT);
       let max_level = this.generator.max_level();
       
-      let bpp = config.GEN_CMYK_MASK ? 16 : 2;
+      let bpp = config.GEN_CMYK_MASK ? 4 : 1;
       
       let ret = `{
   dimen : ${dimen},
@@ -490,7 +490,7 @@ ret += `
             chunk += "0x" + mask[i+j].toString(16) + ",";
           }
         } else {
-          chunk = mask[i].toString(16) + ",";
+          chunk = "0x" + mask[i].toString(16) + ",";
         }
         
         ret += chunk;
@@ -548,12 +548,15 @@ ret += `
       var data = this.mask_img.data;
       for (var i=0; i<data.length; i += 4) {
         if (data[i+3] == 0) {
-          data[i] = data[i+1] = data[i+2] = 0;
-          data[i+3] = 255;  
+//          data[i] = data[i+1] = data[i+2] = 0;
+  //        data[i+3] = 255;  
         }
+        data[i+3] = 10;
       }
 
       var g = this.mask_g;
+      
+      g.globalAlpha = 0.0;
       g.putImageData(this.mask_img, 0, 0);
       
       return this.mask_canvas.toDataURL();
@@ -595,13 +598,21 @@ ret += `
       
       redraw_all();
       
+      let canvas = this.mask_canvas;
+      
+      canvas.style["alpha"] = "0.0";
+      canvas.style["background-color"] = "rgba(0,0,0,0)";
+      
       var g = this.mask_g;
+      g.globalAlpha = 0.0;
+      g.globalCompositeOperation = "copy";
+      g.clearRect(0, 0, canvas.width, canvas.height);
       
       var data = this.mask_img.data;
       for (var i=0; i<data.length; i += 4) {
         if (data[i+3] == 0) {
-          data[i] = data[i+1] = data[i+2] = 0;
-          data[i+3] = 255;  
+          //data[i] = data[i+1] = data[i+2] = 0;
+          //data[i+3] = 255;  
         }
       }
       
@@ -752,7 +763,8 @@ ret += `
         
         g.globalAlpha = draw_all ? 1.0 / gen.masks.length : 1.0;
         
-        this.mask_canvas.style["alpha"] = 0.15;
+        this.mask_canvas.style["alpha"] = 0.0;
+        
         for (var x=0; x<tottile; x++) {
           for (var y=0; y<tottile; y++) {
             
@@ -1043,8 +1055,11 @@ ret += `
           }
           break;
         case 83: //skey
-          var dataurl = this.save_dataurl();
+          this.save_mask().then((url) => {
+            window.open(url);
+          });
           
+          let dataurl = this.save_dataurl();
           //localStorage.startup_mask_bn4 = dataurl;
           new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
 
