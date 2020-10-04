@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html>
+<head><title>Hex Grid Tester</title>
+<style>
+</style>
+<script type="application/x-javascript">
+
+//1.2266228306805715
+
+var SHOW_GRID = 0;
+
+var DIMEN = 128;
+var SCALE = 1.3;
+
+//0.5884477494633388 0.6119477494633376
+
+//0.5750976804461889 <- hex tiles
+//1.048201502200104 <- bayerish
+
+//awesome -> 0.43542474178754537
+
+//0.44266684250551086
+//0.45191634276852755
+
+//var TH = 0.43842474178754537;
+//var TH = 0.44266684250551086;
+var TH = 0.45483109984872865;
+
+//0.44483109984872865
+
+//0.6189477494633376; //0.4482477494633404;
+var LIMIT = 1.0;
+//0.4487477494633404
+var _verts = [];
+var _cur = 0;
+
+function BadRand() {
+  var _seed = 0;
+  var _seed2 = 0;
+  
+  var _max = (1<<30)-1;
+  
+  var _ra = 23435;
+  var _rb = 123245;
+
+  this.random = function() {
+    _seed = (_seed*23435 + 123245) & _max;
+    _seed2 = (_seed2*8334 + 12345) & _max;
+    
+    var ret = Math.abs(_seed ^ _seed2) / _max;
+    
+    return _seed / _max;
+  }
+  
+  this.seed = function(seed) {
+    _seed = Math.abs(~~(seed*4096));
+    _seed2 = _seed;
+  }
+}
+
+function hash() {
+  this.keys = {};
+}
+hash.prototype.set = function(key, val) {
+  this.keys[key] = val;
+}
+hash.prototype.has = function(key) {
+  return key in this.keys;
+}
+hash.prototype.forEach = function(cb, thisvar) {
+  for (var k in this.keys) {
+    var v = this.keys[k];
+    
+    if (thisvar != undefined) {
+      cb.call(thisvar, k, v);
+    } else {
+      cb(k, v);
+    }
+  }
+}
+
+function vert(x, y, key) {
+  if (_cur >= _verts.length) {
+    _verts.push([0, 0, 0]);
+  }
+  
+  _verts[_cur][0] = x;
+  _verts[_cur][1] = y;
+  _verts[_cur][2] = key;
+  
+  var ret = _verts[_cur];
+  _cur++;
+  
+  return ret;
+}
+
+Math.fract = function(n) {
+  return n - Math.floor(n);
+}
+Math.tent = function(n) {
+  return 1.0 - Math.abs(Math.fract(n)-0.5)*2.0;
+}
+
+var cachering = function(fnc, count) {
+  this.arr = new Array(count);
+  
+  for (var i=0; i<count; i++) {
+    this.arr[i] = fnc();
+  }
+  
+  this.cur = 0;
+  this.next = function() {
+    var ret = this.arr[this.cur];
+    this.cur = (this.cur + 1) % this.arr.length;
+    
+    return ret;
+  }
+}
+
+var xy2hex_tmp = new cachering(function() {
+  return [0, 0, 0];
+}, 64);
+
+var xy2hex_ret = new cachering(function() {
+  return [0, 0, 0];
+}, 512);
+
+var hex2xy_ret = new cachering(function() {
+  return [0, 0, 0];
+}, 512);
+
+var _sqrt_2 = Math.sqrt(2);
+var _sqrt_3 = Math.sqrt(3);
+
+var dxdy_ret = new cachering(function() {
+  return [0, 0, 0];
+}, 2048);
+
+var dxdy_tmp = new cachering(function() {
+  return [0, 0];
+}, 64);
+
+/*
+
+-0.47125
+-0.472
+-0.4999
+-0.5015999
+
+0.5450627232150808
+0.5441707781553894
+
+0.5453
+
+0.575
+0.57582635353453
+0.5758898
+
+0.63685585
+
+1.591665
+1.593534346546456
+
+2.6387
+
+//1.839
+1.728107885713689
+
+*/
+//1.475606069391126 
+function dxdy(x, y, size, limit) {
+  var dd = 0.045
+    
+  var tx = Math.tent(x*size*(15233+dd));
+  var ty = Math.tent(y*size*(15233+dd));
+  
+  var v = dxdy_tmp.next();
+  v = hex2xy(x, y, size);
+  
+  var d = (tx*tx+ty*ty);
+  d = d != 0.0 ? Math.sqrt(d) : 0.0;
+  var d2 = x*x + y*y;
+  d2 = d2 != 0.0 ? Math.sqrt(d2) : 0.0;
+  
+  var th = TH;
+  
+  var v2 = rot2(v, -th);
+  var h = xy2hex(v2[0]+0.5/size, v2[1]+0.5/size, size);
+
+  var h2 = dxdy_tmp.next();
+  var tmp = dxdy_tmp.next();
+  h2[0] = (Math.floor(h[0]*size+0.00001))/size;
+  h2[1] = (Math.floor(h[1]*size+0.00001))/size;
+  
+  h2 = hex2xy(h2[0], h2[1], size);
+  var x = h2[0], y = h2[1];
+  
+  w = 0.01;
+  
+  h = hex2xy(h[0], h[1], size);
+  var v3 = rot2(h, 0);
+  
+  tmp[0] = x;
+  tmp[1] = y;
+  var xy2 = rot2(tmp, th);
+  
+  //1.6493361431346414 
+  //limit 0.921
+  var trfac = Math.min(tx, ty); //tx*tx + ty*ty;
+  trfac = trfac*0.5 + 0.5;
+  
+  var r = trfac*(_sqrt_3/3.0) / size;
+  
+  var hs = get_hotspot(x, y, size, limit);
+  
+  var v4 = hexvert_intern(v[0], v[1], 0, r);
+  var v4 = rot2(v4, -th);
+  
+  var inside = point_in_hex(v4[0], v4[1], hs[0], hs[1], hs[2]);
+  
+  //1.478
+  
+  //0.529986
+  //limit 1.4
+  if (inside) {
+    var r = (_sqrt_3/3.0) / size;
+    var hv = hexvert_intern(hs[0], hs[1], 1, hs[2]);
+    
+    var dx = v4[0]-hv[0], dy = v4[1]-hv[1];
+    var f = dx*dx + dy*dy;
+    
+    f = f != 0.0 ? Math.sqrt(f) : 0.0;
+    f = f / (2*hs[2]);
+    
+    f = Math.min(Math.max(f, 0.0), 1.0);
+    f = 1.0 - f;
+
+    var ret = dxdy_ret.next();
+    ret[0] = dx;
+    ret[1] = dy;
+    ret[2] = f;
+    
+    return ret;
+  }
+}
+
+function hex2xy(x, y, size) {
+  var ret = hex2xy_ret.next();
+  
+  hex2xy_intern(ret, x, y, size);
+  return ret;
+}
+
+function hex2xy_intern(out, x, y, size) {
+  /*
+  if (out == undefined || isNaN(x) || isNaN(y) || isNaN(size)) {
+    console.log(out, x, y, size);
+    throw new Error("NaN");
+  }
+  //*/
+  
+  var r = (_sqrt_3/3.0) / size;
+  var ix = x*size+0.00001;
+  var iy = y*size+0.00001;
+  
+  if (Math.floor(ix) & 1) {
+    iy += 0.5;
+  }
+  
+  ix *= _sqrt_3*0.5;
+  
+  out[0] = ix/size;
+  out[1] = iy/size;
+  out[2] = r;
+}
+
+function xy2hex(x, y, size, r) {
+  var ret = hex2xy_ret.next();
+  
+  if (r == undefined) {
+    r = (_sqrt_3/3.0) / size;
+  }
+  
+  var ix = x*size+0.00001;
+  var iy = y*size+0.00001;
+  
+  ix /= _sqrt_3*0.5;
+  
+  if ((Math.floor(ix+0.00001)) & 1) {
+    iy -= 0.5;
+  }
+  
+  var h = xy2hex_tmp.next();
+  h[0] = h[1] = 0;
+  
+  ret[0] = ix/size;
+  ret[1] = iy/size;
+  ret[2] = r;
+  
+  return ret;
+}
+
+var hexvert_ret = new cachering(function() {
+  return [0, 0];
+}, 64);
+
+function hexvert_intern(x, y, idx, r) {
+  var thoff = Math.PI*0.5;
+
+  var th = -Math.PI + thoff, dth = (Math.PI*2.0)/6;
+  
+  th += dth*idx;
+  var ret = hexvert_ret.next();
+  
+  ret[0] = Math.sin(th)*r + x;
+  ret[1] = Math.cos(th)*r + y;
+  
+  return ret;
+}
+
+function hexvert(x, y, idx, size) {
+  /*
+  if (isNaN(x) || isNaN(y) || isNaN(idx) || isNaN(size)) {
+    throw new Error("NaN 2");
+  }
+  //*/
+  
+  var r = (_sqrt_3/3.0) / size;
+
+  return hexvert_intern(x, y, idx, r);
+}
+
+//safe arc cosine
+function saacos(dot) {
+  dot = Math.min(Math.max(dot, -1.0), 1.0);
+  return Math.acos(dot);
+}
+
+function dot2(v2a, v2b) {
+  return v2a[0]*v2b[0] + v2a[1]*v2b[1];
+}
+
+function normalize2(v2) {
+  var l = v2[0]*v2[0] + v2[1]*v2[1];
+  
+  if (l > 0) {
+    l = Math.sqrt(l);
+    
+    v2[0] /= l;
+    v2[1] /= l;
+  }
+  
+  return v2;
+}
+
+var rot2_rets = new cachering(function() {
+  return [0, 0];
+}, 64);
+
+function rot2(v2, th) {
+  var x = Math.cos(th)*v2[0] - Math.sin(th)*v2[1];
+  var y = Math.cos(th)*v2[1] + Math.sin(th)*v2[0];
+  
+  var ret = rot2_rets.next();
+  
+  ret[0] = x;
+  ret[1] = y;
+  
+  return ret;
+}
+
+var hotspot_rets = new cachering(function() {
+  return [0, 0, 0];
+}, 512);
+
+function get_hotspot(x, y, size, limit) {
+    var hv1 = hexvert(x, y, 0, size);
+    var hv2 = hexvert(x, y, 3, size);
+    
+    var t = limit*0.5;
+    x = hv1[0] + (hv2[0] - hv1[0])*t;
+    y = hv1[1] + (hv2[1] - hv1[1])*t;
+    
+    var r = limit * (_sqrt_3/3.0) / size;
+    
+    var ret = hotspot_rets.next();
+    ret[0] = x;
+    ret[1] = y;
+    ret[2] = r;
+    return ret;
+}
+
+function point_in_hex(px, py, hx, hy, r) {
+  var size = (_sqrt_3/3.0)/r;
+  
+  r *= 2.0;
+  for (var i=0; i<6; i++) {
+    var v1 = hexvert_intern(hx, hy, i, r);
+    var v2 = hexvert_intern(hx, hy, (i+1)%6, r);
+    
+    v1[0] -= px, v1[1] -= py;
+    v2[0] -= px, v2[1] -= py;
+    
+    var w = v1[0]*v2[1] - v1[1]*v2[0];
+    if (w > 0) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+var AppState = function AppState() {
+  this.mask2_img = new ImageData(DIMEN, DIMEN);
+  this.mask2 = this.mask2_img.data;
+  
+  this.jitrand = new BadRand();
+  
+  this.mask_img = new ImageData(DIMEN*6, DIMEN*6);
+  this.mask = this.mask_img.data;
+
+  this.mask[0] = this.mask[1] = this.mask[2] = 255;
+  this.mask[3] = 255;
+  
+  var iview = new Int32Array(this.mask.buffer);
+  iview.fill(iview[0], 0, iview.length);
+  
+  this._color = iview[0];
+
+  this.mask2[0] = this.mask2[1] = this.mask2[2] = 0;
+  this.mask2[3] = 255;
+  
+  var iview = new Int32Array(this.mask2.buffer);
+  iview.fill(iview[0], 0, iview.length);
+  this._color2 = iview[0];
+  
+  this.mask_canvas = document.createElement("canvas");
+  this.mask_canvas.width = this.mask_img.width;
+  this.mask_canvas.height = this.mask_img.height;
+  this.mask_g = this.mask_canvas.getContext("2d");
+
+  this.mask2_canvas = document.createElement("canvas");
+  this.mask2_canvas.width = this.mask2_img.width;
+  this.mask2_canvas.height = this.mask2_img.height;
+  this.mask2_g = this.mask2_canvas.getContext("2d");
+}
+
+AppState.prototype = {
+  dot(rx, ry, r) {
+    var mask = this.mask, cw = this.mask_img.width, ch = this.mask_img.height;
+    
+    var rd = Math.ceil(r);
+    for (var i=-rd; i<=rd; i++) {
+      for (var j=-rd; j<=rd; j++) {
+        var rx2 = rx+i, ry2 = ry+j;
+        
+        if (i*i + j*j > rd*rd*1.5) continue;
+        
+        if (rx2 < 0 || ry2 < 0 || rx2 >= cw || ry2 >= ch)
+          continue;
+          
+        var idx = ~~((ry2*cw+rx2)*4);
+        
+        mask[idx] = 0;
+        mask[idx+1] = 0;
+        mask[idx+2] = 0;
+        mask[idx+3] = 255;
+      }
+    }
+  },
+  
+  save_mask : function() {
+    var mg = this.mask2_g;
+    mg.clearRect(0, 0, this.mask2_img.width, this.mask2_img.height);
+    mg.putImageData(this.mask2_img, 0, 0);
+    
+    var url = this.mask2_canvas.toDataURL();
+    //window.open(url);
+    
+    console.log("saving mask to local storage...");
+    localStorage.startup_mask_bn4 = url;
+  },
+  
+  draw_transform : function(g) {
+    var sz = Math.min(this.canvas.width, this.canvas.height)*0.5;
+    
+    g.scale(sz, sz);
+    g.translate(0.5, 0.5);
+    
+    var sz2 = SCALE*1.2;
+    g.scale(sz2, sz2);
+    
+    g.lineWidth /= sz*sz2;
+  },
+  
+  draw_grid : function(g, save_verts, draw_hotspots, no_draw) {
+    var size = DIMEN;
+    
+    _cur = 0;
+    
+    function line(x1, y1, x2, y2) {
+      var a = hex2xy(x1, y1, size);
+      var b = hex2xy(x2, y2, size);
+      
+      g.moveTo(a[0], a[1]);
+      g.lineTo(b[0], b[1]);
+    }
+    
+    function circle(x, y, r, steps, thoff) {
+      thoff = thoff == undefined ? 0 : thoff;
+      
+      var th = -Math.PI + thoff, dth = (Math.PI*2.0)/(steps-1);
+      
+      for (var j=0; j<steps; j++, th += dth) {
+        var x2 = Math.sin(th)*r + x;
+        var y2 = Math.cos(th)*r + y;
+        
+        if (j==0)
+          g.moveTo(x2, y2);
+        else
+          g.lineTo(x2, y2);
+      }
+    }
+
+    var verts = new hash();
+    
+    var size2 = ~~(size*2.5);
+    
+    g.beginPath();
+    for (var i=0; i<size2*size2; i++) {
+      var ix = i % (size2), iy = Math.floor(i / (size2));
+      
+      var h = hex2xy(ix/size, iy/size, size);
+      var x = h[0], y = h[1];
+      
+      if (x < 0 || y < 0 || x > 1.0 || y > 1.0) {
+        continue;
+      }
+      
+      var r = (_sqrt_3/3.0) / size;
+      
+      var r2 = r;
+      if (!no_draw) {
+        circle(x, y, r2, 7, Math.PI/2.0);
+      }
+      
+      for (var j=0; save_verts && j<1; j++) {
+        var v = hexvert(x, y, j, size);
+        var key = ~~(v[0]*1024*1024) + ~~(v[1]*1024);
+        
+        if (!verts.has(key)) {
+          verts.set(key, vert(v[0], v[1], key));
+        }
+      }
+      
+      if (draw_hotspots) {
+        var hs = get_hotspot(x, y, size, LIMIT);
+        if (!no_draw) {
+          circle(hs[0], hs[1], hs[2], 7, Math.PI/2.0);
+        }
+      }
+    }
+    if (!no_draw)
+      g.stroke();
+    
+    var vs = []
+    verts.forEach(function(key, val) {
+      vs.push(val);
+    }, this);
+    
+    return vs;
+  },
+  
+  draw : function(g) {
+    var jitrand = this.jitrand;
+    jitrand.seed(0);
+    
+    var mask2 = this.mask2, cw2 = this.mask2_img.width, ch2 = this.mask2_img.height;
+    g.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    g.putImageData(this.mask2_img, 30, 10);
+    
+    g.save();
+    this.draw_transform(g);
+    
+    var mg = this.mask_g;
+    mg.putImageData(this.mask_img, 0, 0);
+    
+    g.save();
+    g.scale(1/this.mask_canvas.width, 1/this.mask_canvas.height);
+    g.drawImage(this.mask_canvas, 0, 0);
+    g.restore();
+    
+    g.beginPath();
+    g.rect(0, 0, 1, 1);
+    g.stroke();
+    
+    g.strokeStyle = "rgba(0, 0, 0, 0.3)";
+    //var vs = this.draw_grid(g, true, false, !SHOW_GRID);
+    g.strokeStyle = "rgba(0, 0, 0, 1.0)";
+
+    var dimen = DIMEN; //~~(DIMEN*_sqrt_3*0.5+1.0);
+    var size = dimen;
+    
+    var h2 = [0, 0];
+    var tmp = [0, 0];
+    
+    var cw = this.mask_img.width, ch = this.mask_img.height;
+    var mask = this.mask;
+    
+    var idata = new Int32Array(mask.buffer);
+    idata.fill(this._color, 0, idata.length);
+    
+    var idata = new Int32Array(this.mask2.buffer);
+    idata.fill(this._color2, 0, idata.length);
+    
+    var th = TH;
+    
+    g.beginPath();
+    g.fillStyle = "rgba(0, 0, 0, 0.5)";
+    var v = [0, 0];
+    var size2 = size*1.5;
+    
+    for (var i=0; i<dimen*dimen*3; i++) {
+      var ix = i%size2, iy = ~~(i/size2);
+      v[0] = ix/size, v[1] = iy/size;
+      
+      if (ix >= size*1.2 || iy >= size) {
+        continue;
+      }
+      
+      var lf = Math.sqrt(v[0]*v[0] + v[1]*v[1]);
+      var lf = Math.tent(lf*2);
+      
+      lf = v[1];
+      lf = 1;
+      var limit = LIMIT*lf;
+ 
+      var ret = dxdy(v[0], v[1], size, limit);
+      
+      if (ret == undefined)
+        continue;
+        
+      w = 0.15 / dimen;
+      var r = (_sqrt_3/3.0) / size;
+      
+      v = hex2xy(v[0], v[1], size);
+      v = hexvert(v[0], v[1], 0, size);
+      
+      if (v[1] > _sqrt_3*0.5) {
+        //continue;
+      }
+      
+      //v[0] /= _sqrt_3*0.5;
+      //v[1] /= _sqrt_3*0.5;
+      
+      //v[0] += 0.5/cw;
+      //v[1] += 0.5/ch;
+      
+      if (v[0] < 0 || v[1] < 0 || v[0] >= 1.0 || v[1] >= 1.0) {
+        continue;
+      }
+      
+      var jit = 0.0;
+      //v[0] += jit*(jitrand.random()-0.5)*2.0/size;
+      //v[1] += jit*(jitrand.random()-0.5)*2.0/size;
+      
+      var mx = ~~(v[0]*cw+0.001+0), my = ~~(v[1]*ch+0.0001+0);
+      var idx = (my*cw+mx)*4;
+      
+      //this.dot(mx, my, 2);
+      
+      var mx2 = ~~(v[0]*cw2+2), my2 = ~~(v[1]*ch2);
+      var idx = (my2*cw2+mx2)*4;
+      
+      var f = ret[2];
+      f *= f*f;
+      //2.545249528390537
+      var test_f = 0;
+      
+      if (!test_f || f > v[0]) {
+        if (test_f) {
+          f=1.0;
+        }
+        
+        f *= f*1.3;
+        f = ~~(f*255);
+        
+        this.mask2[idx] = f;
+        this.mask2[idx+1] = f;
+        this.mask2[idx+2] = f;
+      }
+      
+      if (SHOW_GRID) {
+        w *= 2;
+        g.rect(v[0]-w*0.5, v[1]-w*0.5, w, w);
+      }
+      //g.moveTo(v[0], v[1]);
+      //g.lineTo(xy2[0]+0.01, xy2[1]+0.01);
+    }
+    g.fillStyle = "green";
+    g.fill();
+    g.stroke();
+    
+    g.rotate(TH, 0);
+    g.strokeStyle = "orange";
+    //this.draw_grid(g, false, true, !SHOW_GRID);
+    
+    g.restore();
+  },
+  
+  on_mousedown : function(e) {
+    if (e.button != 0) return;
+    if (e.shiftKey || e.ctrlKey || e.altKey) return;
+    
+    this.mdown = true;
+    
+    this.on_mousemove(e);
+    redraw_all();
+  },
+  
+  on_mousemove : function(e) {
+    if (this.mdown) {
+      var x = e.pageX, y = e.pageY;
+      x /= 500;
+      y /= 500;
+      
+      TH = x*Math.PI*0.35;
+      LIMIT = y*1.5;
+
+      console.log(TH, LIMIT);
+      
+      redraw_all();
+    }
+  },
+
+  on_mouseup : function(e) {
+    this.mdown = false;
+  },
+  
+  on_keydown : function(e) {
+    console.log(e.keyCode);
+    
+    switch (e.keyCode) {
+      case 68: //dkey
+        break;
+      case 83: //skey
+        _appstate.save_mask();
+        break;
+    }
+  }
+}
+
+var start = function start() {
+  console.log("init");
+  
+  window._appstate = new AppState();
+  
+  var canvas = _appstate.canvas = document.getElementById("canvas");
+  var g = _appstate.g = canvas.getContext("2d");
+  
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  window.addEventListener("keydown", function(e) {
+    _appstate.on_keydown(e);
+  });
+  
+  window.addEventListener("mousedown", function(e) {
+    _appstate.on_mousedown(e);
+  });
+  window.addEventListener("mousemove", function(e) {
+    _appstate.on_mousemove(e);
+  });
+  window.addEventListener("mouseup", function(e) {
+    _appstate.on_mouseup(e);
+  });
+  
+  /*
+  window.timer = setInterval(function() {
+    TH -= 0.003;
+    //LIMIT = Math.fract(LIMIT-0.01)
+    redraw_all();
+  }, 10);
+  //*/
+  
+  var animreq = undefined;
+  window.redraw_all = function redraw_all() {
+    if (animreq != undefined) return;
+    
+    animreq = requestAnimationFrame(function() {
+      animreq = undefined;
+      
+      _appstate.draw(_appstate.g);
+      _appstate.draw(_appstate.g);
+    });
+  }
+  
+  var t = window.setInterval(function() {
+    redraw_all();
+    window.clearInterval(t);
+  });
+  
+  redraw_all();
+}
+</script>
+</head>
+<body onload="start()">
+<canvas id="canvas">
+</canvas>
+</body>
+</html>

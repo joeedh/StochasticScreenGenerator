@@ -101,7 +101,7 @@ define([
     SMOOTH_PULSE : false
   };
   */
-  
+  /*
    let config = exports.config = {
     SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_SPH CurveSM_SPH_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.31875,"1":0,"eid":30,"flag":0,"deg":3,"tangent":1},{"0":0.7625,"1":0,"eid":29,"flag":1,"deg":3,"tangent":1},{"0":0.81875,"1":0.83125,"eid":32,"flag":0,"deg":3,"tangent":1},{"0":0.9375000000000001,"1":1,"eid":34,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":35}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
     SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
@@ -122,6 +122,7 @@ define([
     PULL_FACTOR  :  0.355,
     RANGE  :  129,
     SOLVE_RANGE_MUL  :  1,
+    SM_RANDOM_ORDER : false,
     REPEAT  :  14,
     SM_SPH_SPEED  :  2,
     SM_SPH_SPEED2  :  1,
@@ -148,8 +149,57 @@ define([
     SMOOTH_PULSE  :  false,
     START_FACTOR  :  0.584,
     GEN_RANGE  :  4096,
-  };
+  };*/
 
+  let config = {
+    SM_SPH_CURVE  :  new cconst.EditableCurve("SM_SPH_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_SPH CurveSM_SPH_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.31875,"1":0,"eid":30,"flag":0,"deg":3,"tangent":1},{"0":0.7625,"1":0,"eid":29,"flag":1,"deg":3,"tangent":1},{"0":0.81875,"1":0.83125,"eid":32,"flag":0,"deg":3,"tangent":1},{"0":0.9375000000000001,"1":1,"eid":34,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":35}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    SM_GEN_CURVE  :  {"uiname":"SM_GEN_CURVE"},
+    SM_TONE_CURVE  :  new cconst.EditableCurve("SM_TONE_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Tone CurveSM_TONE_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.65,"1":0.68125,"eid":86,"flag":1,"deg":3,"tangent":1},{"0":0.9624999999999999,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":87}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    SM_IMAGE_CURVE  :  new cconst.EditableCurve("SM_IMAGE_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Image CurveSM_IMAGE_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.3125000000000001,"1":0.24375000000000013,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.6937500000000001,"1":0.5687500000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.99375,"1":0.78125,"eid":3,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":6}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    SM_RADIUS_CURVE  :  new cconst.EditableCurve("SM_RADIUS_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_Smoothed Mask_Radius CurveSM_RADIUS_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.32499999999999996,"1":0.6374999999999998,"eid":7,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":9}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
+    PATH_DEGREE  :  3,
+    DRAW_TEST  :  true,
+    MAX_SCALE  :  8,
+    SM_RADMUL  :  1,
+    SM_START_GENERATOR  :  2,
+    PATH_SMOOTH_FACTOR  :  0.748,
+    SIMPLE_MODE  :  true,
+    DISPLAY_LEVEL  :  1,
+    SOLVE_LEVEL  :  1,
+    SM_DV_DAMPING  :  0,
+    SM_GENSTART  :  0.01,
+    PULL_FACTOR  :  0.5630000000000001,
+    RANGE  :  185,
+    SOLVE_RANGE_MUL  :  1,
+    SM_RANDOM_ORDER  :  true,
+    REPEAT  :  11,
+    SM_SPH_SPEED  :  8.45,
+    SM_SPH_SPEED2  :  4.23,
+    SM_PRE_RAND  :  0.00001,
+    SHOW_PATHS  :  true,
+    STARTCO_BLEND  :  1,
+    PRESTEPS  :  55,
+    PRESTEPS2  :  20,
+    UPDATE_START_COS  :  true,
+    SM_SEARCHRAD  :  2.49,
+    SM_SEARCHRAD2  :  2,
+    SM_PRE_PARAM  :  2,
+    ADV_SOLVE  :  true,
+    ADV_STEPS2  :  3,
+    ADV_STEPS  :  2,
+    SM_TOTPOINT_MUL  :  0.9647,
+    SM_PREPOWER  :  1,
+    SM_G_POW  :  0.48,
+    SMOOTH_REPEAT  :  0,
+    SMOOTH_WID  :  11.97,
+    SMOOTH_PULSE_RATE  :  0.52,
+    SMOOTH_PULSE_FAC  :  1,
+    SMOOTH_PULSE_STEPS  :  3,
+    SMOOTH_PULSE  :  false,
+    START_FACTOR  :  0.10300000000000001,
+    GEN_RANGE  :  4096,
+  };
+  
   exports.saveConfig = function() {
     let buf = "  {\n";
     for (let k in exports.config) {
@@ -168,7 +218,6 @@ define([
     
     return buf;
   }
-  sinterface.MaskConfig.registerConfig(config);
   
   let gridoffs = [
     [0, 0],
@@ -1013,7 +1062,7 @@ define([
       panel = gui.panel("Settings2");
       //panel.slider("SM_PREPOWER", "PrePower", 1, 0.001, 9.0, 0.0001, false, true);
       panel.slider("SM_SPH_SPEED2", "PreSpeed", 1.0, 0.005, 16.0, 0.01, false, true);
-      panel.slider("SM_SEARCHRAD2", "PreSearchRad", 3.0, 0.1, 15.0, 0.01, false, true);
+      panel.slider("SM_SEARCHRAD2", "PreSearchRad", 3.0, 0.1, 6.0, 0.01, false, true);
       panel.slider("SM_PRE_RAND", "PreRand", 0.001, 0.00001, 5.0, 0.00001, false, false);
       panel.slider("SM_G_POW", "g pow", 3, -2.0, 16.0, 0.001, false, false);
       //listenum(path, name, enummap, defaultval, callback) {
@@ -1045,7 +1094,7 @@ define([
       panel.slider("SOLVE_RANGE_MUL", "RangeMul", 2, 0.125, 64, 0.0001, false, true);
       panel.slider("PATH_DEGREE", "Path Degree", 4, 1, 8, 1, true, true);
       panel.slider("PRESTEPS", "SPH Steps", 16, 0, 102, 1, true, true);
-      panel.slider("PRESTEPS2", "Initial Relax Steps", 16, 0, 400, 1, true, true);
+      panel.slider("PRESTEPS2", "Initial Relax Steps", 16, 0, 45, 1, true, true);
       panel.slider("ADV_STEPS", "AdvSteps", 32, 0, 255, 1, true, true);
       panel.slider("ADV_STEPS2", "AdvSteps2", 2, 0, 25, 1, true, true);
       panel.slider("SM_RADMUL", "Radius Factor", 0.8, 0.0, 1.0, 0.001, false, true);
@@ -1055,6 +1104,7 @@ define([
     
       panel = gui.panel("Settings1");
     
+      panel.check("SM_RANDOM_ORDER", "Random Order");
       panel.check("ADV_SOLVE", "AdvancedSolve");
       panel.check("UPDATE_START_COS", "UpdateStartCos");
       
@@ -1272,7 +1322,8 @@ define([
               break;
           }
 
-          vc.config = ctx;
+          vc.config = ctx.copy();
+          vc.TOTMASK = 1;
           vc.reset(dimen2, appstate, mask_image, generators);
 
           let i = 0;
@@ -1761,8 +1812,10 @@ define([
         this.advanced_solve_intern(ctx);
       }
       
-      this.cur_t_i = Math.floor(Math.random()*0.999999*ctx.SOLVE_RANGE);
-      //this.cur_t_i++;
+      if (ctx.SM_RANDOM_ORDER)
+        this.cur_t_i = Math.floor(Math.random()*0.999999*ctx.SOLVE_RANGE);
+      else
+        this.cur_t_i++;
       
       if (this.cur_t_i % ctx.SOLVE_RANGE == 0) {
         this.smooth_i++;
@@ -2120,7 +2173,7 @@ define([
       this.report("suggested PreSpeed: " + ctx2.SPH_SPEED.toFixed(4) + ", PreSearchRad: "
                   + ctx2.SEARCHRAD.toFixed(4));
       
-      ctx2.SPH_SPEED = ctx.SM_SPH_SPEED2;
+      ctx2.SPH_SPEED = ctx.SM_SPH_SPEED2*0.1;
       ctx2.SEARCHRAD = ctx.SM_SEARCHRAD2;
       ctx2.RADIUS_CURVE = ctx.SM_RADIUS_CURVE;
       
@@ -2532,7 +2585,7 @@ define([
       }
 
       let r = this.cur_r = ctx.SM_RADMUL / Math.sqrt(tot);
-      let fac = ctx.SM_SPH_SPEED2*5.0;// * 0.45;
+      let fac = ctx.SM_SPH_SPEED2;// * 0.45;
       
       let max_r = undefined;
       for (let pi=0; pi<ps.length; pi += PTOT) {
@@ -3170,6 +3223,8 @@ define([
       }
     }
   }
+  
+  sinterface.MaskGenerator.register(config, SmoothedMaskGenerator, "SMOOTHMASK");
   
   return exports;
 });

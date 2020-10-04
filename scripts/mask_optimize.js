@@ -29,8 +29,6 @@ define([
     MASKOPT_TOTPOINT_MUL  : 0.8
   };
   
-  sinterface.MaskConfig.registerConfig(config);
-  
   var MaskOptGenerator = exports.MaskOptGenerator = class MaskOptGenerator extends MaskGenerator{
     constructor(appstate, dilute_small_mask) {
       super(appstate, dilute_small_mask);
@@ -172,7 +170,6 @@ define([
       util.seed(exports._seed++);
       
       this.mpoints = [];
-      this.points = [];
       this.dimen = size;
       this._done = false;
       this._step = 0;
@@ -193,7 +190,7 @@ define([
     }
     
     retile(cf) {
-      this.points = [];
+      this.points.length = 0;
       let mps = this.mpoints, ps = this.points, mask_image = this.mask_image;
       
       let totpoint = this.repeat*this.repeat*this.mpoints.length/PTOT;
@@ -539,31 +536,26 @@ define([
       this.report("done relaxing");
     }
 
-    raster() {
-      this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[1] = 0;
-      this.mask[3] = SMALL_MASK ? 255 : 0;
-      
-      var iview = new Int32Array(this.mask.buffer);
+    raster_mask(mi) {
+      var iview = new Int32Array(this.masks[mi].mask.buffer);
       iview.fill(iview[0], 0, iview.length);
       
       //if (this.config.SMALL_MASK) {
-      //  this.assign_mask_pixels();
+      //  this.assign_mask_pixels(mi);
       //} else {
-        //this.mask[0] = this.mask[1] = this.mask[2] = 0;
-        //this.mask[1] = 255;
-        //this.mask[3] = SMALL_MASK ? 255 : 0;
         
-        var iview = new Int32Array(this.mask.buffer);
+        var iview = new Int32Array(this.masks[mi].mask.buffer);
         iview.fill(iview[0], 0, iview.length);
         //console.log("raster!");
         
         for (var mpi=0; mpi<this.mpoints.length; mpi += PTOT) {
-          this.raster_point(mpi, this.mpoints);
+          this.raster_point(mi, mpi, this.mpoints);
         }
       //}
     }
   };
+
+  sinterface.MaskGenerator.register(config, MaskOptGenerator, "MASKOPT");
   
   return exports;
 });

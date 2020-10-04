@@ -7,55 +7,54 @@ define([
   
   let exports = _sph = {};
 
-  let config = exports.config = {
-    DIMEN : 64,
-    USE_MASK : false,
+  let config = exports.config ={
+    DIMEN  :  64,
+    USE_MASK  :  false,
+    PROG_BASE_LAYER  :  true,
+    EXPONENT  :  0.1,
+    PREPOWER  :  3.3291500000000003,
+    TONE_IN_SOLVER  :  false,
+    KEEP_UNIFORM  :  false,
+    DRAW_COLORS  :  true,
+    SEARCHRAD  :  4.4123,
+    RMUL  :  4.632090000000001,
+    SPH_SPEED  :  10.091700000000001,
+    PARAM  :  1.03318,
+    PARAM2  :  2.06637,
+    PARAM3  :  4.5919300000000005,
+    PARAM4  :  1,
+    PARAM5  :  4.8215200000000005,
+    START_THRESHOLD  :  0.44771000000000005,
+    GENSTART  :  0.15714,
+    SHOW_RADII  :  false,
+    DV_DAMPING  :  1,
+    PROGRESSIVE  :  true,
+    ALTERNATE  :  false,
+    GUASS_MIN  :  0.1,
+    GUASS_POW  :  1,
+    SCALE_GAUSS  :  false,
+    SCALE_RADIUS  :  false,
+    RADIUS_POW  :  1,
+    PROPEGATE_W  :  false,
+    INITIAL_W_POWER  :  4,
+    DRAW_KDTREE  :  false,
+    TONE_MASK  :  true,
+    SEARCHRAD2  :  1.9851800000000002,
     
-    PROG_BASE_LAYER : false,
-    EXPONENT : 1.0,
-    PREPOWER : 2.0,  
-    TONE_IN_SOLVER : false,
-    KEEP_UNIFORM : false,
-    DRAW_COLORS : true,
-    SEARCHRAD : 5.0,
-    RMUL : 1.0,
-    SPH_SPEED : 1.0,
+    GEN_CURVE  :  new cconst.EditableCurve("GEN_CURVE", {"is_new_curve":true,"setting_id":"bn9_gui2_SPH_Gen CurveGEN_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":77,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":83}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.3}],"version":0.5,"active_generator":0}),
     
-    PARAM : 4.0,
-    PARAM2 : 0.0,
-    PARAM3 : 0.001,
-    PARAM4 : 5.0,
-    PARAM5 : 0.7,
-    
-    START_THRESHOLD : 0.0,
-    GENSTART : 0.1,
-    SHOW_RADII : true,
-    DV_DAMPING : 0.4,
-    VOIDCLUSTER : true,
-    ALTERNATE : false, //alternate between void-cluster and sph mode
-    GUASS_MIN : 0.1,
-    GUASS_POW : 1.0,
-    SCALE_GAUSS : false,
-    SCALE_RADIUS : false,
-    RADIUS_POW : 1.0,
-    PROPEGATE_W : true,
-    INITIAL_W_POWER : 4.0,
-    DRAW_KDTREE : false,
-    TONE_MASK : true,
-    SEARCHRAD2 : 4.0,
-    
-    GEN_CURVE : new cconst.EditableCurve("Gen Curve", {"points":[{"0":0,"1":0,"eid":77,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":78}})
+    SPH_CURVE : {"is_new_curve":true,"setting_id":"bn9_gui2_SPH_SPH CurveSPH_CURVE","generators":[{"type":1,"points":[{"0":0,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.19999999999999998,"1":0.02499999999999991,"eid":6,"flag":0,"deg":3,"tangent":1},{"0":0.625,"1":0.03125000000000022,"eid":4,"flag":0,"deg":3,"tangent":1},{"0":0.7875,"1":0.043749999999999845,"eid":3,"flag":0,"deg":3,"tangent":1},{"0":0.8125000000000001,"1":0.9500000000000001,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":0.8250000000000001,"1":0.9312500000000001,"eid":7,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"deg":6,"eidgen":{"_cur":8}},{"type":2,"equation":"x"},{"type":4,"height":1,"offset":1,"deviation":0.22460000000000002}],"version":0.5,"active_generator":0}
   };
   
-  let defaults = {"APP_VERSION":0.0001,"DIMEN":28,"USE_MASK":false,"PROG_BASE_LAYER":true,"EXPONENT":0.1,"PREPOWER":0.5,"TONE_IN_SOLVER":false,"KEEP_UNIFORM":false,"DRAW_COLORS":true,"SEARCHRAD":4,"RMUL":1,"SPH_SPEED":4.69,"DISPLAY_LEVEL1":0,"DISPLAY_LEVEL2":1,"POINTSCALE":0.406,"PARAM":0.45,"PARAM2":3.751,"PARAM3":0.000001,"PARAM4":4,"PARAM5":0.721,"TIMER_STEPS":33554432,"START_THRESHOLD":0.3,"GENSTART":0.05,"SMALL_MASK":false,"XLARGE_MASK":true,"SHOW_RADII":false,"DV_DAMPING":1,"VOIDCLUSTER":true,"ALTERNATE":false,"GUASS_MIN":0.1,"GUASS_POW":1,"SCALE_GAUSS":false,"SCALE_RADIUS":false,"RADIUS_POW":1,"PROPEGATE_W":true,"INITIAL_W_POWER":4,"DRAW_KDTREE":false,"TONE_MASK":true,"SEARCHRAD2":3.96,"CURVE_DEFAULTS":{"TONE_CURVE":{"points":[{"0":0.13125,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.26249999999999996,"1":0.6,"eid":5,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":3,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":9}}},"EXP2":0.8,"Equations":{"W5":0,"W4":1,"W3":2,"GUASSIAN":3,"CUBIC":4,"POW":5},"W_EQUATION":3,"SPH_EQUATION":0,"W_PARAM":0.6,"W_PARAM2":0.4,"SPH_PARAM":1};
-
+  /*
+  let defaults = {};
+  
   for (let k in defaults) {
     if (k in config) {
       config[k] = defaults[k];
     }
   }
-  
-  iface.MaskConfig.registerConfig(config);
+  //*/
   
   let gen_curve = exports.gen_curve = function(s, ctx) {
     ctx = ctx === undefined ? exports : ctx;
@@ -164,13 +163,13 @@ define([
 
       panel3.slider("PREPOWER", "PrePower", 0.72, 0.0, 10.0, 0.00001, false, false);
       
-      panel3.check("VOIDCLUSTER", "Progressive Mode");
+      panel3.check("PROGRESSIVE", "Progressive Mode");
       panel3.check("PROPEGATE_W", "propegate_w");
       /*
     START_THRESHOLD
     GENSTART
     DV_DAMPING
-    VOIDCLUSTER
+    PROGRESSIVE
     PROPEGATE_W
     INITIAL_W_POWER
     SEARCHRAD2
@@ -213,7 +212,6 @@ define([
       super.reset(dimen, appstate, mask_image);
       
       this.dimen = dimen;
-      this.points = [];
       this.totpoint = 0;
       this.tick = 0;
       this.r = 0;
@@ -541,6 +539,8 @@ define([
         ps[pi+POLDY] = ps[pi+1];
       }
       
+      let progressive = ctx.PROGRESSIVE;
+      
       let callback = (pi2) => {
         if (pi2 == pi1) {
           return;
@@ -563,6 +563,31 @@ define([
         dis = Math.sqrt(dis);
         let w = 1.0 - dis / searchr2;
 
+        if (!progressive) {
+          w = SPH_CURVE.evaluate(w);
+
+          sumdx += dx*w;
+          sumdy += dy*w;
+          sumw += w;
+          sumtot += 1.0;
+          
+          return;
+        } else {
+          w = SPH_CURVE.evaluate(w);
+
+          let g2 = gen2 + 0.1;
+          let g1 = gen1 + 0.1;
+          
+          w *= 1/(0.00001+Math.abs(g2-g1));
+          
+          sumdx += dx*w;
+          sumdy += dy*w;
+          sumw += w;
+          sumtot += 1.0;
+          
+          return;
+        }
+        
         //*
         if (gen2 > gen1 && (testgen || ctx.PROG_BASE_LAYER)) { //ctx.PROG_BASE_LAYER && !testgen && gen2 > gen1) {
           //w *= 0.7;
@@ -586,8 +611,9 @@ define([
           let a = gen1, b = gen2;
           a = Math.pow(a, ctx.PARAM4);
           b = Math.pow(b, ctx.PARAM4);
-          //a = ctx.SPH_CURVE.evaluate(a);
-          //b = ctx.SPH_CURVE.evaluate(b);
+          
+          a = ctx.SPH_CURVE.evaluate(a);
+          b = ctx.SPH_CURVE.evaluate(b);
           
           //let a = r2, b = r1;
           
@@ -827,5 +853,7 @@ define([
     }
   }
   
+  iface.MaskGenerator.register(config, SPHGenerator, "SPH");
+
   return exports;
 });

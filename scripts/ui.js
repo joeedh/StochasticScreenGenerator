@@ -1545,6 +1545,16 @@ define([
       return this;
     }
     
+    static isJSONCurve(obj) {
+      if (obj == null || obj === undefined || typeof(obj) != "object")
+        return false;
+      
+      let ret = "points" in obj && "eidgen" in obj;
+      ret = ret || "is_new_curve" in obj;
+      
+      return ret;
+    }
+    
     loadJSON(obj) {
       if (obj.is_new_curve === undefined) {
         let hasGUI = this.uidata !== undefined;
@@ -1979,20 +1989,33 @@ define([
       return this;
     }
     
-    saveVisibility() {
-      localStorage[this.storagePrefix + "_settings"] = JSON.stringify(this);
-      return this;
+    saveVisibility(save_to_localstorage = true) {
+      if (save_to_localstorage) {
+        localStorage[this.storagePrefix + "_settings"] = JSON.stringify(this);
+        return this;
+      } else {
+        return JSON.stringify(this);
+      }
     }
     
-    loadVisibility() {
-      let key = this.storagePrefix + "_settings";
+    loadVisibility(buf) {
       let ok = true;
       
-      if (key in localStorage) {
+      if (buf === undefined) {
+        let key = this.storagePrefix + "_settings";
+        
+        if (key in localStorage) {
+          buf = localStorage[key];
+        } else {
+          ok = false;
+        }
+      }
+      
+      if (ok) {
         console.log("loading UI visibility state. . .");
         
         try {
-          this.loadJSON(JSON.parse(localStorage[key]));
+          this.loadJSON(JSON.parse(buf));
         } catch (error) {
           util.print_stack(error);
           ok = false;

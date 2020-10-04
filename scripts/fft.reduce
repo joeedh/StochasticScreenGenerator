@@ -1,0 +1,52 @@
+on factor;
+off period;
+
+comment: load_package trigsimp;
+
+comment: periodic basis function, e.g. sine, tent, etc.;
+comment: basis2 is basis1 phase shifted, e.g. like sin/cos are;
+
+operator basis1, basis2, goal; 
+
+operator px, py;
+
+forall s let basis2(s) = basis1(s+pi/2);
+
+totpoint := 4;
+isize := 2;
+
+coslist := for ix := 0:isize-1 collect
+    for iy := 0:isize-1 collect 
+        for ip := 0:totpoint-1 sum
+            begin scalar wx, wy, fx, fy;
+                wx := ix - size/2;
+                wy := iy - size/2;
+                th := -2*pi*(wx*px(ip) + wy*py(ip));
+                
+                return basis1(th);
+            end;
+
+sinlist := for ix := 0:isize-1 collect
+    for iy := 0:isize-1 collect 
+        for ip := 0:totpoint-1 sum
+            begin scalar wx, wy, fx, fy;
+                wx := ix - size/2;
+                wy := iy - size/2;
+                th := -2*pi*(wx*px(ip) + wy*py(ip));
+                
+                return basis2(th);
+            end;
+;
+
+reslist := for ix := 0:isize-1 collect 
+    for iy := 0:isize-1 collect 
+        ((part(coslist, ix+1, iy+1)**2 + part(sinlist, ix+1, iy+1)**2) / totpoint);
+ 
+feqs := for ix := 0:isize-1 join
+    for iy := 0:isize-1 collect
+        begin;
+            return part(reslist, ix+1, iy+1) - goal(ix, iy);
+        end;
+        
+vars := append(for ix := 0:isize-1 collect px(ix), for ix := 0:isize-1 collect py(iy));
+fres := solve(feqs, vars);

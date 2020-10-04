@@ -1,0 +1,78 @@
+on factor;
+off period;
+
+load_package "avector";
+
+let abs(size1) = size1;
+
+procedure xy2hex(x, y, size);
+  avec(((x*size)/(3**0.5*0.5))/size, (y*size-0.5)/size, 3**0.5*0.5);
+
+procedure hex2xy(x, y, size);
+  avec(((x*size)*(3**0.5*0.5))/size, (y*size+0.5)/size, (3**0.5/3.0)/size);
+
+procedure rot2(x, y, th);
+  avec(x*cos(th)-y*sin(th), y*cos(th)+x*sin(th), 0.0);
+  
+procedure hexvert(x, y, idx, size);
+  BEGIN; comment: scalar th, dth;
+    th  := pi + (pi*0.5);
+    
+    dth := (pi*2)/6;
+    th  := th + dth*idx;
+    r   := ((3**0.5)/3.0)/size;
+    
+    return avec(sin(th)*r + x, cos(th)*r + y, 0.0);
+  END;
+
+procedure get_hotspot(x, y, size, limit);
+  BEGIN; comment: scalar hv1,hv2,x,y,t1,r;
+    hv1 := hexvert(x, y, 0, size);
+    hv2 := hexvert(x, y, 3, size);
+    t1 := limit*0.5;
+    x := hv1[0] + (hv2[0] - hv1[0])*t1;
+    y := hv1[1] + (hv2[1] - hv1[1])*t1;
+    
+    r := limit * (3**0.5/3.0) / size;
+    return avec(x, y, r);
+  END;
+  
+procedure dxdy(x, y, size, th);
+  BEGIN; comment: scalar d, tx, ty, v2, h, h2, dx, dy, xy2, w, trfac, hs;
+    tx := sin(x*size*(152*pi*2));
+    ty := sin(y*size*(152*pi*2));
+    
+    v2 := rot2(x, y, -th);
+    h  := xy2hex(x, y, size);
+    
+    v := hex2xy(x, y, size);
+    
+    h2 := avec(floor(h[0]*size)/size, floor(h[1]*size)/size, 0.0);
+    w  := 0.01;
+    h  := hex2xy(h[0], h[1], size);
+    xy2 := rot2(x, y, th);
+    
+    hs := get_hotspot(x, y, size, limit);
+    
+    trfac := 1.0; comment: tx*tx + ty*ty; comment: min(tx, ty);
+    
+    r := trfac*(3**0.5/3.0) / size;
+    v4 := hexvert(v[0], v[1], 0, r);
+    v4 := rot2(v4[0], v4[1], -th);
+    r  := (3**0.5/3.0) / size;
+    
+    hv := hexvert(hs[0], hs[1], 1, hs[2]);
+    dx := v4[0]-hv[0]; 
+    dy := v4[1]-hv[1];
+    f  := (dx*dx + dy*dy)**0.5;
+    f  := f / (2*hs[2]);
+    
+    return avec(dx, dy, f);
+  END;
+
+limit := 1.0;
+ret := dxdy(x1, y1, size1, th1);
+
+on fort;
+ret[2];
+off fort;

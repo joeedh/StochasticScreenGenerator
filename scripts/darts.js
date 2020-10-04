@@ -22,8 +22,6 @@ define([
     DART_MITCHELL_MODE : false
   };
   
-  sinterface.MaskConfig.registerConfig(config);
-  
   var DartsGenerator = exports.DartsGenerator = class DartsGenerator extends MaskGenerator {
     constructor(appstate, dilute_small_mask) {
       super(appstate, dilute_small_mask);
@@ -283,8 +281,8 @@ define([
         
         kdtree.insert(x, y, pi);
         
-        this.find_mask_pixel(pi);
-        this.raster_point(pi);
+        this.find_mask_pixel(0, pi);
+        this.raster_point(0, pi);
         
         if (FFT_TARGETING && this.totfft % 25 == 0) {
           this.do_fft(25);
@@ -662,8 +660,8 @@ define([
     
     /*
     //optional
-    function raster_point(pi) {
-      var mask = this.mask, ps = this.points, msize = this.mask_img.width
+    function raster_point(mi, pi) {
+      var mask = this.masks[mi].mask, ps = this.points, msize = this.masks[mi].mask_img.width
       var cf = this.config;
       
       var x = ps[pi], y = ps[pi+1], gen=ps[pi+PGEN];
@@ -713,7 +711,7 @@ define([
       mask[idx+3] = 255;
     }
     
-    function raster() {
+    function raster_mask(mi) {
       var cf = this.config;
       
       this.mask[0] = this.mask[1] = this.mask[2] = 0;
@@ -725,7 +723,7 @@ define([
       var plen = ~~(this.points.length/PTOT);
       
       for (var i=0; i<plen; i++) {
-        this.raster_point(i);
+        this.raster_point(mi, i, this.points);
       }
     }
     */
@@ -765,6 +763,8 @@ define([
       this.make_cells();
     }
   };
+  
+  sinterface.MaskGenerator.register(config, DartsGenerator, "DART");
   
   return exports;
 });

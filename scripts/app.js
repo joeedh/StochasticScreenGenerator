@@ -65,6 +65,7 @@ define([
   
   var AppState = exports.AppState = Class([
     function constructor() {
+      this._gen_ui_cache = {};
       this.generator = undefined
       
       this.hist = new histogram.Histogram(64);
@@ -81,11 +82,8 @@ define([
     function reset() {
       this.dimen = DIMEN;
       
-      if (MODE != this._last_mode) {
-        console.log("switching generator type");
-        
+      if (this.generator === undefined) {
         this.generator = new generators[MODE];
-        
         this._last_mode = MODE;
       }
       
@@ -105,6 +103,7 @@ define([
       
       this.generator.set_config(new iface.MaskConfig());
       this.generator.reset(size, this, this.mask_img, generators);
+      window.redraw_all();
     },
     
     function fft() {
@@ -115,7 +114,7 @@ define([
       var maxlvl = this.generator.max_level();
       restrict /= maxlvl;
       
-      var ps2 = this.generator.get_visible_points(restrict, true);
+      var ps2 = this.generator.points; //get_visible_points(restrict, true);
       var plen = ps2.length/PTOT;
       
       var gen = this.generator;
@@ -461,7 +460,64 @@ ret += `
       return ret;
     },
     
+    function gen_js_matrix() {
+      let config = _appstate.generator.config;
+      let sz = config.XLARGE_MASK ? 8 : (!config.SMALL_MASK ? 4 : 1);
+      let ps = this.generator.points;
+      let dimen = this.generator.dimen*sz;
+      
+      let GVAL=0, GCLR=1, GTOT = 2;
+      
+      let grid = new Uint16Array(dimen*dimen*GTOT);
+      let max_level = this.generator.max_level();
+      
+      let bpp = config.GEN_CMYK_MASK ? 16 : 2;
+      
+      let ret = `{
+  dimen : ${dimen},
+  format : "${config.GEN_CMYK_MASK ? "cmyk" : "greyscale"}",
+  bytesPerPixel : ${bpp},
+  components : ${config.GEN_CMYK_MASK ? 4 : 1},
+  mask : new Uint16Array([\n`;
+      
+      let mask = this.generator.mask;
+      let line = "";
+      for (let i=0; i<mask.length; i += 4) {
+        let chunk = "";
+        
+        if (config.GEN_CMYK_MASK) {
+          for (let j=0; j<4; j++) {
+            chunk += "0x" + mask[i+j].toString(16) + ",";
+          }
+        } else {
+          chunk = mask[i].toString(16) + ",";
+        }
+        
+        ret += chunk;
+        line += chunk;
+        
+        if (line.length > 75) {
+          ret += "\n"
+          line = "";
+        }
+      }
+      ret += "])\n};\n\n";
+      return ret;
+    },
+    
+    function save_js_matrix() {
+      let ret = this.gen_js_matrix();
+      
+      var blob = new Blob([ret], {type : "text/plain"});
+      var url = URL.createObjectURL(blob);
+      window.open(url);
+      
+      return ret;
+    },
+    
     function save_cmatrix() {
+      let ret = this.gen_cmatrix();
+      
       var blob = new Blob([ret], {type : "text/plain"});
       var url = URL.createObjectURL(blob);
       window.open(url);
@@ -675,8 +731,15 @@ ret += `
       
       if (DRAW_MASK) {
         var mg = this.mask_g;
-        mg.putImageData(this.mask_img, 0, 0);
         
+        var gen = this.generator;
+        let curmask = CURRENT_MASK;
+        
+        if (curmask <= gen.masks.length) {
+          mg.putImageData(gen.masks[curmask].mask_img, 0, 0);
+        } else {
+          mg.putImageData(this.mask_img, 0, 0);
+        }
         g.imageSmoothingEnabled = false;
         
         var msize = this.mask_canvas.width;
@@ -685,6 +748,11 @@ ret += `
         g.save();
         g.scale(SCALE*7, SCALE*7);
         
+        let draw_all = DRAW_ALL_MASKS;
+        
+        g.globalAlpha = draw_all ? 1.0 / gen.masks.length : 1.0;
+        
+        this.mask_canvas.style["alpha"] = 0.15;
         for (var x=0; x<tottile; x++) {
           for (var y=0; y<tottile; y++) {
             
@@ -693,9 +761,25 @@ ret += `
             g.rect(20+msize*x, 20+msize*y, this.mask_canvas.width+1, this.mask_canvas.height+1);
             g.fill();
             
-            g.drawImage(this.mask_canvas, 20+msize*x, 20+msize*y);
+            if (draw_all) {
+              for (let mask of gen.masks) {
+                mg.putImageData(mask.mask_img, 0, 0);
+              
+                let rx = Math.random()/msize*0;
+                let ry = Math.random()/msize*0;
+                
+                g.drawImage(this.mask_canvas, 20+msize*x+rx, 20+msize*y+ry);
+              }
+            } else {
+              g.drawImage(this.mask_canvas, 20+msize*x, 20+msize*y);
+            }
           }
         }
+        
+        if (draw_all) {
+          g.globalAlpha = 1.0;
+        }
+        
         g.restore();
         return;
       }
@@ -756,6 +840,25 @@ ret += `
       var colors = this.generator.colors;
       var drmul = DRAW_RMUL*this.generator.draw_rmul;
       
+      let maskcolors = [
+        "red",
+        "green",
+        "orange",
+        "blue",
+        "teal",
+        "yellow",
+        "brown"
+      ];
+      
+      let maskcolors2 = [
+        [1, 0, 0],
+        [0, 1, 0],
+        [1, 0.5, 0],
+        [0, 0, 1],
+        [0, 1, 1],
+        [0.5, 0.5, 0.35]
+      ]
+      
       for (var _j=0; !this.generator.skip_point_draw && _j<colors.length; _j++) {
         var j = _j % colors.length;
         
@@ -771,6 +874,8 @@ ret += `
           g.fillStyle = "red";
         }
         
+        var draw_all_masks = DRAW_ALL_MASKS && this.generator.masks.length > 1;
+        
         var maxgen = this.generator.max_level();
         
         for (var si=0; si<_poffs.length; si++) {
@@ -782,6 +887,11 @@ ret += `
           for (var i=0; i<ps2.length; i += PTOT) {
             var x = ps2[i], y = ps2[i+1], r = ps2[i+PR], gen = ps2[i+PGEN];
             var color = ps2[i+PCLR];
+            var mi = ps[i+PMASK];
+            
+            if (!draw_all_masks && mi !== CURRENT_MASK) {
+              continue;
+            }
             
             if (DRAW_OFFS) {
               x += ps2[i+POFFX];
@@ -797,16 +907,31 @@ ret += `
             if (DRAW_GEN) {
               let f1 = gen, f2 = gen*0.5;
           
-              f1 = ~~(f1*255);
-              f2 = ~~(f2*255);
-              g.fillStyle = "rgba("+f1+","+f2+",0, 1.0)";
+              if (DRAW_COLORS) {
+                let gen = ps2[i+PGEN] / maxgen;
+                let ci = (~~ps2[i+PCLR]) % maskcolors2.length;
+                
+                let c = maskcolors2[ci];
+                let r = ~~(c[0]*255*gen);
+                let g1 = ~~(c[1]*255*gen);
+                let b = ~~(c[2]*255*gen);
+                g.fillStyle = "rgb("+r+","+g1+","+b+")";
+                g.beginPath();
+              } else {
+                f1 = ~~(f1*255);
+                f2 = ~~(f2*255);
+                g.fillStyle = "rgba("+f1+","+f2+",0, 1.0)";
+              }
+              g.beginPath();
+            } else if (draw_all_masks) {
+              g.fillStyle = maskcolors[mi];
               g.beginPath();
             }
             
             g.moveTo(x, y);
             g.arc(x, y, r*0.5*drmul, -Math.PI, Math.PI);
             
-            if (DRAW_GEN) {
+            if (DRAW_GEN || draw_all_masks) {
               g.fill();
             }
           }
@@ -846,12 +971,26 @@ ret += `
     function on_tick() {
       if (this.gui == undefined) return;
       
+      if (MODE != this._last_mode) {
+        console.log("switching generator type");
+        
+        this.generator = new generators[MODE];
+        this._last_mode = MODE;
+        this.reset();
+      }
+      
+      if (this.gui2 !== undefined && MODE != this.gui2._mode) {
+        this.switch_gen_ui(this.generator);
+      }
+      
       if (window.innerWidth != this._lastsize[0] || window.innerHeight != this._lastsize[1]) {
         this.on_resize();
       }
       
       this.gui.on_tick();
-      this.gui2.on_tick();
+      if (this.gui2 !== undefined) {
+        this.gui2.on_tick();
+      }
     },
     
     function on_resize() {
@@ -1001,7 +1140,9 @@ ret += `
       }
       
       this.gui.destroy();
-      this.gui2.destroy();
+      if (this.gui2 !== undefined) {
+        this.gui2.destroy();
+      }
       this.gui = undefined;
       this.gui2 = undefined;
       
@@ -1018,9 +1159,17 @@ ret += `
       });//*/
     },
     
-    function build_ui() {
+    function switch_gen_ui(gen) {
+      if (this.gui2 !== undefined) {
+        this._gen_ui_cache[this.gui2._mode] = this.gui2.saveVisibility(false);
+        this.gui2.destroy();
+      }
+      
       var panel = this.gui2 = new ui.UI("bn9_gui2", window); //XXX don't use window!
       panel.check('GEN_MASK', 'Generate Mask');
+      
+      this.gui2._mode = MODE; //XXX shoud get from gen
+      var this2 = this;
       
       panel.button('save_mask', "Save To Cache", function() {
         this2.report("\nSaving blue noise mask to local storage");
@@ -1035,13 +1184,11 @@ ret += `
       panel2.check('USE_TONE_CURVE', 'Enable Tone Curve');
       panel2.close();
       
-      for (let gen of generators) {
-        console.log(gen);
-        
-        if (gen === undefined)
-          continue;
-        gen.build_ui(panel);
+      if (gen === undefined) {
+        return
       }
+      
+      gen.constructor.build_ui(panel);
       
       panel.slider('DRAW_RESTRICT_LEVEL', 'Display Level', 1.0, 0, 1, 0.0001, false, true);
       panel.check("DRAW_COLOR", "Show Colors");
@@ -1052,6 +1199,26 @@ ret += `
       var panel2 = panel.panel("FFT");
       window.FFT_CURVE = panel2.curve('FFT_CURVE', 'Radial Spectrum', presets.FFT_CURVE).curve;
       panel2.close();
+      
+      if (MODE in this._gen_ui_cache) {
+        this.gui2.loadVisibility(this._gen_ui_cache[MODE]);
+      }
+    },
+    
+    function build_ui() {
+      if (this.generator === undefined) {
+        console.warn("generator was undefined");
+        
+        window.setTimeout(() => {
+          if (this.generator !== undefined && this.gui2 === undefined) {
+            this.switch_gen_ui(this.generator);
+            this.gui2.load();
+          }
+        }, 250);
+      } else {      
+        this.switch_gen_ui(this.generator);
+        this.gui2.load();
+      }
       
       var panel = this.gui = new ui.UI("bn9_gui1", window);
         
@@ -1080,8 +1247,8 @@ ret += `
         window.MODE = mode;
       
       panel.listenum(undefined, 'MODE', uinames, MODE, function(value) {
-        console.log("m", value);
         window.MODE = parseInt(value);
+        //XXX dumb, old API
         ui.save_setting('MODE', value);
       });
       
@@ -1117,6 +1284,10 @@ ret += `
         _appstate.save_cmatrix();
       });
       
+      panel.button("save_js_matrix", "Save JS matrix", function() {
+        _appstate.save_js_matrix();
+      });
+      
       panel.button('save_matrix', "Save PS Matrix", function() {
         _appstate.save_ps_matrix();
       });
@@ -1127,12 +1298,16 @@ ret += `
       
       panel.slider('DIMEN', 'Dimensions', 32, 1, 512, 1, true, false);
       panel.slider('STEPS', 'Steps Per Run', 32, 1, 10000, 1, true, false);
+      
+      panel.slider('RELAX_SPEED', 'Relax Speed', 0.0, 0.0001, 2.5, 0.0001, false, false);
       panel.slider('QUALITY_STEPS', 'Quality', 4, 1, 100, 1, true, false);
       panel.slider('DRAW_RMUL', 'Point Size', 1.0, 0.001, 4.0, 0.01, false, true);
       
       panel.slider('HIEARCHIAL_LEVELS', 'Levels', 255, 1, 255, 1, true, false);
       panel.slider('HIEARCHIAL_SCALE', 'Max Scale', 5.0, 1, 40, 0.001, false, false);
       panel.slider('SCALE', 'Zoom', 1.0, 0.01, 5, 0.001, false, true);
+      panel.slider('CURRENT_MASK', 'CurrentMask', 0, 0, 6, 1, true, true);
+      panel.check('DRAW_ALL_MASKS', 'Draw All Masks');
       
       panel.check('DRAW_KDTREE', 'Show kd-tree');
       panel.check('DRAW_GRID', 'Show Grid');
@@ -1150,7 +1325,6 @@ ret += `
       }
       
       this.gui.load();
-      this.gui2.load();
     }
   ]);
   

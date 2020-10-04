@@ -832,7 +832,6 @@ define([
       this.r = 1.0 / dimen;
       
       this.dimen = dimen;
-      this.points = [];
       this.cur = 0;
       
       this.limit = EXPLORE_AA_LIMIT ? this.limit_cdf.random() : AA_LIMIT;

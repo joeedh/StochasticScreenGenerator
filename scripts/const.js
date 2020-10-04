@@ -2,10 +2,13 @@
 //argh! I hate doing this! but necassary!
 //core data 'structures' are actually embedded in typed arrays. . . ger
 
+//write system for *global* config values!
+
 let _legacy_config_keys = ["MODE","SPH_SPEED","SPH_EXP","SPH_MUL","SPH_FILTERWID","DIMEN","DRAW_RMUL","SCALE","PANX","PANY","DISTANCE_LIMIT","HIEARCHIAL_SCALE","HIEARCHIAL_LEVELS","DRAW_RESTRICT_LEVEL","STEPS","QUALITY_STEPS", "SMALL_MASK",
 "XLARGE_MASK", "QUALITY_STEPS", "ALLOW_OVERDRAW", "GEN_CMYK_MASK", "DRAW_HISTOGRAM", "DRAW_OFFS", "FFT_TARGETING",
 "DRAW_KDTREE", "DRAW_MASK", "SCAN_MODE", "HIEARCHIAL_SCALE", "HIEARCHIAL_LEVELS", "TILABLE", "LIMIT_DISTANCE", "USE_MERSENNE",
-"DRAW_TILED", "DISPLAY_TILED", "NO_COLOR", "USE_TONE_CURVE", "DRAW_GRID", "DRAW_COLOR", "DRAW_GEN"];
+"DRAW_TILED", "DISPLAY_TILED", "NO_COLOR", "USE_TONE_CURVE", "DRAW_GRID", "DRAW_COLOR", "DRAW_GEN",
+"DRAW_ALL_MASKS", "TOTMASK", "CURRENT_MASK", "RELAX_SPEED"];
 
 window.DEV_MODE = false;
 window.APP_VERSION = 0.5;
@@ -13,8 +16,9 @@ window.APP_VERSION = 0.5;
 window.MAX_REPORT_LINES = 12;
 
 //make sure to keep in sync with list in generators.js
+
 window.MODES = {
-  SMOOTHMASK   : 0,
+/*  SMOOTHMASK   : 0,
   DART         : 1,
   VOID_CLUSTER : 2,
   DART2        : 3,
@@ -22,17 +26,18 @@ window.MODES = {
   MASKOPT      : 5,
   BLUEVC       : 6,
   SPH          : 7,
-  VOID_CLUSTER_CMYK : 8
+  VOID_CLUSTER_CMYK : 8*/
 };
 
 window.DRAW_GRID = false;
 window.MODE = MODES.DART;
 window.VOID_HEX_MODE = false;
 window.TEST_CLUSTER = false;
+window.RELAX_SPEED = 1.0;
 
 //small offset to signal that a pixel isn't blank in expanded/large masks.
 //didn't want to use alpha for it.
-window.LARGE_MASK_NONZERO_OFFSET = 5;
+window.LARGE_MASK_NONZERO_OFFSET = 1;
  
 window.CMYK = [
   [0, 1, 1],
@@ -51,7 +56,8 @@ var MAX_BIN = 128;
 let PointRecord = {
   PX:0, PY:1, PR:2, PGEN:3, PDX:4, PDY:5, PR2:6, PD:7, 
   PIX:8, PIY:9, PCLR:10, PFLAG:11, POLDX:12, POLDY:13,
-  POFFX:14, POFFY:15, POX:16, POY:17, POGEN:18, PTOT:19
+  POFFX:14, POFFY:15, POX:16, POY:17, POGEN:18, PMASK:19,
+  PTOT:20
 }
 //put in global namespace
 for (let k in PointRecord) {
@@ -98,6 +104,9 @@ window.TILABLE = true;
 
 window.LIMIT_DISTANCE = false;
 window.DISTANCE_LIMIT = 0.15;
+window.DRAW_ALL_MASKS = false;
+window.CURRENT_MASK = 0;
+window.TOTMASKS = 1;
 
 window.HIEARCHIAL_SCALE = 9.5;
 window.HIEARCHIAL_LEVELS = 8;
@@ -143,8 +152,8 @@ window._poffs = [
 
 var _const = undefined;
 define([
-  "util"
-], function(util) {
+  "util", "ui"
+], function(util, ui) {
   'use strict';
   
   var exports = _const = {};
@@ -169,7 +178,15 @@ define([
      for (let k in obj) {
        let v = obj[k];
        
-       window[k] = obj[k];
+       if (ui.Curve.isJSONCurve(v)) {
+         let curve = new ui.Curve("");
+         curve.loadJSON(v);
+         v = curve;
+         
+         console.log("found curve", k, v);
+       }
+       
+       window[k] = v;
      }
   }
   
@@ -184,7 +201,7 @@ define([
   }
   
   //note: don't call this directly, call interface.MaskConfig.registerConfig!
-  exports.registerConfig = function(cfg) {
+  exports.registerConfig = function(cfg, MaskConfigCls) {
     exports._configs.push(cfg);
     
     //need to refactor config system
@@ -196,6 +213,7 @@ define([
           console.log("Registering curve", k);
           
           exports.DefaultCurves[k] = v.default_json;
+          MaskConfigCls.registerCurve(k, v.default_json);
         }
         
         v = undefined; //XXX should spawn a curve here, but need to split curve base code out of ui.js first

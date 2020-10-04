@@ -1,26 +1,163 @@
 var _interface = undefined;
 
 define([
-  "util", "const", "kdtree", "report"
-], function(util, cconst, kdtree, reportfunc) {
+  "util", "const", "kdtree", "report", "ui"
+], function(util, cconst, kdtree, reportfunc, ui) {
   'use strict';
   
   var exports = _interface = {};
   var Class = util.Class;
   
   exports._configs = [];
+  exports.generators = [];
   
+  let configMap = exports.configMap = new Map();
+
+  exports.getConfigKeys = function(cls=_appstate.generator.constructor) {
+    return configMap.get(cls);
+  }
+  
+  exports.saveConfig = function(config_keys=exports.getConfigKeys()) {
+    let buf = "  {\n";
+    for (let k in config_keys) {
+      let v = window[k] !== undefined ? window[k] : config_keys;
+      
+      if (v instanceof ui.Curve) {
+        v = JSON.stringify(v.toJSON());
+        v = "new cconst.EditableCurve(\"" + k + "\", " + v + ")";
+      } else {
+        v = JSON.stringify(v);
+      }
+      
+      buf += "    " + k + "  :  " + v + ",\n";
+    }
+    buf += "  };\n"
+    
+    return buf;
+  }
+  /*
+  Multi-mask refactor.  Need to add support for generators creating 
+  multiple masks.
+  
+  note that some Mask methods (mostly rasterization) is in MaskGenerator
+  to avoid subclassing Mask.  Could also use a mixin approach I guess.
+  
+  TODO:
+  
+    - BAD: add support for multiple point sets
+      this will make problems with referencing points
+      instead, have points reference masks
+    - add API to automatically draw each mask
+    - implement raster
+  */
+  
+  var Mask = exports.Mask = class Mask {
+    constructor(config, maskid, points) {
+      this.maskid = maskid;
+      this.points = points;
+      this.mask_image = undefined;
+      this.kdtree = undefined;
+      this.config = config;
+      this.dimen = undefined;
+      
+      this.reset(config, config.DIMEN, points);
+    }
+    
+    report() {
+      //console.log.apply(console, arguments);
+      reportfunc.apply(window, arguments);
+    }
+    
+    get localpoints() {
+      let ps = this.points;
+      let maskid = this.maskid;
+      
+      return (function*() {
+        for (let pi=0; pi<ps.length; pi += PTOT) {
+          if (ps[pi+PMASK] == maskid)
+            yield pi;
+        }
+      })();
+    }
+    
+    regen_spatial() {
+      if (this.kdtree === undefined) {
+        this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+      }
+      
+      this.kdtree.clear();
+      let ps = this.points;
+      
+      //for (let pi of this.localpoints) {
+      //*
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        if (ps[pi+PMASK] != this.maskid)
+          continue;
+      //*/
+        var x = ps[pi], y = ps[pi+1], mi = ps[pi+PMASK];
+        
+        this.kdtree.insert(x, y, pi);
+      }
+    }
+    
+    reset(config, dimen, points, mask_image = undefined) {
+      this.config = config;
+      
+      //var msize = mask_image.width;
+      var msize;
+      if (config.XLARGE_MASK) {
+        msize = dimen*8;
+      } else if (!config.SMALL_MASK) {
+        msize = dimen*4;
+      } else {
+        msize = dimen;
+      }
+      
+      if (mask_image === undefined) {
+        mask_image = new ImageData(msize, msize);
+      } else if (mask_image.width != msize) {
+        this.report(`ERROR: mask size wrong, ${mask_image.width} should be ${msize}`);
+      }
+      
+      this.points = points;
+
+      this.mask_img = mask_image;
+      this.mask = mask_image.data;
+
+      this.maskgrid = new Int32Array(msize*msize);
+      this.maskgrid.fill(-1, 0, this.maskgrid.length);
+      this.masksize = msize;
+  
+      var iview = new Int32Array(this.mask.buffer);
+      this.mask[0] = this.mask[1] = this.mask[2] = 0;
+      this.mask[3] = 0;
+      iview.fill(iview[0], 0, iview.length);
+      
+      this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+    }
+  }
+  
+
   var MaskConfig = exports.MaskConfig = class MaskConfig {
     constructor() {
       this.update();
       
       this.SEED = 0;
       this.RELAX_CURRENT_LEVEL = false;
+      this.DRAW_ALL_MASKS = true;
+      this.CURRENT_MASK = 0;
+      this.TOTMASKS = 1;
     }
     
-    static registerConfig(cfg) {
+    static registerConfig(cfg, cls) {
+      configMap.set(cls, cfg);
+      
+      if (cls === undefined) {
+        throw new Error("bad call to MaskConfig.registerConfig");
+      }
+      
       exports._configs.push(cfg);
-      cconst.registerConfig(cfg);
+      cconst.registerConfig(cfg, MaskConfig);
     }
     
     copy() {
@@ -37,17 +174,44 @@ define([
       return mc;
     }
     
+    static registerCurve(key, json) {
+      let curve;
+      
+      if (!(json instanceof ui.Curve)) {
+        if (typeof json == "string")
+          json = JSON.parse(json);
+        
+        curve = new ui.Curve(json.setting_id === undefined ? "bleh! stupid!" : json.setting_id);
+        curve.loadJSON(json);
+      } else {
+        curve = json;
+      }
+      
+      //XXX stupid global namespacing of config stuff
+      //also, UI code will override this instance anyway,
+      //bleh but it's necassary
+      window[key] = curve;
+    }
+    
     update() {
+      //XXX I'd like to move away from having config values in the global
+      //namespace
+      
       for (let cfg of exports._configs) {
         for (let k in cfg) {
           this[k] = window[k]; //need to update config system to not use window
         }
       }
       
+      this.TOTMASKS = window.TOTMASKS;
+      this.DRAW_ALL_MASKS = window.DRAW_ALL_MASKS;
+      this.CURRENT_MASK = window.CURRENT_MASK;
       this.USE_TONE_CURVE = USE_TONE_CURVE;
       this.CMYK = CMYK;
       this.GEN_MASK = GEN_MASK;
       this.FFT_TARGETING = FFT_TARGETING;
+      this.LARGE_MASK_NONZERO_OFFSET = LARGE_MASK_NONZERO_OFFSET;
+      this.RELAX_SPEED = RELAX_SPEED;
       
       this.RADIUS_CURVE = RADIUS_CURVE;
       this.TONE_CURVE = TONE_CURVE;
@@ -73,6 +237,8 @@ define([
     constructor(appstate, dilute_small_mask) {
       this.dilute_small_mask = dilute_small_mask == undefined ? true : dilute_small_mask;
       
+      this.masks = [];
+      
       this.appstate = appstate;
       this.colors = CMYK;
       this.config = new MaskConfig();
@@ -85,6 +251,36 @@ define([
       
       this.points = [];
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+      this.add_mask();
+    }
+    
+    static register(config, cls, enum_name=cls.name) {
+      if (cls === undefined) {
+        throw new Error("bad call to MaskGenerator.register");
+      }
+      
+      MaskConfig.registerConfig(config, cls);
+      exports.generators.push(cls);
+      
+      window.MODES[enum_name] = exports.generators.length-1;
+    }
+    
+    gen_masks(count) {
+      this.masks.length = 1;
+      count--;
+      
+      for (let i=0; i<count; i++) {
+        this.add_mask();
+      }
+    }
+    
+    add_mask() {
+      let config = this.config === undefined ? new MaskConfig() : this.config; //XXX should never be undefined
+      let mask = new Mask(config, this.masks.length, this.points);
+      
+      this.masks.push(mask);
+      
+      return mask;
     }
     
     static build_ui(gui) {
@@ -399,6 +595,16 @@ define([
         
         var fac = 1.0; //cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
         
+      
+        /*make small force towards grid in small mask mode*/
+        if (cf.SMALL_MASK) {
+          let dx = Math.floor(ps[i]*msize + 0.5)/msize - ps[i];
+          let dy = Math.floor(ps[i+1]*msize + 0.5)/msize - ps[i+1];
+          
+          ps[i] += dx*0.35;
+          ps[i+1] += dy*0.35;
+        }
+        
         ps[i] += (sumx - ps[i])*2.0*fac;
         ps[i+1] += (sumy-ps[i+1])*2.0*fac;
           
@@ -415,9 +621,22 @@ define([
       this.raster();
     }
     
-    relax(use_avg_dis, max_lvl_perc, speed=1.0, config) {
-      this.report("relaxing. . .");
+    relax(use_avg_dis, max_lvl_perc, speed=undefined, config=undefined) {
+      if (config === undefined) {
+        config = this.config;
+      }
       
+      if (speed === undefined) {
+        speed = config.RELAX_SPEED;
+      }
+      
+      this.report("relaxing. . .");
+
+      this.relax_intern(0, use_avg_dis, max_lvl_perc, speed, config);
+      this.relax_intern(1, use_avg_dis, max_lvl_perc, speed, config);
+    }
+    
+    relax_intern(local_only, use_avg_dis, max_lvl_perc, speed=undefined, config=undefined) {
       use_avg_dis = use_avg_dis == undefined ? false : use_avg_dis;
       
       max_lvl_perc = max_lvl_perc == undefined ? 1.0 : max_lvl_perc;
@@ -463,8 +682,12 @@ define([
       
       function callback(pi) {
         var x2 = ps[pi], y2 = ps[pi+1], r2=ps[pi+PR];
+        var mi2 = ps[pi+PMASK];
         var gen2 = ps[pi+PGEN];
         
+        if (local_only && mi1 != mi2) {
+          return;
+        }
         x2 -= _poffs[j][0];
         y2 -= _poffs[j][1];
         
@@ -523,6 +746,7 @@ define([
       
       for (var i=0; i<plen; i += PTOT) {
         var x = ps[i], y = ps[i+1], r1 = ps[i+PR];
+        var mi1 = ps[i+PMASK];
         var gen1 = ps[i+PGEN];
         var hgen1 = ps[i+PD];
         
@@ -544,6 +768,16 @@ define([
         } else {
           f1 = gen1/maxgen;
           r1 = r;
+        }
+        
+        if (local_only) {
+          /*
+          find area of r1 times this.masks.length
+          mlen*(pi*r1**2) = pi*r2**2;
+          r2 = sqrt(mlen)*r1;
+          */
+          
+          r1 *= Math.sqrt(this.masks.length);
         }
         
         var searchrad = r1*searchfac;
@@ -603,7 +837,15 @@ define([
       }
       
       this.points = ps2;
+      
+      this._update_mask_pointrefs();
       this.regen_spatial();
+    }
+    
+    _update_mask_pointrefs() {
+      for (let mask of this.masks) {
+        mask.points = this.points;
+      }
     }
     
     is_done() {
@@ -627,28 +869,24 @@ define([
     
     //generators is a list of generator constructors
     //it's passed in here to avoid module dependency cycles
-    reset(size, appstate, mask_image, generators) { 
+    reset(dimen, appstate, mask_image, generators) { 
       util.seed(this.config.SEED);
       
       this.appstate = appstate;
       
-      this.dimen = size;
-      this.mask_img = mask_image;
-      this.mask = mask_image.data;
-      
-      var msize = mask_image.width;
-      this.maskgrid = new Int32Array(msize*msize);
-      
-      this.maskgrid.fill(-1, 0, this.maskgrid.length);
-      this.masksize = mask_image.width;
-  
-      var iview = new Int32Array(this.mask.buffer);
-      this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[3] = 0;
-      iview.fill(iview[0], 0, iview.length);
+      this.dimen = dimen;
       
       this.points = [];
       this.kdtree = new kdtree.KDTree([-2, -2, -2], [2, 2, 2]);
+      
+      for (let mask of this.masks) {
+        mask.reset(this.config, dimen, this.points, mask_image);
+      }
+      
+      this.mask_img = this.masks[0].mask_img;
+      this.mask = mask_image.data;
+      this.maskgrid = this.masks[0].maskgrid;
+      this.masksize = this.masks[0].masksize;
     }
     
     destroy_all_settings() {
@@ -662,11 +900,19 @@ define([
     next_level() {
     }
     
-    raster_point(pi, ps) {
+    /*
+      mi : mask index (in this.masks)
+      pi : point index (in ps)
+      ps : pointset (usually this.points)
+    */
+    raster_point(mi, pi, ps) {
       var mscale = SMALL_MASK ? 1 : (XLARGE_MASK ? 8 : 4);
       var config = this.config;
-      var mask = this.mask, msize = this.mask_img.width
+      var mask = this.masks[mi].mask, msize = this.mask_img.width
       ps = ps === undefined ? this.points : ps;
+      
+      if (mi !== ps[pi+PMASK])
+        return;
       
       var x = ps[pi], y = ps[pi+1], gen=ps[pi+PGEN];
       var color = ps[pi+PCLR];
@@ -714,7 +960,7 @@ define([
         mask[idx+1] = g;
         mask[idx+2] = b;
       } else {
-        if (this.encode_new_offsets) {
+        if (0&&this.encode_new_offsets) {
           mask[idx] = d;
           
           let dx = ps[pi+POFFX], dy = ps[pi+POFFY];
@@ -749,21 +995,23 @@ define([
       var plen = ~~(this.points.length/PTOT);
       
       for (var i=0; i<plen; i++) {
-        this.raster_point(i);
+        this.raster_point(mi, i);
       }
     }*/
     
-    assign_mask_pixels() {
-      this.maskgrid.fill(-1, 0, this.maskgrid.length);
+    assign_mask_pixels(mi) {
+      this.masks[mi].maskgrid.fill(-1, 0, this.masks[mi].maskgrid.length);
       var ps = this.points;
       
       for (var i=0; i<ps.length; i += PTOT) {
-        this.find_mask_pixel(i);
+        if (ps[i+PMASK] == mi) {
+          this.find_mask_pixel(mi, i);
+        }
       }
       
       //deal with any empty grid cells
-      var size = this.masksize;
-      var grid = this.maskgrid;
+      var size = this.masks[mi].masksize;
+      var grid = this.masks[mi].maskgrid;
       var cf = this.config;
       
       if (cf.SMALL_MASK && this.dilute_small_mask && size < 256) {
@@ -771,7 +1019,7 @@ define([
         //console.log(this.dilute_small_mask, this, this.__proto__, this.constructor.name);
         //console.trace("glen", grid.length, size, grid[0], off.length);
         
-        var refgrid = new Float64Array(this.maskgrid);
+        var refgrid = new Float64Array(this.masks[mi].maskgrid);
         
         for (var i=0; i<grid.length; i++) {
           var off = cconst.get_searchoff(4);
@@ -810,8 +1058,8 @@ define([
       }
       
       //raster
-      var mask = this.mask;
-      var msize = this.mask_img.width;
+      var mask = this.masks[mi].mask;
+      var msize = this.masks[mi].mask_img.width;
       var maxgen = this.max_level();
       var cf = this.config;
       
@@ -820,11 +1068,12 @@ define([
         var idx = (iy*msize+ix)*4;
 
         if (grid[i] < 0 || ps[grid[i]+PGEN] < 0) continue;
+        if (ps[grid[i]+PMASK] != mi) continue;
         
         var gen = 1.0 - ps[grid[i]+PGEN] / maxgen;
         var f;
         
-        if (cf.USE_TONE_CURVE) {
+        if (cf.USE_TONE_CURVE && cf.TONE_CURVE) {
           f = 1.0-cf.TONE_CURVE.evaluate(1.0-gen);
         } else {
           f = gen;
@@ -848,16 +1097,22 @@ define([
     }
     
     raster() {
-      this.mask[0] = this.mask[1] = this.mask[2] = 0;
-      this.mask[1] = 255;
-      this.mask[3] = SMALL_MASK ? 255 : 0;
+      for (let mask of this.masks) {
+        this.raster_mask(mask.maskid);
+      }
+    }
+    
+    raster_mask(mi) {
+      //this.mask[0] = this.mask[1] = this.mask[2] = 0;
+      //this.mask[1] = 255;
+      //this.mask[3] = SMALL_MASK ? 255 : 0;
       
-      var iview = new Int32Array(this.mask.buffer);
+      var iview = new Int32Array(this.masks[mi].mask.buffer);
       iview.fill(iview[0], 0, iview.length);
       
       if (this.config.SMALL_MASK) {
         /*
-        let mask = this.mask;
+        let mask = this.masks[mi].mask;
         
         for (var i=0; i<mask.length; i += 4) {
           let f = Math.random()*255;
@@ -868,24 +1123,24 @@ define([
         }
         return;
         //*/
-        this.assign_mask_pixels();
+        this.assign_mask_pixels(mi);
       } else {
-        //this.mask[0] = this.mask[1] = this.mask[2] = 0;
-        //this.mask[1] = 255;
-        //this.mask[3] = SMALL_MASK ? 255 : 0;
+        //this.masks[mi].mask[0] = this.masks[mi].mask[1] = this.masks[mi].mask[2] = 0;
+        //this.masks[mi].mask[1] = 255;
+        //this.masks[mi].mask[3] = SMALL_MASK ? 255 : 0;
         
-        var iview = new Int32Array(this.mask.buffer);
+        var iview = new Int32Array(this.masks[mi].mask.buffer);
         iview.fill(iview[0], 0, iview.length);
         //console.log("raster!");
         for (var i=0; i<this.points.length; i += PTOT) {
-          this.raster_point(i);
+          this.raster_point(mi, i);
         }
       }
     }
     
-    find_mask_pixel(pi) {
-      var ps = this.points, grid = this.maskgrid;
-      var size = this.masksize;
+    find_mask_pixel(mi, pi) {
+      var ps = this.points, grid = this.masks[mi].maskgrid;
+      var size = this.masks[mi].masksize;
       var x = ps[pi], y = ps[pi+1];
       var ix = ~~(x*size+0.0001), iy = ~~(y*size+0.0001);
       var idx = iy*size + ix;
@@ -1035,6 +1290,11 @@ define([
       for (var i=0; i<ps.length; i += PTOT) {
         var x = ps[i], y = ps[i+1];
         this.kdtree.insert(x, y, i);
+      }
+      
+      for (let mask of this.masks) {
+        mask.points = this.points;
+        mask.regen_spatial();
       }
       
       var time = util.time_ms() - start;

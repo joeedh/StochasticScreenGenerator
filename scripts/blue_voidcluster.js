@@ -26,8 +26,6 @@ define([
     BLUEVC_GEN_CURVE : new cconst.EditableCurve("BlueVC Tone Curve", {"points":[{"0":0.012500000000000039,"1":0,"eid":1,"flag":0,"deg":3,"tangent":1},{"0":0.05625000000000008,"1":0.09375,"eid":20,"flag":0,"deg":3,"tangent":1},{"0":0.21249999999999988,"1":0.36875000000000013,"eid":21,"flag":1,"deg":3,"tangent":1},{"0":0.6062500000000001,"1":0.675,"eid":19,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":22}})
   };
   
-  sinterface.MaskConfig.registerConfig(config);
-  
   var BlueVCGenerator = exports.BlueVCGenerator = class BlueVCGenerator extends MaskGenerator {
     constructor(appstate, dilute_small_mask) {
       super(appstate, dilute_small_mask);
@@ -141,7 +139,6 @@ define([
       
       this.cur = 0;
       this.maxgen = 1.0;
-      this.points = [];
       this.dimen = size;
       this._done = false;
       
@@ -190,7 +187,7 @@ define([
         ps[pi+PIX] = ~~(ps[pi]*msize);
         ps[pi+PIY] = ~~(ps[pi+1]*msize);
         
-        this.find_mask_pixel(pi);
+        this.find_mask_pixel(0, pi);
       }
       
       steps = 12;
@@ -361,6 +358,8 @@ define([
       super.raster();
     }
   };
+  
+  sinterface.MaskGenerator.register(config, BlueVCGenerator, "BLUEVC");
   
   return exports;
 });

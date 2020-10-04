@@ -28,8 +28,6 @@ define([
     MITCHELL_GEN_CURVE : new cconst.EditableCurve("Mitchell Tone Curve", {"points":[{"0":0.025000000000000022,"1":0,"eid":1,"flag":1,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":28}})
   };
   
-  sinterface.MaskConfig.registerConfig(config);
-  
   let calcradius = exports.calcradius = function calcradius(gen, maxpoints, ctx) {
     let minr = MITCHELL_RADMUL / Math.sqrt(maxpoints + 1);
     let maxr = MITCHELL_RADMUL / Math.sqrt(ctx.MITCHELL_GENSTART*maxpoints + 1);
@@ -451,7 +449,6 @@ define([
       
       this.subdivided = 0;
       this.maxgen = 0.0;
-      this.points = [];
       this.dimen = size;
       this._done = false;
       
@@ -654,7 +651,7 @@ define([
         this.kdtree.insert(ps[pi], ps[pi+1], pi); 
         
         //this.kdtree.balance();
-        this.find_mask_pixel(pi);
+        this.find_mask_pixel(0, pi);
         this.updateCells(ctx, pi);
       }
       
@@ -684,5 +681,7 @@ define([
     }
   };
   
+  sinterface.MaskGenerator.register(config, MitchellGenerator, "MITCHELL");
+
   return exports;
 });

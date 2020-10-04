@@ -57,8 +57,8 @@ define([
       xy2grid : function(x, y, size) {
         var ret = xy2grid_rets.next();
         
-        ret[0] = x*size+0.50001;
-        ret[1] = y*size+0.50001;
+        ret[0] = x*size+0.499;
+        ret[1] = y*size+0.499;
         
         return ret;
       },
@@ -87,17 +87,16 @@ define([
   
   var GIDX=0, GW=1, GSUM=2, GTAG=3, GTOT=4;
   
-  let config = {
+  let config = exports.config = {
     //VOIDCLUSTER_MID_R : 0.8,
-    VC_FILTERWID : 0.55,
+    VC_FILTERWID : 0.71,
     VC_HIEARCHIAL_SCALE : 7.6,
     TEST_CLUSTER : false,
     VOID_HEX_MODE : false,
     VOID_BAYER_MODE : false,
-    VOIDCLUSTER_CURVE : new cconst.EditableCurve("VC Filter Curve", {"points":[{"0":0,"1":0,"eid":40,"flag":0,"deg":3,"tangent":1},{"0":0.07499999999999968,"1":0.03749999999999987,"eid":156,"flag":0,"deg":3,"tangent":1},{"0":0.1874999999999999,"1":0.04375000000000018,"eid":166,"flag":0,"deg":3,"tangent":1},{"0":0.48749999999999993,"1":0.03125,"eid":165,"flag":1,"deg":3,"tangent":1},{"0":0.58125,"1":0.16874999999999996,"eid":162,"flag":0,"deg":3,"tangent":1},{"0":0.64375,"1":0.70625,"eid":168,"flag":0,"deg":3,"tangent":1},{"0":0.8250000000000002,"1":0.9812500000000002,"eid":170,"flag":0,"deg":3,"tangent":1},{"0":0.9125,"1":1,"eid":169,"flag":0,"deg":3,"tangent":1},{"0":0.91875,"1":1,"eid":167,"flag":0,"deg":3,"tangent":1},{"0":0.9999999999999999,"1":0.9875,"eid":130,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":123,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":171}})
+    VOIDCLUSTER_CURVE : new cconst.EditableCurve("VC Filter Curve", {"points":[{"0":0,"1":0,"eid":40,"flag":0,"deg":3,"tangent":1},{"0":0.07499999999999968,"1":0.03749999999999987,"eid":156,"flag":0,"deg":3,"tangent":1},{"0":0.1874999999999999,"1":0.04375000000000018,"eid":166,"flag":0,"deg":3,"tangent":1},{"0":0.48749999999999993,"1":0.03125,"eid":165,"flag":1,"deg":3,"tangent":1},{"0":0.58125,"1":0.16874999999999996,"eid":162,"flag":0,"deg":3,"tangent":1},{"0":0.64375,"1":0.70625,"eid":168,"flag":0,"deg":3,"tangent":1},{"0":0.8250000000000002,"1":0.9812500000000002,"eid":170,"flag":0,"deg":3,"tangent":1},{"0":0.9125,"1":1,"eid":169,"flag":0,"deg":3,"tangent":1},{"0":0.91875,"1":1,"eid":167,"flag":0,"deg":3,"tangent":1},{"0":0.9999999999999999,"1":0.9875,"eid":130,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":123,"flag":0,"deg":3,"tangent":1},{"0":1,"1":1,"eid":2,"flag":0,"deg":3,"tangent":1}],"eidgen":{"_cur":171}}),
+    TOTMASK : 1
   };
-  
-  sinterface.MaskConfig.registerConfig(config);
   
   var VoidClusterGenerator = exports.VoidClusterGenerator = class VoidClusterGenerator extends MaskGenerator {
     constructor(appstate, dilute_small_mask) {
@@ -105,12 +104,13 @@ define([
       
       this.ignore_initial_points = false;
       this.cur_cmyk = 0;
+      this.curmask = 0;
       
       this.hscale = 0;
       this.hlvl = 0;
       this.gen = 0;
       
-      this.grid = undefined;
+      this.grids = undefined;
       this.gridsize = undefined;
       
       this._color = undefined;
@@ -131,6 +131,8 @@ define([
       panel2.check('TEST_CLUSTER', 'Test Cluster');
       panel2.check('VOID_HEX_MODE', 'Hexagon Mode');
       panel2.check("VOID_BAYER_MODE", "Bayer Mode");
+      
+      panel2.slider("TOTMASK", "Mask Count", 1, 1, 6, 1, true, true);
       panel2.close();
     }
     
@@ -152,6 +154,11 @@ define([
       return ps2;
     }
     
+    relax() {
+      super.relax();
+      this.snap_grid();
+    }
+    
     jitter(fac) {
       fac = fac == undefined ? 0.5 : fac;
       
@@ -169,8 +176,8 @@ define([
         
         var ixy = this.xy2grid(x, y, size);
         
-        ps[i+PIX] = ~~((ixy[0]/size+0.00001)*this.mask_img.width+0.00001);
-        ps[i+PIY] = ~~((ixy[1]/size+0.00001)*this.mask_img.height+0.00001);
+        ps[i+PIX] = ~~((ixy[0]/size+0.00001)*this.masksize+0.00001);
+        ps[i+PIY] = ~~((ixy[1]/size+0.00001)*this.masksize+0.00001);
       }
       
       this.regen_spatial();
@@ -184,27 +191,45 @@ define([
       
       let ps = this.points;
       
-      for (let i=0; i<midsize*midsize; i++) {
-        let x = util.random(), y = util.random();
+      for (let mi=0; mi<cf.TOTMASK; mi++) {
+        for (let i=0; i<midsize*midsize; i++) {
+          let x = util.random(), y = util.random();
+          
+          let pi = ps.length;
+          for (let j=0; j<PTOT; j++) {
+            ps.push(0);
+          }
         
-        let pi = ps.length;
-        for (let j=0; j<PTOT; j++) {
-          ps.push(0);
+          ps[pi] = x, ps[pi+1] = y;
+          ps[pi+PR] = ps[pi+PR2] = midr;
+          ps[pi+PCLR] = 0;
+          ps[pi+PMASK] = mi
+          
+          //increment maxgen for later
+          this.maxgen++;
+          
+          ps[pi+PGEN] = 0;
+          this.gen++;
         }
-      
-        ps[pi] = x, ps[pi+1] = y;
-        ps[pi+PR] = ps[pi+PR2] = midr;
-        ps[pi+PCLR] = 0;
-        
-        ps[pi+PGEN] = this.maxgen++;
-        this.gen++;
       }
-
-      this.searchr = this.filter_r(cf);
+      
+      this.searchr = this.filter_r(0, cf);
+      
+      this.regen_spatial();
       
       for (let i=0; i<10; i++) {
-        this.relax();
+        super.relax();
       }
+      
+      this.snap_grid();
+      
+      /*
+      let mi = 0;
+      for (let pi=0; pi<ps.length; pi += PTOT) {
+        ps[pi+PMASK] = mi;
+        mi = (mi + 1) % this.masks.length;
+      }
+      //*/
       
       /*
       var sgen = new sph.SPHGenerator(appstate);
@@ -272,12 +297,12 @@ define([
       for (var i=0; i<ps.length; i += PTOT) {
         var ret = xy2grid(ps[i], ps[i+1], size);
         
-        ret[0] = ~~ret[0];
-        ret[1] = ~~ret[1];
+        ret[0] = Math.floor(ret[0]);
+        ret[1] = Math.floor(ret[1]);
         
         ret = grid2xy(ret[0], ret[1], size);
-        ps[i]   = ret[0];
-        ps[i+1] = ret[1];
+        ps[i]   = Math.fract(ret[0]);
+        ps[i+1] = Math.fract(ret[1]);
       }
       
       this.regen_spatial();
@@ -288,10 +313,14 @@ define([
     reset(dimen, appstate, mask_image) {
       super.reset(dimen, appstate, mask_image);
        
-      this.dimen = dimen;
       this.hscale = this.hlvl = this.gen = this.maxgen = this.totfilled = 0;
+      this.curmask = 0;
       
       var cf = this.config;
+      
+      this.gen_masks(cf.TOTMASK);
+      this.dimen = dimen;
+      this.totpoints = dimen*dimen*cf.TOTMASK;
       
       var gfuncs = cf.VOID_HEX_MODE ? grid_funcs.hex : grid_funcs.cartessian;
       
@@ -299,12 +328,19 @@ define([
       this.grid2xy = gfuncs.grid2xy;
       
       this.gridsize = ~~(dimen);
-      this.grid = new Float64Array(this.gridsize*this.gridsize*GTOT);
-      this.grid.fill(-1, 0, this.grid.length);
       
-      for (let gi=0; gi<this.grid.length; gi += GTOT) {
-        this.grid[gi+GW] = this.grid[gi+GSUM] = 0;
+      this.grids = [];
+      
+      for (let i=0; i<cf.TOTMASK; i++) {
+        let grid = new Float64Array(this.gridsize*this.gridsize*GTOT);
+        grid.fill(-1, 0, grid.length);
+        this.grids.push(grid);
+        
+        for (let gi=0; gi<grid.length; gi += GTOT) {
+          grid[gi+GW] = grid[gi+GSUM] = 0;
+        }
       }
+      
       
       var hscale = this.hscale = VC_HIEARCHIAL_SCALE;
       
@@ -342,7 +378,7 @@ define([
         }
       }
 
-      this.search_r = this.filter_r(this.config);
+      this.search_r = this.filter_r(0, this.config);
       
       for (var i=0; i<ps.length; i += PTOT) {
         var x = ps[i], y = ps[i+1];
@@ -351,8 +387,9 @@ define([
         var ix = ~~(ixy[0]+0.0), iy = ~~(ixy[1]+0.0);
         
         var idx = (iy*gridsize + ix)*GTOT;
+        var mi = ps[i+PMASK];
         
-        this.grid[idx] = i;
+        this.grids[mi][idx] = i;
         
         var xy = this.grid2xy(ix, iy, gridsize);
         
@@ -371,11 +408,16 @@ define([
       }
 
       var size = this.gridsize;
-
-      this.cells = [];
-      for (var i=0; i<size*size; i++) {
-        if (this.grid[i*GTOT] < 0) {
-          this.cells.push(i);
+      
+      let gridi = 0;
+      for (var grid of this.grids) {
+        let cells = grid.cells = [];
+        grid.i = gridi++;
+        
+        for (var i=0; i<size*size; i++) {
+          if (grid[i*GTOT] < 0) {
+            cells.push(i);
+          }
         }
       }
       
@@ -391,8 +433,8 @@ define([
       this.raster();
     }
     
-    init_from_points(cf, ps) {
-      var grid = this.grid, size = this.gridsize;
+    init_from_points(mi, cf, ps) {
+      var grid = this.grids[mi], size = this.gridsize;
       
       this.points = ps;
       this.regen_spatial();
@@ -414,12 +456,13 @@ define([
       }
       
       this.midpoints = this.totfilled = ps.length/PTOT;
-      this.search_r = this.filter_r(cf);
+      this.search_r = this.filter_r(0, cf);
     }
     
     grid_sum_point(cf, pi, sign) {
-      var grid = this.grid, size = this.gridsize;
-      var ps = this.points, r = this.search_r; //this.filter_r();
+      var mi = this.points[pi+PMASK];
+      var grid = this.grids[mi], size = this.gridsize;
+      var ps = this.points, r = this.search_r; //this.filter_r(0);
       
       var x = ps[pi], y = ps[pi+1];
       var ixy = this.xy2grid(x, y, size);
@@ -474,8 +517,8 @@ define([
       return this.gen;
     }
     
-    filter2(ix, iy) {
-      var size = this.gridsize, grid = this.grid, ps = this.points;
+    filter2(mi, ix, iy) {
+      var size = this.gridsize, grid = this.grids[mi], ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
@@ -535,12 +578,12 @@ define([
     }
     
     //void filter
-    filter(ix, iy, ignore_existence, excluded_pi) {
-      return this.filter_new(ix, iy, ignore_existence, excluded_pi);
+    filter(mi, ix, iy, ignore_existence, excluded_pi) {
+      return this.filter_new(mi, ix, iy, ignore_existence, excluded_pi);
     }
     
-    filter_r(cf) {
-      var size = this.gridsize, grid = this.grid, ps = this.points;
+    filter_r(mi, cf) {
+      var size = this.gridsize, grid = this.grids[mi], ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
@@ -551,13 +594,13 @@ define([
       return r;
     }
     
-    filter_new(ix, iy, ignore_existence, excluded_pi) {
-      var size = this.gridsize, grid = this.grid, ps = this.points;
+    filter_new(mi, ix, iy, ignore_existence, excluded_pi) {
+      var size = this.gridsize, grid = this.grids[mi], ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
-      var r = this.filter_r();
+      var r = this.filter_r(mi, this.config);
       var xy = this.grid2xy(ix, iy, size);
       var x = xy[0], y = xy[1];
       
@@ -611,13 +654,13 @@ define([
       return sumtot == 0 ? 0 : sumw//sumtot;
     }
 
-    filter_old(cf, ix, iy, mode2) {
-      var size = this.gridsize, grid = this.grid, ps = this.points;
+    filter_old(mi, cf, ix, iy, mode2) {
+      var size = this.gridsize, grid = this.grids[mi], ps = this.points;
       
       var maxpoints = this.gridsize*this.gridsize;
       var tfac = (maxpoints - this.points.length/PTOT)/maxpoints;
       
-      var r = this.filter_r(cf);
+      var r = this.filter_r(mi, cf);
       var ir = r*Math.sqrt(2)*size;
       var rd = ~~(ir+2.0);
         
@@ -690,14 +733,14 @@ define([
 
       for (var i=0; i<steps; i++) {
         if (TEST_CLUSTER) {
-          this.cluster_step();
+          //this.cluster_step();
           continue;
         }
         
-        if (this.points.length/PTOT < this.gridsize*this.gridsize) {
+        if (this.points.length/PTOT < this.totpoints) {
           this.void_step();
           
-          if (this.points.length/PTOT >= this.gridsize*this.gridsize) {
+          if (this.points.length/PTOT >= this.totpoints) {
             preparenext = true;
             
             break;
@@ -711,24 +754,32 @@ define([
       }
       
       if (preparenext) {
-        var grid = this.grid;
-        var gridsize = this.gridsize;
-        
-        this.totfilled = this.midpoints;
-        
-        for (var i=this.midpoints*PTOT; i<this.points.length; i += PTOT) {
-          this.points[i+PGEN] += this.midpoints;
-        }
-        
-        this.maxgen += this.midpoints;
-        
-        for (var i=0; i<grid.length; i += GTOT) {
-          grid[i+GW] = 0;
-          grid[i+GSUM] = 0;
-        }
-        
-        for (var i=0; i<this.midpoints; i++) {
-          this.grid_sum_point(cf, i*PTOT, 1);
+        for (let grid of this.grids) {
+          var gridsize = this.gridsize;
+          let gridi = grid.i;
+          
+          this.totfilled = this.midpoints;
+          
+          for (var i=this.midpoints*PTOT; i<this.points.length; i += PTOT) {
+            if (this.points[i+PMASK] != gridi)
+              continue;
+            
+            this.points[i+PGEN] += this.midpoints;
+          }
+          
+          this.maxgen += this.midpoints;
+          
+          for (var i=0; i<grid.length; i += GTOT) {
+            grid[i+GW] = 0;
+            grid[i+GSUM] = 0;
+          }
+          
+          for (var i=0; i<this.midpoints; i++) {
+            if (this.points[i*PTOT+PMASK] != gridi)
+              continue;
+            
+            this.grid_sum_point(cf, i*PTOT, 1);
+          }
         }
       }
       
@@ -798,7 +849,11 @@ define([
     void_step(custom_steps) {
       let cf = this.config;
       var steps = custom_steps ? custom_steps : STEPS;
-      var size = this.gridsize, grid = this.grid, ps = this.points;
+      
+      let mi = this.curmask;
+      this.curmask = (this.curmask + 1) % this.masks.length;
+      
+      var size = this.gridsize, grid = this.grids[mi], ps = this.points;
       
       var rd = ~~(this.r*Math.sqrt(2)*size+2.0);
       var maxf=-1e17, minf=1e17;
@@ -808,7 +863,7 @@ define([
       //eek! slow!
       //stochastic to the rescue!
       
-      var cells = this.cells;
+      var cells = grid.cells;
       var tot = this.gridsize*3;
       var cs = [];
       
@@ -826,6 +881,7 @@ define([
       //*/
       
       var empty = undefined;
+      let grids = this.grids;
       
       for (var _i=0; _i<idxs.length; _i++) {
         var ri = idxs[_i];
@@ -840,8 +896,22 @@ define([
         var ix = i % size, iy = ~~(i / size);
         
         //var f = this.filter(ix, iy);
+        var f=0.0, tot=0.0;
         
-        var f = grid[i*GTOT+GW];
+        for (let mi2=0; mi2<grids.length; mi2++) {
+          let grid2 = grids[mi2];
+          
+          let f2 = grid2[i*GTOT+GW];
+          let w = mi == mi2 ? 1 : 1.0 / grids.length;
+          
+          f += f2*w;
+          tot += w;
+        }
+        f /= tot;
+        
+        //XXX
+        //f = grids[mi][i*GTOT+GW];
+        
         cs.push(f);
         
         //if (Math.random() > 0.9) {
@@ -924,11 +994,13 @@ define([
       
       ps[pi]      = xy[0];
       ps[pi+1]    = xy[1];
-      ps[pi+PIX]  = ~~((xy[0]+0.0001)*this.mask_img.width*0.999999+0.0001);
-      ps[pi+PIY]  = ~~((xy[1]+0.0001)*this.mask_img.width*0.999999+0.0001);
-      ps[pi+PGEN] = this.maxgen++;
+      ps[pi+PIX]  = ~~((xy[0]+0.0001)*this.masksize*0.999999+0.0001);
+      ps[pi+PIY]  = ~~((xy[1]+0.0001)*this.masksize*0.999999+0.0001);
+      ps[pi+PGEN] = (this.maxgen++);// * this.masks.length;
       ps[pi+PCLR] = (~~(pi/PTOT)) % 4;
+      ps[pi+PMASK] = mi;
       
+      //this.maxgen += 1.0 / this.masks.length;
       //ps[pi+PCLR] = this.cur_cmyk;
       //this.cur_cmyk = (this.cur_cmyk+1) % 4;
       
@@ -941,7 +1013,8 @@ define([
     }
     
     optimize_grid_point(xy, ix, iy, pi) {
-      var grid = this.grid, size = this.gridsize;
+      var mi = this.points[pi+PMASK];
+      var grid = this.grids[mi], size = this.gridsize;
       
       var steps = 10; 
       /*
@@ -1071,5 +1144,7 @@ define([
     }
   };
   
+    sinterface.MaskGenerator.register(config, VoidClusterGenerator, "VOID_CLUSTER");
+
   return exports;
 });

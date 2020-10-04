@@ -30,9 +30,6 @@ define([
     function next_level() {
     },
     
-    function raster(imagedata) {
-    },
-    
     function regen_spatial() {
       MaskGenerator.prototype.regen_spatial.call(this);
     }

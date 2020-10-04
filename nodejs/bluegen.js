@@ -3,6 +3,8 @@
 let cparse = require("./cmdparse");
 let fs = require("fs");
 
+global.redraw_all = () => {};
+
 global.window = global;
 global.self = global;
 
@@ -105,8 +107,13 @@ rjs(["util", "interface", "ui", "generators", "app"],
     });
     
     options.path("out", "mask${dimen}.png", "Output path");
+
+    options.path("output_points", "mask${dimen}.json", "Output point file");
+    
     options.path("gen_csource", "masksrc.c", "Generate C source code").callback((path) => {
     });
+    
+    options.int("relax", 0, "relax steps")
     
     options.bool("large_mask", false, "Generate larger mask with black space around mask pixels");
     options.int("dimen", 32, "Dimension of generated mask");
@@ -185,8 +192,10 @@ rjs(["util", "interface", "ui", "generators", "app"],
       }
     }
     
-    gen.raster();
-    writePNG(_appstate.mask, options.config.out);
+    for (let i=0; i<options.config.relax; i++) {
+      gen.relax();
+      console.log(`relax step ${i+1} of ${options.config.relax}`);
+    }
     
     _appstate._no_reports = false;
     
@@ -197,6 +206,33 @@ rjs(["util", "interface", "ui", "generators", "app"],
       console.log(`wrote ${path}`);
       //console.log(data);
     }
+    
+    if (options.config.output_points) {
+      let path = options.config.output_points;
+      let points = _appstate.generator.points;
+      let outpoints = [];
+      
+      for (let pi=0; pi<points.length; pi += PTOT) {
+        let x = points[pi], y = points[pi+1], r = points[pi+PR];
+        
+        outpoints.push({
+          x : x,
+          y : y,
+          r : r
+        });
+      }
+      
+      let buf = JSON.stringify({
+        points : outpoints
+      });
+      
+      fs.writeFileSync(path, buf);
+      console.log(`wrote ${path}`);
+    }
+    
+    gen.raster();
+    writePNG(_appstate.mask, options.config.out);
+
   }
   
   let options = makeOptions();

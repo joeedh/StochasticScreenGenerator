@@ -82,7 +82,6 @@ define([
       MaskGenerator.prototype.reset.apply(this, arguments);
       
       this.dimen = dimen;
-      this.points = [];
       
       var ps = this.points;
       this.r = 1.0 / dimen;

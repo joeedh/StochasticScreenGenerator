@@ -1,6 +1,6 @@
 {
   "name": "bluegen",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "description": "blue noise mask generator",
   "main": "bluegen.js",
   "scripts": {
@@ -15,6 +15,7 @@
   },
   "keywords": [
     "bluenoise\u001b[D\u001b[C",
+    "bluenoise",
     "sampling",
     "2d",
     "mask",
