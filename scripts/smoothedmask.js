@@ -201,7 +201,7 @@ define([
   };
 
   config.SM_START_GENERATOR = MODES.VOID_CLUSTER;
-  
+
   exports.saveConfig = function() {
     let buf = "  {\n";
     for (let k in exports.config) {
