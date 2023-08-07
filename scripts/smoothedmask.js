@@ -199,6 +199,8 @@ define([
     START_FACTOR  :  0.10300000000000001,
     GEN_RANGE  :  4096,
   };
+
+  config.SM_START_GENERATOR = MODES.VOID_CLUSTER;
   
   exports.saveConfig = function() {
     let buf = "  {\n";
