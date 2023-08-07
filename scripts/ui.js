@@ -1929,7 +1929,7 @@ define([
   class ObjectPath extends Array {
       constructor(path) {
           super();
-          
+          console.log(path)
           path = path.split(".");
           
           for (var key of path) {

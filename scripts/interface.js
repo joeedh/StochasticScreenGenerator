@@ -237,6 +237,8 @@ define([
     constructor(appstate, dilute_small_mask) {
       this.dilute_small_mask = dilute_small_mask == undefined ? true : dilute_small_mask;
       
+      this.reset_i = 0;
+      
       this.masks = [];
       
       this.appstate = appstate;
@@ -733,7 +735,10 @@ define([
         
         dx /= dis;
         dy /= dis;
-        
+
+        if (isNaN(dx) || isNaN(dy) || isNaN(dis) || isNaN(w) || isNaN(x) || isNaN(y)) {
+          throw new Error("nan!");
+        }
         var fx = x - dx*r3;
         var fy = y - dy*r3;
         
@@ -795,10 +800,14 @@ define([
         var fac = cf.GEN_MASK ? 1.0 / (0.3 + f1*f1) : 1.0;
         
         fac *= speed;
-        
+
         ps[i] += (sumx - ps[i])*2.0*fac;
         ps[i+1] += (sumy-ps[i+1])*2.0*fac;
-          
+
+        if (isNaN(ps[i]) || isNaN(ps[i+1]) || isNaN(sumx) || isNaN(sumy) || isNaN(fac) || isNaN(sumtot)) {
+          throw new Error("nan");
+        }
+
         ps[i] = Math.fract(ps[i]);
         ps[i+1] = Math.fract(ps[i+1]);
         //ps[i] = Math.min(Math.max(ps[i], 0), 1);
@@ -870,7 +879,8 @@ define([
     //generators is a list of generator constructors
     //it's passed in here to avoid module dependency cycles
     reset(dimen, appstate, mask_image, generators) { 
-      util.seed(this.config.SEED);
+      util.seed(this.config.SEED + this.reset_i);
+      this.reset_i++;
       
       this.appstate = appstate;
       
@@ -935,8 +945,9 @@ define([
       var ix = ps[pi+PIX], iy = ps[pi+PIY];
       if (ix < 0) return; //dropped point
       
-      if (ix < 0 || iy < 0 || ix >= msize || iy >= msize)
+      if (ix < 0 || iy < 0 || ix >= msize || iy >= msize) {
         return;
+      }
       
       //ix = Math.min(Math.max(ix, 0), msize-1);
       //iy = Math.min(Math.max(iy, 0), msize-1);
@@ -1223,6 +1234,7 @@ define([
         var start = util.time_ms();
         var lasttot = 0;
         var totsame = 0;
+        var i = 0;
         
         appstate.timer = window.setInterval(function() {
           if (util.time_ms() - start < 45) {
@@ -1267,7 +1279,8 @@ define([
             totsame = 0;
           }
           
-          this2.report("same: ", totsame);
+          this2.report("same: ", totsame, "i", i);
+          i++;
           
           lasttot = appstate.generator.points.length;
           redraw_all();

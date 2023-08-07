@@ -535,16 +535,21 @@ define([
       
       this.report("done relaxing");
     }
-
+    
+    raster() {
+      this.raster_mask(0);
+    }
+    
     raster_mask(mi) {
-      var iview = new Int32Array(this.masks[mi].mask.buffer);
-      iview.fill(iview[0], 0, iview.length);
+      //var iview = new Int32Array(this.masks[mi].mask.buffer);
+      //iview.fill(iview[0], 0, iview.length);
       
       //if (this.config.SMALL_MASK) {
       //  this.assign_mask_pixels(mi);
       //} else {
         
         var iview = new Int32Array(this.masks[mi].mask.buffer);
+        iview[0] = 0;
         iview.fill(iview[0], 0, iview.length);
         //console.log("raster!");
         

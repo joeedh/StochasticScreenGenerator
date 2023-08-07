@@ -2,7 +2,7 @@
   _app is for getting module through debug console.  
   not used by the code.  don't confused with _appstate.
 */
-var _app = undefined;
+let _app = undefined;
 
 define([
   'util', 'const', 'ui', 'kdtree', 'sample_removal', 'darts', 'sph', 'sph_presets',
@@ -14,24 +14,28 @@ define([
 {
   'use strict';
   
-  var exports = _app = {};
-  var Class = util.Class;
+  let exports = _app = {};
+  let Class = util.Class;
   
-  var sin_table = (function() {
-    var steps = 32768;
-    var table = new Float64Array(steps);
+  if (window.MODE === undefined) {
+    window.MODE = 0;
+  }
+  
+  let sin_table = (function() {
+    let steps = 32768;
+    let table = new Float64Array(steps);
     
-    var t = 0, dt = (2*Math.PI)/(steps-1);
+    let t = 0, dt = (2*Math.PI)/(steps-1);
     
     console.log("building sin table approximation. . .");
     
-    for (var i=0; i<steps; i++, t += dt) {
+    for (let i=0; i<steps; i++, t += dt) {
       table[i] = Math.sin(t);
     }
     
-    var TWOPI = Math.PI*2.0;
-    var ONETWOPI = 1.0 / TWOPI;
-    var PIOVER2 = Math.PI / 2.0;
+    let TWOPI = Math.PI*2.0;
+    let ONETWOPI = 1.0 / TWOPI;
+    let PIOVER2 = Math.PI / 2.0;
     
     return {
       sin : function(s) {
@@ -52,7 +56,7 @@ define([
       },
       
       test : function() {
-        for (var i=-32; i<32; i++) {
+        for (let i=-32; i<32; i++) {
           console.log(Math.sin(i*0.2).toFixed(4), this.sin(i*0.2).toFixed(4));
         }
       }
@@ -63,7 +67,7 @@ define([
   window.sin_table = sin_table;
   
   
-  var AppState = exports.AppState = Class([
+  let AppState = exports.AppState = Class([
     function constructor() {
       this._gen_ui_cache = {};
       this.generator = undefined
@@ -87,14 +91,14 @@ define([
         this._last_mode = MODE;
       }
       
-      var size = DIMEN;
-      var msize = SMALL_MASK ? size : (XLARGE_MASK ? size*8 : size*4);
+      let size = DIMEN;
+      let msize = SMALL_MASK ? size : (XLARGE_MASK ? size*8 : size*4);
       
       this.mask_img = new ImageData(msize, msize);
       this.mask = this.mask_img.data;
       this.mask.fill(0, 0, this.mask.length);
       
-      var iview = new Int32Array(this.mask.buffer);
+      let iview = new Int32Array(this.mask.buffer);
       iview.fill(iview[0], 0, iview.length);
 
       this.mask_canvas = document.createElement("canvas");
@@ -107,28 +111,28 @@ define([
     },
     
     function fft() {
-      var restrict = ~~(DRAW_RESTRICT_LEVEL*this.generator.max_level());
-      var ps = this.generator.points;
-      var plen = 0;
+      let restrict = ~~(DRAW_RESTRICT_LEVEL*this.generator.max_level());
+      let ps = this.generator.points;
+      let plen = 0;
       
-      var maxlvl = this.generator.max_level();
+      let maxlvl = this.generator.max_level();
       restrict /= maxlvl;
       
-      var ps2 = this.generator.points; //get_visible_points(restrict, true);
-      var plen = ps2.length/PTOT;
+      let ps2 = this.generator.points; //get_visible_points(restrict, true);
+      plen = ps2.length/PTOT;
       
-      var gen = this.generator;
+      let gen = this.generator;
       
       //from PSA
-      var fnorm = 2.0 / Math.sqrt(plen);
-      var frange  = 10// Frequency range relative to Nyq. freq. of hexagonal lattice
-      var size = Math.floor(frange/fnorm);
+      let fnorm = 2.0 / Math.sqrt(plen);
+      let frange  = 10// Frequency range relative to Nyq. freq. of hexagonal lattice
+      let size = Math.floor(frange/fnorm);
       
-      var size2 = size; //64;
-      var fscale = size/size2;
+      let size2 = size; //64;
+      let fscale = size/size2;
       size = size2;
       
-      var fft_image, fft;
+      let fft_image, fft;
 
       if (this.fft_image != undefined && this.fft_image.width == size) {
         fft_image = this.fft_image;
@@ -141,18 +145,18 @@ define([
         this.fft_image = fft_image;
       }
       
-      var fft = new fftmod.FFT(size);
+      fft = new fftmod.FFT(size);
       //fft.jitter = 1;
       
       this._fft = fft;
       
-      var pi = 0;
-      var this2 = this;
+      let pi = 0;
+      let this2 = this;
       
-      var next = function() {
-        var steps = 95;
+      let next = function() {
+        let steps = 95;
         
-        var pi2 = Math.min(pi+steps*PTOT, ps.length);
+        let pi2 = Math.min(pi+steps*PTOT, ps.length);
         if (pi >= ps2.length) return 0;
         
         fft.add_points(ps2, fscale, pi/PTOT, pi2/PTOT);
@@ -162,14 +166,14 @@ define([
         return 1;
       }
       
-      var update = function update() {
+      let update = function update() {
         fft.raster(fft_image);
         fft.calc_radial();
       }
       
       next = next.bind(this);
       update = update.bind(this);
-      var last_update = util.time_ms();
+      let last_update = util.time_ms();
       
       window._fft_timer = window.setInterval(function() {
         if (!next()) {
@@ -196,18 +200,18 @@ define([
     },
     
     function save_ps_matrix_cmyk() {
-      var s = this.gen_ps_matrix(0, "ScreenC");
+      let s = this.gen_ps_matrix(0, "ScreenC");
       s += this.gen_ps_matrix(1, "ScreenM");
       s += this.gen_ps_matrix(2, "ScreenY");
       s += this.gen_ps_matrix(3, "ScreenK");
       
-      var blob = new Blob([s], {type : "text/plain"});
-      var url = URL.createObjectURL(blob);
+      let blob = new Blob([s], {type : "text/plain"});
+      let url = URL.createObjectURL(blob);
       window.open(url);
     },
     
     function gen_ps_matrix(restrict_color, prefix) {
-      var s = ""
+      let s = ""
       
       if (prefix == undefined)
         prefix = "HalfDict";
@@ -221,38 +225,38 @@ define([
         /Thresholds (\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\060\260\020\220\070\270\030\230\360\160\320\120\370\170\330\130\014\214\054\254\000\200\044\244\314\114\354\154\304\104\344\144\074\274\034\234\064\264\024\224\374\174\334\134\364\164\324\124) 	def
       end*/
       
-      var mask = this.mask;
-      var plen = this.generator.points.length/PTOT;
+      let mask = this.mask;
+      let plen = this.generator.points.length/PTOT;
       
-      var size = this.dimen;
-      var msize = this.mask_img.width;
-      //var size = ~~(Math.sqrt(plen)*0.9);
+      let size = this.dimen;
+      let msize = this.mask_img.width;
+      //let size = ~~(Math.sqrt(plen)*0.9);
       
       //we didn't generate mask in small mask mode.
       //we'll have to rebase
-      var rebase = msize != size;
+      let rebase = msize != size;
       
-      var grid = new Float64Array(size*size);
-      var tots = new Int32Array(size*size);
-      var lvls = new Int32Array(size*size);
+      let grid = new Float64Array(size*size);
+      let tots = new Int32Array(size*size);
+      let lvls = new Int32Array(size*size);
       
-      var hsteps = this.generator.max_level();
+      let hsteps = this.generator.max_level();
       
       tots.fill(0, 0, tots.length);
       grid.fill(-1, 0, grid.length);
       lvls.fill(hsteps, 0, lvls.length);
       
-      var ps = this.generator.points;
+      let ps = this.generator.points;
       
-      for (var i=0; i<ps.length; i += PTOT) {
-        var x = ps[i], y = ps[i+1], gen = ps[i+PGEN];
-        var color = ps[i+PCLR];
+      for (let i=0; i<ps.length; i += PTOT) {
+        let x = ps[i], y = ps[i+1], gen = ps[i+PGEN];
+        let color = ps[i+PCLR];
         
         if (restrict_color != undefined && color != restrict_color) {
           continue;
         }
         
-        var ix, iy;
+        let ix, iy;
         
         if (rebase) {
           ix = ~~(size*((ps[i+PIX]+0.0001)/msize)+0.0001);
@@ -269,7 +273,7 @@ define([
           continue;
         }
         
-        var d = Math.abs(gen/(hsteps));
+        let d = Math.abs(gen/(hsteps));
         
         if (TONE_CURVE != undefined) {
           d = TONE_CURVE.evaluate(d*0.9999);
@@ -287,15 +291,15 @@ define([
         lvls[iy*size+ix] = gen;
       }
       
-      for (var i=0; i<grid.length; i++) {
+      for (let i=0; i<grid.length; i++) {
         if (grid[i] == -1) grid[i] = 0;
         if (tots[i] == 0) continue;
         
         grid[i] = ~~(255*grid[i]/tots[i]);
       }
       
-      var method = "(error)";
-      for (var k in MODES) {
+      let method = "(error)";
+      for (let k in MODES) {
         if (MODE == MODES[k]) {
           method = k;
         }
@@ -305,11 +309,11 @@ define([
         s += "%  " + label + " (as polyline):\n"
         s += "%    ["
         
-        var steps = 24;
+        let steps = 24;
         
-        for (var i=0; i<steps; i++) {
-          var x = i / (steps-1);
-          var y = cv.evaluate(x*0.999999);
+        for (let i=0; i<steps; i++) {
+          let x = i / (steps-1);
+          let y = cv.evaluate(x*0.999999);
           
           if (i > 0) s += ", "
           s += "(" + x.toFixed(4) + "," + y.toFixed(4) + ")"
@@ -317,15 +321,15 @@ define([
         
         s += "]\n"
         s += "%  ascii rendition:\n"
-        var rows = 10;
-        var cols = 30;
+        let rows = 10;
+        let cols = 30;
         
-        for (var i=0; i<rows; i++) {
+        for (let i=0; i<rows; i++) {
           s += "% "
           
-          for (var j=0; j<cols; j++) {
-            var x = j / (cols-1);
-            var y = 1.0-cv.evaluate(x);
+          for (let j=0; j<cols; j++) {
+            let x = j / (cols-1);
+            let y = 1.0-cv.evaluate(x);
             
             y = ~~(y*rows);
             
@@ -361,9 +365,9 @@ define([
       s += "\t/Height " + size + " def\n"
       s += "\t/Thresholds ("
       
-      for (var i=0; i<size*size; i++) {
-        //var th = ~~mask[i*4];
-        var th = grid[i];
+      for (let i=0; i<size*size; i++) {
+        //let th = ~~mask[i*4];
+        let th = grid[i];
         
         //th = ~~((i / (size*size))*254);
         //th = th.toString(8);
@@ -508,8 +512,8 @@ ret += `
     function save_js_matrix() {
       let ret = this.gen_js_matrix();
       
-      var blob = new Blob([ret], {type : "text/plain"});
-      var url = URL.createObjectURL(blob);
+      let blob = new Blob([ret], {type : "text/plain"});
+      let url = URL.createObjectURL(blob);
       window.open(url);
       
       return ret;
@@ -518,18 +522,18 @@ ret += `
     function save_cmatrix() {
       let ret = this.gen_cmatrix();
       
-      var blob = new Blob([ret], {type : "text/plain"});
-      var url = URL.createObjectURL(blob);
+      let blob = new Blob([ret], {type : "text/plain"});
+      let url = URL.createObjectURL(blob);
       window.open(url);
       
       return ret;
     },
     
     function save_ps_matrix() {
-      var s = this.gen_ps_matrix();
+      let s = this.gen_ps_matrix();
       
-      var blob = new Blob([s], {type : "text/plain"});
-      var url = URL.createObjectURL(blob);
+      let blob = new Blob([s], {type : "text/plain"});
+      let url = URL.createObjectURL(blob);
       window.open(url);
     },
     
@@ -545,16 +549,17 @@ ret += `
       this.raster();
       redraw_all();
       
-      var data = this.mask_img.data;
-      for (var i=0; i<data.length; i += 4) {
+      let data = this.mask_img.data;
+      for (let i=0; i<data.length; i += 4) {
         if (data[i+3] == 0) {
-//          data[i] = data[i+1] = data[i+2] = 0;
-  //        data[i+3] = 255;  
+          //data[i] = data[i+1] = data[i+2] = 0;
+          //data[i+3] = 255;  
+          //data[i+3] = 10;
         }
-        data[i+3] = 10;
+        
       }
 
-      var g = this.mask_g;
+      let g = this.mask_g;
       
       g.globalAlpha = 0.0;
       g.putImageData(this.mask_img, 0, 0);
@@ -603,13 +608,13 @@ ret += `
       canvas.style["alpha"] = "0.0";
       canvas.style["background-color"] = "rgba(0,0,0,0)";
       
-      var g = this.mask_g;
+      let g = this.mask_g;
       g.globalAlpha = 0.0;
       g.globalCompositeOperation = "copy";
       g.clearRect(0, 0, canvas.width, canvas.height);
       
-      var data = this.mask_img.data;
-      for (var i=0; i<data.length; i += 4) {
+      let data = this.mask_img.data;
+      for (let i=0; i<data.length; i += 4) {
         if (data[i+3] == 0) {
           //data[i] = data[i+1] = data[i+2] = 0;
           //data[i+3] = 255;  
@@ -632,14 +637,14 @@ ret += `
     function next_level(steps) {
       steps = steps == undefined ? 1 : steps;
       
-      for (var i=0; i<steps; i++) {
+      for (let i=0; i<steps; i++) {
         this.generator.next_level();
       }
     },
     
     function draw_transform(g) {
-      var w = this.canvas.width, h = this.canvas.height;
-      var sz = Math.max(w, h);
+      let w = this.canvas.width, h = this.canvas.height;
+      let sz = Math.max(w, h);
       
       g.lineWidth /= sz*SCALE*0.5;
       
@@ -664,9 +669,9 @@ ret += `
     }),
     
     function report() {
-      var s = "";
+      let s = "";
       
-      for (var i=0; i<arguments.length; i++) {
+      for (let i=0; i<arguments.length; i++) {
         if (i > 0) s += " "
         
         s += arguments[i];
@@ -685,11 +690,11 @@ ret += `
     },
     
     function redraw_report() {
-      var r = document.getElementById("messages");
-      var ls = this.report_lines;
+      let r = document.getElementById("messages");
+      let ls = this.report_lines;
       
-      var s = "";
-      for (var i=0; i<ls.length; i++) {
+      let s = "";
+      for (let i=0; i<ls.length; i++) {
         s += ls[i] + "<br>\n";
       }
       
@@ -697,7 +702,7 @@ ret += `
     },
     
     function draw() {
-      var g = this.g; 
+      let g = this.g; 
       
       this.canvas.width = window.innerWidth;
       this.canvas.height = window.innerHeight;
@@ -705,28 +710,28 @@ ret += `
       g.clearRect(0, 0, this.canvas.width, this.canvas.height);
       
       if (this.fft_image != undefined) {
-        var fftx=20, ffty=350;
+        let fftx=20, ffty=350;
         g.putImageData(this.fft_image, fftx, ffty);
         
-        var steps = 32;
-        var t = 0, dt = 1.0 / (steps-1);
+        let steps = 32;
+        let t = 0, dt = 1.0 / (steps-1);
         
-        var h = 40;
-        var y = ffty+this.fft_image.height + h + 2;
+        let h = 40;
+        let y = ffty+this.fft_image.height + h + 2;
         
         g.strokeStyle = "black";
         g.beginPath();
         
-        var first = 1;
+        let first = 1;
         
-        for (var i=0; i<steps; i++, t += dt) {
-          var f = this._fft.eval_radial(t);
+        for (let i=0; i<steps; i++, t += dt) {
+          let f = this._fft.eval_radial(t);
           
           //if (f < 0) continue; //fft wants us to skip this t value
           f = 1.0 - f;
           
-          var x2 = fftx + i*3;
-          var y2 = y + f*h;
+          let x2 = fftx + i*3;
+          let y2 = y + f*h;
           //y2 = y;
           
           if (first) {
@@ -741,9 +746,9 @@ ret += `
       }
       
       if (DRAW_MASK) {
-        var mg = this.mask_g;
+        let mg = this.mask_g;
         
-        var gen = this.generator;
+        let gen = this.generator;
         let curmask = CURRENT_MASK;
         
         if (curmask <= gen.masks.length) {
@@ -753,8 +758,8 @@ ret += `
         }
         g.imageSmoothingEnabled = false;
         
-        var msize = this.mask_canvas.width;
-        var tottile= DISPLAY_TILED ? 4 : 1;
+        let msize = this.mask_canvas.width;
+        let tottile= DISPLAY_TILED ? 4 : 1;
         
         g.save();
         g.scale(SCALE*7, SCALE*7);
@@ -765,8 +770,8 @@ ret += `
         
         this.mask_canvas.style["alpha"] = 0.0;
         
-        for (var x=0; x<tottile; x++) {
-          for (var y=0; y<tottile; y++) {
+        for (let x=0; x<tottile; x++) {
+          for (let y=0; y<tottile; y++) {
             
             g.beginPath();
             g.fillStyle = "rgb(0, 0, 0)";
@@ -844,13 +849,13 @@ ret += `
       }
       g.beginPath();
       
-      var restrict = DRAW_RESTRICT_LEVEL;
+      let restrict = DRAW_RESTRICT_LEVEL;
       
-      var ps = this.generator.points;
-      var ps2 = this.generator.get_visible_points(restrict);
+      let ps = this.generator.points;
+      let ps2 = this.generator.get_visible_points(restrict);
       
-      var colors = this.generator.colors;
-      var drmul = DRAW_RMUL*this.generator.draw_rmul;
+      let colors = this.generator.colors;
+      let drmul = DRAW_RMUL*this.generator.draw_rmul;
       
       let maskcolors = [
         "red",
@@ -871,14 +876,14 @@ ret += `
         [0.5, 0.5, 0.35]
       ]
       
-      for (var _j=0; !this.generator.skip_point_draw && _j<colors.length; _j++) {
-        var j = _j % colors.length;
+      for (let _j=0; !this.generator.skip_point_draw && _j<colors.length; _j++) {
+        let j = _j % colors.length;
         
         if (DRAW_COLOR) {
-          var c = colors[j];
-          var r = ~~(c[0]*255);
-          var g1 = ~~(c[1]*255);
-          var b = ~~(c[2]*255);
+          let c = colors[j];
+          let r = ~~(c[0]*255);
+          let g1 = ~~(c[1]*255);
+          let b = ~~(c[2]*255);
           g.fillStyle = "rgb("+r+","+g1+","+b+")";
         }
         
@@ -886,20 +891,20 @@ ret += `
           g.fillStyle = "red";
         }
         
-        var draw_all_masks = DRAW_ALL_MASKS && this.generator.masks.length > 1;
+        let draw_all_masks = DRAW_ALL_MASKS && this.generator.masks.length > 1;
         
-        var maxgen = this.generator.max_level();
+        let maxgen = this.generator.max_level();
         
-        for (var si=0; si<_poffs.length; si++) {
+        for (let si=0; si<_poffs.length; si++) {
           if (!DRAW_TILED && si > 0)
             break;
             
           g.beginPath();
           
-          for (var i=0; i<ps2.length; i += PTOT) {
-            var x = ps2[i], y = ps2[i+1], r = ps2[i+PR], gen = ps2[i+PGEN];
-            var color = ps2[i+PCLR];
-            var mi = ps[i+PMASK];
+          for (let i=0; i<ps2.length; i += PTOT) {
+            let x = ps2[i], y = ps2[i+1], r = ps2[i+PR], gen = ps2[i+PGEN];
+            let color = ps2[i+PCLR];
+            let mi = ps[i+PMASK];
             
             if (!draw_all_masks && mi !== CURRENT_MASK) {
               continue;
@@ -1055,15 +1060,14 @@ ret += `
           }
           break;
         case 83: //skey
-          this.save_mask().then((url) => {
-            window.open(url);
-          });
-          
           let dataurl = this.save_dataurl();
           //localStorage.startup_mask_bn4 = dataurl;
           new indexdb_store.IndexDBStore("bluenoise_mask").write("data", _appstate.save_dataurl());
 
-          window.open(dataurl);
+          this.save_mask().then((url) => {
+            window.open(url);
+          });
+          //window.open(dataurl);
           
           redraw_all();
           break;
@@ -1086,8 +1090,8 @@ ret += `
           
           break;
         case 73: //ikey
-          var start = util.time_ms();
-          var report = 0;
+          let start = util.time_ms();
+          let report = 0;
           
           while (util.time_ms() - start < 700) {
             this.step(undefined, report++);
@@ -1113,7 +1117,7 @@ ret += `
       
       ui.destroy_all_settings();
       
-      for (var i=0; i<generators.length; i++) {
+      for (let i=0; i<generators.length; i++) {
         if (generators[i].destroy_all_settings !== undefined) {
           generators[i].destroy_all_settings();
         }
@@ -1162,7 +1166,7 @@ ret += `
       this.gui2 = undefined;
       
       /*
-      var this2 = this;
+      let this2 = this;
       require.undef("const");
       require(["const"], function(module) {
         cconst = module;
@@ -1180,11 +1184,11 @@ ret += `
         this.gui2.destroy();
       }
       
-      var panel = this.gui2 = new ui.UI("bn9_gui2", window); //XXX don't use window!
+      let panel = this.gui2 = new ui.UI("bn9_gui2", window); //XXX don't use window!
       panel.check('GEN_MASK', 'Generate Mask');
       
       this.gui2._mode = MODE; //XXX shoud get from gen
-      var this2 = this;
+      let this2 = this;
       
       panel.button('save_mask', "Save To Cache", function() {
         this2.report("\nSaving blue noise mask to local storage");
@@ -1194,7 +1198,7 @@ ret += `
         //localStorage.startup_mask_bn4 = _appstate.save_dataurl();
       });
       
-      var panel2 = panel.panel("Tone Curve");
+      let panel2 = panel.panel("Tone Curve");
       window.TONE_CURVE = panel2.curve('TONE_CURVE', 'Tone Curve', presets.TONE_CURVE).curve;
       panel2.check('USE_TONE_CURVE', 'Enable Tone Curve');
       panel2.close();
@@ -1211,7 +1215,7 @@ ret += `
       
       panel.check("GEN_CMYK_MASK", "Make Color Mask");
       
-      var panel2 = panel.panel("FFT");
+      panel2 = panel.panel("FFT");
       window.FFT_CURVE = panel2.curve('FFT_CURVE', 'Radial Spectrum', presets.FFT_CURVE).curve;
       panel2.close();
       
@@ -1235,7 +1239,7 @@ ret += `
         this.gui2.load();
       }
       
-      var panel = this.gui = new ui.UI("bn9_gui1", window);
+      let panel = this.gui = new ui.UI("bn9_gui1", window);
         
       panel.button('fft', "FFT", function() {
         if (window._fft_timer != undefined) {
@@ -1248,15 +1252,15 @@ ret += `
         _appstate.fft();
       });
       
-      var uinames = {};
-      for (var k in MODES) {
-        var k2 = k[0] + k.slice(1, k.length).toLowerCase();
+      let uinames = {};
+      for (let k in MODES) {
+        let k2 = k[0] + k.slice(1, k.length).toLowerCase();
         k2 = k2.replace(/[_]+/g, " ");
         
         uinames[k2] = MODES[k];
       }
       
-      var mode = parseInt(ui.load_setting('MODE'));
+      let mode = parseInt(ui.load_setting('MODE'));
       
       if (!isNaN(mode))
         window.MODE = mode;
@@ -1272,7 +1276,7 @@ ret += `
         window.redraw_all();
       });
       
-      var startb = panel.button('start', 'Start Generating', function() {
+      let startb = panel.button('start', 'Start Generating', function() {
         _appstate.generator.toggle_timer_loop(_appstate, false);
         
         if (_appstate.timer != undefined) {
@@ -1293,7 +1297,7 @@ ret += `
         });
       });
       
-      var this2 = this;
+      let this2 = this;
       
       panel.button("save_cmatrix", "Save C matrix", function() {
         _appstate.save_cmatrix();
@@ -1347,7 +1351,7 @@ ret += `
     return exports;
   }
   
-  var animreq = undefined;
+  let animreq = undefined;
   window.redraw_all = function() {
     if (animreq == undefined) {
       animreq = requestAnimationFrame(function() {
@@ -1362,6 +1366,8 @@ ret += `
   console.log("loaded");
   
   window._appstate = new AppState();
+  _appstate.canvas = document.getElementById("canvas");
+  _appstate.g = _appstate.canvas.getContext("2d");
   _appstate.load();
   _appstate.build_ui();
   _appstate.reset();
@@ -1370,10 +1376,7 @@ ret += `
   window.setInterval(() => {
     _appstate.on_tick();
   }, 150);
-  
-  _appstate.canvas = document.getElementById("canvas");
-  _appstate.g = _appstate.canvas.getContext("2d");
-  
+
   redraw_all();
   
   window.addEventListener("keydown", _appstate.on_keydown.bind(_appstate));

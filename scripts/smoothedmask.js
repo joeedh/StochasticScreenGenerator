@@ -1,4 +1,4 @@
-var _smoothedmask = undefined;
+let _smoothedmask = undefined;
 
 define([
   "util", "vectormath", "kdtree", "const", "linear_algebra", "binomial_table", "smoothmask", "interface", "void_cluster", "mitchell", "darts", "indexdb_store", "ui", "./sph_progressive_noise_5/scripts/sph",
@@ -235,6 +235,7 @@ define([
   
   let WHITE_NOISE_PATTERN = 100;
   let GRATING_NOISE_PATTERN = 101;
+  let RAMP_NOISE_PATTERN = 102;
   
   //"optional" fract
   function optfract(f) {
@@ -262,7 +263,7 @@ define([
   }
   
   //snap to nearest intensity level
-  var clampify = exports.clampify = function clampify(ctx, t) {
+  let clampify = exports.clampify = function clampify(ctx, t) {
     return Math.floor(t*ctx.RANGE + 0.0001/ctx.RANGE)/ctx.RANGE;
   }
 
@@ -1082,6 +1083,7 @@ define([
       
       modes["White Noise"] = WHITE_NOISE_PATTERN;
       modes["Grating Noise"] = GRATING_NOISE_PATTERN;
+      modes["Simple"] = RAMP_NOISE_PATTERN;
 
       panel.listenum("SM_START_GENERATOR", "Start Pattern", modes, config.SM_START_GENERATOR, () => {
         //
@@ -1352,6 +1354,58 @@ define([
                 ps[pi+1] += Math.fract(ps[pi]*this.dimen/2.0)/this.dimen;
                 ps[pi+1] = Math.fract(ps[pi+1]);
             }
+          }
+      } else if (mode == RAMP_NOISE_PATTERN) {
+          let totpoint = dimen*dimen*ctx.SM_TOTPOINT_MUL;
+
+          dimen = Math.ceil(Math.sqrt(totpoint)*0.935);
+          let dimen3 = Math.ceil(Math.sqrt(dimen*dimen*ctx.SM_TOTPOINT_MUL));
+          dimen2 = Math.ceil(dimen3*2.5);
+
+          let ps = this.points = [];
+          
+          console.log("DIMEN2", dimen2);
+          
+          for (let i=0; i<dimen3*dimen2; i++) {
+            let ix = i % dimen2, iy = ~~(i / dimen2);
+            
+            let x = ix/dimen3, y = iy/dimen3;
+            x *= Math.sqrt(3)*0.5;
+
+            if (ix % 2 == 0) {
+              y += 0.5/dimen3;
+            }
+            
+            x += 0.5/dimen3;
+            y += 0.5/dimen3;
+
+            if (x <= 0 || y < 0 || x > 1.0 || y > 1) {
+              continue;
+            }
+            
+            let pi = ps.length;
+            for (let j=0; j<PTOT; j++) {
+              ps.push(0.0);
+            }
+
+            let gen = i/(dimen3*dimen2); //grating(ix, iy);
+            
+            ps[pi+PGEN] = ps[pi+POGEN] = gen;
+            
+            let r = 0.95 / Math.sqrt(gen*dimen2*dimen2 + dimen2*dimen2*ctx.SM_GENSTART);
+            ps[pi+PR] = r;
+            
+            let maxr = 0.95 / Math.sqrt(dimen2*dimen2*ctx.SM_GENSTART);
+            let rf = Math.pow(r/maxr, 2.0)*maxr;
+            
+            //x += 0.1*r*(random()-0.5)//dimen2;
+            //y += 0.1*r*(random()-0.5)//dimen2;
+            
+            ps[pi] = x;
+            ps[pi+1] = y;
+            
+            ps[pi+PSTARTX] = ps[pi];
+            ps[pi+PSTARTY] = ps[pi+1];
           }
       } else if (mode == GRATING_NOISE_PATTERN) {
           function grating(ix, iy) {

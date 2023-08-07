@@ -29,6 +29,8 @@ window.MODES = {
   VOID_CLUSTER_CMYK : 8*/
 };
 
+window.MODE = 0;
+
 window.DRAW_GRID = false;
 window.MODE = MODES.DART;
 window.VOID_HEX_MODE = false;
