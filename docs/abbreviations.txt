@@ -1,0 +1,7 @@
+==Standard variable abbreviations==
+
+mi     : mask index
+pi     : point index
+gi     : grid index
+gen    : generation
+ps     : points

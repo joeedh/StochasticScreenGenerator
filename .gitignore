@@ -1,0 +1,5 @@
+# Ignore any python bytecode.
+*.pyc
+nodejs/scripts
+nodejs/node_modules
+nodejs/package
