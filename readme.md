@@ -1,7 +1,7 @@
 Stochastic Screen Generator (for printing, stippling, etc)
 ==========================================
 
-[Click here to try it out](http://joeedh.github.io/StochasticScreenGenerator/bluenoise9.html)
+[Click here to try it out](http://joeedh.github.io/StochasticScreenGenerator/index.html)
 
 This little web app generates stochastic (blue noise) screens
 for digital halftoning/stippling.  It has four methods:
@@ -24,7 +24,7 @@ for digital halftoning/stippling.  It has four methods:
 Usage
 =====
 
-Load bluenoise9.html in a web browser.  Press "Start Generating".
+Load index.html in a web browser.  Press "Start Generating".
 
 ![example image](http://joeedh.github.io/StochasticScreenGenerator/examples/Startup.png "Example")
 
