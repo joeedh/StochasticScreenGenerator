@@ -99,7 +99,7 @@ window.SCALE = 0.5;
 window.PANX = 0.0;
 window.PANY = 0.0;
 window.DRAW_KDTREE = false;
-window.DRAW_MASK = false;
+window.DRAW_MASK = true;
 window.SCAN_MODE = false;
 
 window.TILABLE = true;
@@ -127,7 +127,7 @@ Math.random = function() {
 window.DRAW_RESTRICT_LEVEL = 1;
 window.DRAW_TILED = false;
 
-window.SMALL_MASK = false;
+window.SMALL_MASK = true;
 window.XLARGE_MASK = false;
 
 window.STEPS = 760;

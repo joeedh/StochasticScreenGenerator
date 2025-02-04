@@ -3,10 +3,10 @@
 var _void_cluster = undefined;
 
 define([
-  "util", "const", "interface", "vectormath", "kdtree", "darts", "sph_old",
+  "util", "const", "interface", "vectormath", "kdtree", "darts",
   "fft", "report", "presets"
 ], function(util, cconst, sinterface, vectormath, kdtree, darts, 
-            sph, fft, report, presets) 
+            fft, report, presets) 
 {
   'use strict';
   

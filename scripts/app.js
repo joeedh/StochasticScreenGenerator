@@ -107,6 +107,7 @@ define([
       
       this.generator.set_config(new iface.MaskConfig());
       this.generator.reset(size, this, this.mask_img, generators);
+      this.generator.toggle_timer_loop(this, false);
       window.redraw_all();
     },
     
