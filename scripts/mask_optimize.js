@@ -560,7 +560,7 @@ define([
     }
   };
 
-  sinterface.MaskGenerator.register(config, MaskOptGenerator, "MASKOPT");
+  sinterface.MaskGenerator.register(config, MaskOptGenerator, "MASKOPT", 5);
   
   return exports;
 });

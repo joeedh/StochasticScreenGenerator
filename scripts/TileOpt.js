@@ -275,7 +275,7 @@ define(["util", "vectormath", "interface", "const"],
 
     }
 
-    sinterface.MaskGenerator.register(config, TileOptGenerator, "TILEOPT");
+    sinterface.MaskGenerator.register(config, TileOptGenerator, "TILEOPT", 9);
 
     return exports;
 });

@@ -853,7 +853,7 @@ define([
     }
   }
   
-  iface.MaskGenerator.register(config, SPHGenerator, "SPH");
+  iface.MaskGenerator.register(config, SPHGenerator, "SPH", 7);
 
   return exports;
 });

@@ -359,7 +359,7 @@ define([
     }
   };
   
-  sinterface.MaskGenerator.register(config, BlueVCGenerator, "BLUEVC");
+  sinterface.MaskGenerator.register(config, BlueVCGenerator, "BLUEVC", 6);
   
   return exports;
 });

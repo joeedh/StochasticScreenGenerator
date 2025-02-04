@@ -764,7 +764,7 @@ define([
     }
   };
   
-  sinterface.MaskGenerator.register(config, DartsGenerator, "DART");
+  sinterface.MaskGenerator.register(config, DartsGenerator, "DART", 1);
   
   return exports;
 });

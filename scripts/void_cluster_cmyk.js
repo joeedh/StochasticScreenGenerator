@@ -819,7 +819,7 @@ define([
   };
   
   //reuses normal void cluster's settings
-  sinterface.MaskGenerator.register(config, VoidClusterGeneratorCMYK, "VOID_CLUSTER_CMYK");
+  sinterface.MaskGenerator.register(config, VoidClusterGeneratorCMYK, "VOID_CLUSTER_CMYK", 8);
   
   return exports;
 });

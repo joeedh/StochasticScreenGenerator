@@ -256,15 +256,24 @@ define([
       this.add_mask();
     }
     
-    static register(config, cls, enum_name=cls.name) {
+    static register(config, cls, enum_name=cls.name, order) {
       if (cls === undefined) {
         throw new Error("bad call to MaskGenerator.register");
       }
       
+      if (order === undefined) {
+        throw new Error('order cannot be undefined for' + cls.name);
+      }
+
+      cls.enumName = enum_name
       MaskConfig.registerConfig(config, cls);
+      cls.order = order
       exports.generators.push(cls);
-      
-      window.MODES[enum_name] = exports.generators.length-1;
+      exports.generators.sort((a, b) => a.order - b.order);
+
+      for (const cls2 of exports.generators) {
+        window.MODES[cls2.enumName] = exports.generators.findIndex(a => a === cls2)
+      }
     }
     
     gen_masks(count) {

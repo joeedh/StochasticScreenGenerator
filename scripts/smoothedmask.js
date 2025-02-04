@@ -3280,7 +3280,7 @@ define([
     }
   }
   
-  sinterface.MaskGenerator.register(config, SmoothedMaskGenerator, "SMOOTHMASK");
+  sinterface.MaskGenerator.register(config, SmoothedMaskGenerator, "SMOOTHMASK", 0);
   
   return exports;
 });

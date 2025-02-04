@@ -1144,7 +1144,7 @@ define([
     }
   };
   
-    sinterface.MaskGenerator.register(config, VoidClusterGenerator, "VOID_CLUSTER");
+    sinterface.MaskGenerator.register(config, VoidClusterGenerator, "VOID_CLUSTER", 2);
 
   return exports;
 });

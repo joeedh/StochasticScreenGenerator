@@ -681,7 +681,7 @@ define([
     }
   };
   
-  sinterface.MaskGenerator.register(config, MitchellGenerator, "MITCHELL");
+  sinterface.MaskGenerator.register(config, MitchellGenerator, "MITCHELL", 4);
 
   return exports;
 });
